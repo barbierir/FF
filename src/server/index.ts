@@ -1,16 +1,19 @@
 import { createServer } from "node:http";
 import { URL } from "node:url";
 import { JsonStore } from "./storage/jsonStore.ts";
-import { RULESET_VERSION } from "../core/types.ts";
-import type { CreatureSpec, Move } from "../core/types.ts";
 import type { LeaderboardMetric, LeaderboardScope } from "./economy/leaderboards.ts";
 import type { Side } from "./storage/types.ts";
 import type { SummaryV1 } from "../core/sim/simulate.ts";
 import { renderReplayPage } from "./pages/replayPage.ts";
 import { renderOgSvg } from "./pages/ogImage.ts";
+import { HttpError } from "./errors.ts";
+import { dayKey, getRequestIp, TokenBucketRateLimiter } from "./rateLimit.ts";
+import { maybeValidatePlayerId, validateCreatureSpec, validateExpiresInHours, validateId, validateMoves } from "./validate.ts";
 
 const store = new JsonStore();
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
+const limiter = new TokenBucketRateLimiter();
+const shareIpDailyCounts = new Map<string, number>();
 
 function sendJson(res: import("node:http").ServerResponse, status: number, body: unknown): void {
   res.statusCode = status;
@@ -19,6 +22,10 @@ function sendJson(res: import("node:http").ServerResponse, status: number, body:
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.end(JSON.stringify(body));
+}
+
+function sendError(res: import("node:http").ServerResponse, status: number, code: string, message: string): void {
+  sendJson(res, status, { error: { code, message } });
 }
 
 async function parseJsonBody(req: import("node:http").IncomingMessage): Promise<unknown> {
@@ -32,19 +39,11 @@ async function parseJsonBody(req: import("node:http").IncomingMessage): Promise<
   }
 
   const raw = Buffer.concat(chunks).toString("utf8");
-  return JSON.parse(raw);
-}
-
-function isCreatureSpec(value: unknown): value is CreatureSpec {
-  if (!value || typeof value !== "object") {
-    return false;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new HttpError(400, "invalid_json", "Request body must be valid JSON");
   }
-  const c = value as Record<string, unknown>;
-  return c.rulesetVersion === RULESET_VERSION && typeof c.classKey === "string" && Number.isInteger(c.cosmeticSeed);
-}
-
-function isMoveArray(value: unknown): value is Move[] {
-  return Array.isArray(value);
 }
 
 function getBaseUrl(req: import("node:http").IncomingMessage): string {
@@ -55,241 +54,288 @@ function getBaseUrl(req: import("node:http").IncomingMessage): string {
   return `${proto}://${host}`;
 }
 
-createServer(async (req, res) => {
-  try {
-    if (!req.url || !req.method) {
-      sendJson(res, 400, { error: "Invalid request" });
-      return;
-    }
+function enforceRateLimit(req: import("node:http").IncomingMessage, key: string, perMin: number): void {
+  const ip = getRequestIp(req);
+  if (!limiter.allow(`${key}:${ip}`, perMin)) {
+    throw new HttpError(429, "rate_limited", "Rate limit exceeded");
+  }
+}
 
-    if (req.method === "OPTIONS") {
-      sendJson(res, 204, {});
-      return;
-    }
+function enforceShareIpDailyCap(req: import("node:http").IncomingMessage): void {
+  const ip = getRequestIp(req);
+  const key = `${ip}:${dayKey(new Date().toISOString())}`;
+  const next = (shareIpDailyCounts.get(key) ?? 0) + 1;
+  if (next > 200) {
+    throw new HttpError(429, "share_ip_cap_reached", "Daily share cap reached for this IP");
+  }
+  shareIpDailyCounts.set(key, next);
+}
 
-    const url = new URL(req.url, `http://localhost:${PORT}`);
-    const path = url.pathname;
-
-    if (req.method === "GET" && path === "/") {
-      res.statusCode = 200;
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.end("<!doctype html><html><body><h1>Fart And Furious</h1><p>Replay page: /r/:publicId</p><p>Replay API: /api/replay/:publicId</p></body></html>");
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/players/guest") {
-      const profile = await store.getOrCreatePlayer();
-      sendJson(res, 200, { playerId: profile.id, profile });
-      return;
-    }
-
-    const playerMeta = path.match(/^\/api\/players\/([^/]+)$/);
-    if (req.method === "GET" && playerMeta) {
-      const playerId = decodeURIComponent(playerMeta[1]);
-      const profile = await store.getOrCreatePlayer(playerId);
-      const nowISO = new Date().toISOString();
-      const todayMission = await store.checkAndAwardDailyMission(playerId, nowISO);
-      const daily = await store.getLeaderboard("daily", "stinkFame");
-      const weekly = await store.getLeaderboard("weekly", "stinkFame");
-      sendJson(res, 200, {
-        profile,
-        todayMission,
-        leaderboards: { dailyStinkFame: daily, weeklyStinkFame: weekly },
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/challenges") {
-      const body = (await parseJsonBody(req)) as { creatureA?: CreatureSpec; expiresInHours?: number; playerId?: string };
-      if (!isCreatureSpec(body.creatureA)) {
-        sendJson(res, 400, { error: "Invalid creatureA" });
+export function createApiServer(): import("node:http").Server {
+  return createServer(async (req, res) => {
+    try {
+      if (!req.url || !req.method) {
+        sendError(res, 400, "invalid_request", "Invalid request");
         return;
       }
 
-      const creator = await store.getOrCreatePlayer(body.playerId);
-      const challenge = await store.createChallenge({
-        creatureA: body.creatureA,
-        expiresInHours: body.expiresInHours,
-        playerAId: creator.id,
-      });
-      sendJson(res, 200, {
-        token: challenge.token,
-        url: `/c/${challenge.token}`,
-        playerId: creator.id,
-        challenge,
-      });
-      return;
-    }
-
-    const acceptMatch = path.match(/^\/api\/challenges\/([^/]+)\/accept$/);
-    if (req.method === "POST" && acceptMatch) {
-      const token = decodeURIComponent(acceptMatch[1]);
-      const body = (await parseJsonBody(req)) as { creatureB?: CreatureSpec; playerId?: string };
-      if (!isCreatureSpec(body.creatureB)) {
-        sendJson(res, 400, { error: "Invalid creatureB" });
+      if (req.method === "OPTIONS") {
+        sendJson(res, 204, {});
         return;
       }
 
-      const joiner = await store.getOrCreatePlayer(body.playerId);
-      const match = await store.acceptChallenge(token, body.creatureB, joiner.id);
-      sendJson(res, 200, {
-        matchId: match.id,
-        publicId: match.publicId,
-        status: match.status,
-        playerId: joiner.id,
-      });
-      return;
-    }
+      const url = new URL(req.url, `http://localhost:${PORT}`);
+      const path = url.pathname;
 
-    const movesMatch = path.match(/^\/api\/matches\/([^/]+)\/moves$/);
-    if (req.method === "POST" && movesMatch) {
-      const matchId = decodeURIComponent(movesMatch[1]);
-      const body = (await parseJsonBody(req)) as { side?: Side; moves?: Move[] };
-      if (body.side !== "A" && body.side !== "B") {
-        sendJson(res, 400, { error: "Invalid side" });
+      if (req.method === "GET" && path === "/") {
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end("<!doctype html><html><body><h1>Fart And Furious</h1><p>Replay page: /r/:publicId</p><p>Replay API: /api/replay/:publicId</p></body></html>");
         return;
       }
 
-      if (!isMoveArray(body.moves)) {
-        sendJson(res, 400, { error: "Invalid moves" });
+      if (req.method === "POST" && path === "/api/players/guest") {
+        const profile = await store.getOrCreatePlayer();
+        sendJson(res, 200, { playerId: profile.id, profile });
         return;
       }
 
-      await store.submitMoves(matchId, body.side, body.moves);
-      const finalized = await store.finalizeMatchIfReady(matchId);
-      if (finalized.status === "finished") {
-        const payload = await store.getFinalizedPayload(matchId);
+      const playerMeta = path.match(/^\/api\/players\/([^/]+)$/);
+      if (req.method === "GET" && playerMeta) {
+        const playerId = validateId("playerId", decodeURIComponent(playerMeta[1]), 3);
+        const profile = await store.getOrCreatePlayer(playerId);
+        const nowISO = new Date().toISOString();
+        const todayMission = await store.checkAndAwardDailyMission(playerId, nowISO);
+        const daily = await store.getLeaderboard("daily", "stinkFame");
+        const weekly = await store.getLeaderboard("weekly", "stinkFame");
         sendJson(res, 200, {
-          status: "finished",
-          summary: payload?.summary,
-          replayUrl: `/api/replay/${finalized.publicId}`,
+          profile,
+          todayMission,
+          leaderboards: { dailyStinkFame: daily, weeklyStinkFame: weekly },
         });
         return;
       }
 
-      sendJson(res, 200, { status: "waiting_for_opponent" });
-      return;
-    }
+      if (req.method === "POST" && path === "/api/challenges") {
+        enforceRateLimit(req, "createChallenge", 10);
+        const body = (await parseJsonBody(req)) as { creatureA?: unknown; expiresInHours?: unknown; playerId?: unknown };
+        const creatureA = validateCreatureSpec(body.creatureA);
+        const expiresInHours = validateExpiresInHours(body.expiresInHours);
+        const playerId = maybeValidatePlayerId(body.playerId);
 
-    const replayShare = path.match(/^\/api\/replay\/([^/]+)\/share$/);
-    if (req.method === "POST" && replayShare) {
-      const publicId = decodeURIComponent(replayShare[1]);
-      const body = (await parseJsonBody(req)) as { playerId?: string };
-      const profile = await store.getOrCreatePlayer(body.playerId);
-      const result = await store.recordShare(profile.id, publicId);
-      const updated = await store.getOrCreatePlayer(profile.id);
-      sendJson(res, 200, { ...result, profile: updated, playerId: profile.id });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/leaderboards") {
-      const scope = (url.searchParams.get("scope") ?? "daily") as LeaderboardScope;
-      const metricRaw = url.searchParams.get("metric") ?? "stinkFame";
-      const metric = metricRaw === "stinkFame" || metricRaw === "maxHit" || metricRaw === "cataclysms" ? (metricRaw as LeaderboardMetric) : "stinkFame";
-      if (scope !== "daily" && scope !== "weekly") {
-        sendJson(res, 400, { error: "Invalid scope" });
-        return;
-      }
-      const rows = await store.getLeaderboard(scope, metric);
-      sendJson(res, 200, { scope, metric, rows });
-      return;
-    }
-
-    const matchMeta = path.match(/^\/api\/matches\/([^/]+)$/);
-    if (req.method === "GET" && matchMeta) {
-      const matchId = decodeURIComponent(matchMeta[1]);
-      const match = await store.getMatch(matchId);
-      if (!match) {
-        sendJson(res, 404, { error: "Match not found" });
+        const creator = await store.getOrCreatePlayer(playerId);
+        const challenge = await store.createChallenge({
+          creatureA,
+          expiresInHours,
+          playerAId: creator.id,
+        });
+        sendJson(res, 200, {
+          token: challenge.token,
+          url: `/c/${challenge.token}`,
+          playerId: creator.id,
+          challenge,
+        });
         return;
       }
 
-      const payload = await store.getFinalizedPayload(matchId);
-      sendJson(res, 200, {
-        id: match.id,
-        publicId: match.publicId,
-        status: match.status,
-        challengeId: match.challengeId,
-        seedHex: match.seed_hex,
-        summary: payload?.summary,
-      });
-      return;
-    }
-
-    const replayMatch = path.match(/^\/api\/replay\/([^/]+)$/);
-    if (req.method === "GET" && replayMatch) {
-      const publicId = decodeURIComponent(replayMatch[1]);
-      const replay = await store.getReplayByPublicId(publicId);
-      if (!replay) {
-        sendJson(res, 404, { error: "Replay not found" });
+      const acceptMatch = path.match(/^\/api\/challenges\/([^/]+)\/accept$/);
+      if (req.method === "POST" && acceptMatch) {
+        enforceRateLimit(req, "acceptChallenge", 20);
+        const token = validateId("token", decodeURIComponent(acceptMatch[1]));
+        const body = (await parseJsonBody(req)) as { creatureB?: unknown; playerId?: unknown };
+        const creatureB = validateCreatureSpec(body.creatureB);
+        const joiner = await store.getOrCreatePlayer(maybeValidatePlayerId(body.playerId));
+        const match = await store.acceptChallenge(token, creatureB, joiner.id);
+        sendJson(res, 200, {
+          matchId: match.id,
+          publicId: match.publicId,
+          status: match.status,
+          playerId: joiner.id,
+        });
         return;
       }
 
-      sendJson(res, 200, {
-        input: replay.input,
-        events: replay.events,
-        summary: replay.summary,
-        matchHash: replay.matchHash,
-        seedHex: replay.seedHex,
-      });
-      return;
-    }
+      const movesMatch = path.match(/^\/api\/matches\/([^/]+)\/moves$/);
+      if (req.method === "POST" && movesMatch) {
+        enforceRateLimit(req, "submitMoves", 30);
+        const matchId = validateId("matchId", decodeURIComponent(movesMatch[1]), 4);
+        const body = (await parseJsonBody(req)) as { side?: Side; moves?: unknown };
+        if (body.side !== "A" && body.side !== "B") {
+          throw new HttpError(400, "invalid_side", "side must be 'A' or 'B'");
+        }
 
-    const replayPageMatch = path.match(/^\/r\/([^/]+)$/);
-    if (req.method === "GET" && replayPageMatch) {
-      const publicId = decodeURIComponent(replayPageMatch[1]);
-      const match = await store.getMatchByPublicId(publicId);
-      if (!match || match.status !== "finished" || !match.summary_json || !match.seed_hex || !match.match_hash_hex) {
-        res.statusCode = 404;
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        res.end("Replay not found");
+        const match = await store.getMatch(matchId);
+        if (!match) {
+          throw new HttpError(404, "match_not_found", "Match not found");
+        }
+        if (match.status === "finished") {
+          throw new HttpError(409, "match_finished", "Match is already finished");
+        }
+
+        const challengeObj = await store.getChallengeById(match.challengeId);
+
+        const classKey = body.side === "A" ? challengeObj?.creatureA?.classKey : challengeObj?.creatureB?.classKey;
+        if (!classKey) {
+          throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
+        }
+        const moves = validateMoves(classKey, body.moves);
+
+        await store.submitMoves(matchId, body.side, moves);
+        const finalized = await store.finalizeMatchIfReady(matchId);
+        if (finalized.status === "finished") {
+          const payload = await store.getFinalizedPayload(matchId);
+          sendJson(res, 200, {
+            status: "finished",
+            summary: payload?.summary,
+            replayUrl: `/api/replay/${finalized.publicId}`,
+          });
+          return;
+        }
+
+        sendJson(res, 200, { status: "waiting_for_opponent" });
         return;
       }
 
-      const html = renderReplayPage({
-        publicId,
-        replayData: {
+      const replayShare = path.match(/^\/api\/replay\/([^/]+)\/share$/);
+      if (req.method === "POST" && replayShare) {
+        enforceRateLimit(req, "share", 60);
+        enforceShareIpDailyCap(req);
+        const publicId = validateId("publicId", decodeURIComponent(replayShare[1]));
+        const replay = await store.getReplayByPublicId(publicId);
+        if (!replay) {
+          throw new HttpError(404, "replay_not_found", "Replay not found");
+        }
+
+        const body = (await parseJsonBody(req)) as { playerId?: unknown };
+        const profile = await store.getOrCreatePlayer(maybeValidatePlayerId(body.playerId));
+        const result = await store.recordShare(profile.id, publicId);
+        const updated = await store.getOrCreatePlayer(profile.id);
+        sendJson(res, 200, { ...result, profile: updated, playerId: profile.id });
+        return;
+      }
+
+      if (req.method === "GET" && path === "/api/leaderboards") {
+        const scope = (url.searchParams.get("scope") ?? "daily") as LeaderboardScope;
+        const metricRaw = url.searchParams.get("metric") ?? "stinkFame";
+        const metric = metricRaw === "stinkFame" || metricRaw === "maxHit" || metricRaw === "cataclysms" ? (metricRaw as LeaderboardMetric) : "stinkFame";
+        if (scope !== "daily" && scope !== "weekly") {
+          throw new HttpError(400, "invalid_scope", "Invalid scope");
+        }
+        const rows = await store.getLeaderboard(scope, metric);
+        sendJson(res, 200, { scope, metric, rows });
+        return;
+      }
+
+      const matchMeta = path.match(/^\/api\/matches\/([^/]+)$/);
+      if (req.method === "GET" && matchMeta) {
+        const matchId = validateId("matchId", decodeURIComponent(matchMeta[1]), 4);
+        const match = await store.getMatch(matchId);
+        if (!match) {
+          throw new HttpError(404, "match_not_found", "Match not found");
+        }
+
+        const payload = await store.getFinalizedPayload(matchId);
+        sendJson(res, 200, {
+          id: match.id,
+          publicId: match.publicId,
+          status: match.status,
+          challengeId: match.challengeId,
+          seedHex: match.seed_hex,
+          summary: payload?.summary,
+        });
+        return;
+      }
+
+      const replayMatch = path.match(/^\/api\/replay\/([^/]+)$/);
+      if (req.method === "GET" && replayMatch) {
+        const publicId = validateId("publicId", decodeURIComponent(replayMatch[1]));
+        const replay = await store.getReplayByPublicId(publicId);
+        if (!replay) {
+          throw new HttpError(404, "replay_not_found", "Replay not found");
+        }
+
+        sendJson(res, 200, {
+          input: replay.input,
+          events: replay.events,
+          summary: replay.summary,
+          matchHash: replay.matchHash,
+          seedHex: replay.seedHex,
+        });
+        return;
+      }
+
+      const replayPageMatch = path.match(/^\/r\/([^/]+)$/);
+      if (req.method === "GET" && replayPageMatch) {
+        const publicId = validateId("publicId", decodeURIComponent(replayPageMatch[1]));
+        const match = await store.getMatchByPublicId(publicId);
+        if (!match || match.status !== "finished" || !match.summary_json || !match.seed_hex || !match.match_hash_hex) {
+          res.statusCode = 404;
+          res.setHeader("Content-Type", "text/plain; charset=utf-8");
+          res.end("Replay not found");
+          return;
+        }
+
+        const html = renderReplayPage({
+          publicId,
+          replayData: {
+            summary: JSON.parse(match.summary_json) as SummaryV1,
+            matchHash: match.match_hash_hex,
+            seedHex: match.seed_hex,
+          },
+          baseUrl: getBaseUrl(req),
+        });
+
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(html);
+        return;
+      }
+
+      const ogImageMatch = path.match(/^\/og\/([^/]+)$/);
+      if (req.method === "GET" && ogImageMatch) {
+        const publicId = validateId("publicId", decodeURIComponent(ogImageMatch[1]));
+        const match = await store.getMatchByPublicId(publicId);
+        if (!match || match.status !== "finished" || !match.summary_json || !match.match_hash_hex) {
+          res.statusCode = 404;
+          res.setHeader("Content-Type", "text/plain; charset=utf-8");
+          res.end("Replay not found");
+          return;
+        }
+
+        const svg = renderOgSvg({
+          publicId,
           summary: JSON.parse(match.summary_json) as SummaryV1,
           matchHash: match.match_hash_hex,
-          seedHex: match.seed_hex,
-        },
-        baseUrl: getBaseUrl(req),
-      });
-
-      res.statusCode = 200;
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.end(html);
-      return;
-    }
-
-    const ogImageMatch = path.match(/^\/og\/([^/]+)$/);
-    if (req.method === "GET" && ogImageMatch) {
-      const publicId = decodeURIComponent(ogImageMatch[1]);
-      const match = await store.getMatchByPublicId(publicId);
-      if (!match || match.status !== "finished" || !match.summary_json || !match.match_hash_hex) {
-        res.statusCode = 404;
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        res.end("Replay not found");
+        });
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        res.end(svg);
         return;
       }
 
-      const svg = renderOgSvg({
-        publicId,
-        summary: JSON.parse(match.summary_json) as SummaryV1,
-        matchHash: match.match_hash_hex,
-      });
-      res.statusCode = 200;
-      res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
-      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-      res.end(svg);
-      return;
+      sendError(res, 404, "not_found", "Not found");
+    } catch (error) {
+      if (error instanceof HttpError) {
+        sendError(res, error.status, error.code, error.message);
+        return;
+      }
+      const message = error instanceof Error ? error.message : "Unknown error";
+      sendError(res, 400, "bad_request", message);
     }
+  });
+}
 
-    sendJson(res, 404, { error: "Not found" });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    sendJson(res, 400, { error: message });
+function assertNodeVersion(): void {
+  const major = Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
+  if (major < 20) {
+    console.error("Node 20+ required to run TS directly. Please upgrade Node or run compiled JS build.");
+    process.exit(1);
   }
-}).listen(PORT, () => {
+}
+
+assertNodeVersion();
+createApiServer().listen(PORT, () => {
   console.log(`[FAF] server listening on http://localhost:${PORT}`);
+  console.log("[FAF] MVP rate limiting is best-effort and in-memory.");
 });

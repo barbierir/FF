@@ -1,7 +1,6 @@
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import { JsonStore } from "../src/server/storage/jsonStore.ts";
-import { RULESET_VERSION } from "../src/core/types.ts";
 import { renderReplayPage } from "../src/server/pages/replayPage.ts";
 import { renderOgSvg } from "../src/server/pages/ogImage.ts";
 import type { SummaryV1 } from "../src/core/sim/simulate.ts";
@@ -13,24 +12,23 @@ async function main(): Promise<void> {
   const store = new JsonStore(baseDir, "test-secret");
 
   const challenge = await store.createChallenge({
-    creatureA: { rulesetVersion: RULESET_VERSION, classKey: "fairy", cosmeticSeed: 7 },
+    creatureA: { classKey: "fairy", cosmeticSeed: 7 },
     expiresInHours: 1,
   });
 
   const match = await store.acceptChallenge(challenge.token, {
-    rulesetVersion: RULESET_VERSION,
     classKey: "dragon",
     cosmeticSeed: 13,
   });
 
   await store.submitMoves(match.id, "A", [
-    { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 2 },
-    { rulesetVersion: RULESET_VERSION, type: "HEAL" },
+    { type: "ATTACK", gas: 2 },
+    { type: "HEAL" },
   ]);
 
   await store.submitMoves(match.id, "B", [
-    { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 3 },
-    { rulesetVersion: RULESET_VERSION, type: "DEFEND" },
+    { type: "ATTACK", gas: 3 },
+    { type: "DEFEND" },
   ]);
 
   const finalized = await store.finalizeMatchIfReady(match.id);

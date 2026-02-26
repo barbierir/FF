@@ -14,6 +14,7 @@ import type {
 
 export interface Store {
   createChallenge(input: CreateChallengeInput): Promise<StoredChallenge>;
+  getChallengeById(challengeId: string): Promise<StoredChallenge | undefined>;
   getChallengeByToken(token: string): Promise<StoredChallenge | undefined>;
   acceptChallenge(token: string, creatureB: CreatureSpec, playerBId?: string | null): Promise<StoredMatch>;
   submitMoves(matchId: string, side: Side, moves: Move[]): Promise<StoredMoves>;

@@ -5,13 +5,12 @@ export type RulesetVersion = typeof RULESET_VERSION;
 export type ClassKey = "goblin" | "dragon" | "skunk" | "troll" | "fairy";
 
 export type Move =
-  | { rulesetVersion: RulesetVersion; type: "ATTACK"; gas: 1 | 2 | 3 | 4; safe?: boolean }
-  | { rulesetVersion: RulesetVersion; type: "DEFEND" }
-  | { rulesetVersion: RulesetVersion; type: "RECHARGE_EXTRA" }
-  | { rulesetVersion: RulesetVersion; type: "HEAL" };
+  | { type: "ATTACK"; gas: 1 | 2 | 3 | 4; safe?: boolean }
+  | { type: "DEFEND" }
+  | { type: "RECHARGE_EXTRA" }
+  | { type: "HEAL" };
 
 export type CreatureSpec = {
-  rulesetVersion: RulesetVersion;
   classKey: ClassKey;
   cosmeticSeed: number;
 };
