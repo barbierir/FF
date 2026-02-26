@@ -1,3 +1,9 @@
+/**
+ * This test file is intended to be run with Vitest.
+ * In no-deps environments (no npm install), run:
+ *   node --experimental-strip-types tests/run_determinism.ts
+ */
+
 import { describe, expect, it } from "vitest";
 
 import { canonicalStringify } from "../src/core/codec/canonicalJson";
