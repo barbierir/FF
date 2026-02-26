@@ -1,7 +1,10 @@
 import type { CreatureSpec, Move } from "../../core/types.ts";
+import type { LeaderboardMetric, LeaderboardRow, LeaderboardScope } from "../economy/leaderboards.ts";
 import type {
   CreateChallengeInput,
   FinalizedPayload,
+  MissionStatus,
+  PlayerProfile,
   ReplayPayload,
   Side,
   StoredChallenge,
@@ -12,11 +15,17 @@ import type {
 export interface Store {
   createChallenge(input: CreateChallengeInput): Promise<StoredChallenge>;
   getChallengeByToken(token: string): Promise<StoredChallenge | undefined>;
-  acceptChallenge(token: string, creatureB: CreatureSpec): Promise<StoredMatch>;
+  acceptChallenge(token: string, creatureB: CreatureSpec, playerBId?: string | null): Promise<StoredMatch>;
   submitMoves(matchId: string, side: Side, moves: Move[]): Promise<StoredMoves>;
   getMatch(matchId: string): Promise<StoredMatch | undefined>;
   getMatchByPublicId(publicId: string): Promise<StoredMatch | undefined>;
   finalizeMatchIfReady(matchId: string): Promise<StoredMatch>;
   getReplayByPublicId(publicId: string): Promise<ReplayPayload | undefined>;
   getFinalizedPayload(matchId: string): Promise<FinalizedPayload | undefined>;
+  getOrCreatePlayer(playerId?: string): Promise<PlayerProfile>;
+  applyMatchRewards(matchId: string): Promise<void>;
+  recordShare(playerId: string, matchPublicId: string): Promise<{ awarded: boolean; stinkFameGained: number }>;
+  recordChallengeAccepted(challengeId: string): Promise<void>;
+  checkAndAwardDailyMission(playerId: string, dateISO: string): Promise<MissionStatus>;
+  getLeaderboard(scope: LeaderboardScope, metric: LeaderboardMetric): Promise<LeaderboardRow[]>;
 }

@@ -7,10 +7,18 @@ import { deriveSeedU64 } from "../../core/sim/deriveSeed.ts";
 import { deriveMatchHash, simulateMatch } from "../../core/sim/simulate.ts";
 import { RULESET_VERSION } from "../../core/types.ts";
 import type { CreatureSpec, MatchInput, Move } from "../../core/types.ts";
+import { computeLeaderboards } from "../economy/leaderboards.ts";
+import type { LeaderboardMetric, LeaderboardRow, LeaderboardScope } from "../economy/leaderboards.ts";
+import { getDailyMission, toDayKey } from "../economy/missions.ts";
+import type { MissionStatus } from "./types.ts";
+import { computeMatchRewards } from "../economy/rewards.ts";
+import type { SummaryV1 } from "../../core/sim/simulate.ts";
 import type { Store } from "./store.ts";
 import type {
   CreateChallengeInput,
+  EconomyEvent,
   FinalizedPayload,
+  PlayerProfile,
   ReplayPayload,
   Side,
   StoredChallenge,
@@ -22,6 +30,8 @@ type DbState = {
   challenges: StoredChallenge[];
   matches: StoredMatch[];
   moves: StoredMoves[];
+  players: PlayerProfile[];
+  economyEvents: EconomyEvent[];
 };
 
 const MAX_TURNS = 30;
@@ -36,6 +46,25 @@ function randomId(prefix: string): string {
 
 function randomToken(size = 24): string {
   return randomBytes(size).toString("base64url");
+}
+
+function createProfile(id: string): PlayerProfile {
+  return {
+    id,
+    createdAtISO: nowIso(),
+    gasCoins: 0,
+    stinkFame: 0,
+    wins: 0,
+    losses: 0,
+    draws: 0,
+    currentStreak: 0,
+    bestStreak: 0,
+    matchesPlayed: 0,
+    totalDamageDealt: 0,
+    maxHitEver: 0,
+    totalBackfires: 0,
+    totalCataclysms: 0,
+  };
 }
 
 function assertMoveShape(move: Move, index: number): void {
@@ -74,16 +103,14 @@ function validateMoves(moves: Move[]): void {
 
 export class JsonStore implements Store {
   private readonly baseDir: string;
-
   private readonly challengesPath: string;
-
   private readonly matchesPath: string;
-
   private readonly movesPath: string;
-
+  private readonly playersPath: string;
+  private readonly economyEventsPath: string;
   private readonly serverSecret: string;
 
-  private state: DbState = { challenges: [], matches: [], moves: [] };
+  private state: DbState = { challenges: [], matches: [], moves: [], players: [], economyEvents: [] };
 
   private ready: Promise<void>;
 
@@ -92,6 +119,8 @@ export class JsonStore implements Store {
     this.challengesPath = path.join(baseDir, "challenges.json");
     this.matchesPath = path.join(baseDir, "matches.json");
     this.movesPath = path.join(baseDir, "moves.json");
+    this.playersPath = path.join(baseDir, "players.json");
+    this.economyEventsPath = path.join(baseDir, "economy_events.json");
     this.serverSecret = serverSecret ?? process.env.MATCH_SECRET ?? "dev-secret";
     if (!process.env.MATCH_SECRET && !serverSecret) {
       console.warn("[FAF] MATCH_SECRET is not set; using insecure fallback 'dev-secret'.");
@@ -105,6 +134,8 @@ export class JsonStore implements Store {
     this.state.challenges = await this.loadJson<StoredChallenge[]>(this.challengesPath, []);
     this.state.matches = await this.loadJson<StoredMatch[]>(this.matchesPath, []);
     this.state.moves = await this.loadJson<StoredMoves[]>(this.movesPath, []);
+    this.state.players = await this.loadJson<PlayerProfile[]>(this.playersPath, []);
+    this.state.economyEvents = await this.loadJson<EconomyEvent[]>(this.economyEventsPath, []);
   }
 
   private async loadJson<T>(filePath: string, fallback: T): Promise<T> {
@@ -127,6 +158,8 @@ export class JsonStore implements Store {
     await this.atomicWrite(this.challengesPath, JSON.stringify(this.state.challenges, null, 2));
     await this.atomicWrite(this.matchesPath, JSON.stringify(this.state.matches, null, 2));
     await this.atomicWrite(this.movesPath, JSON.stringify(this.state.moves, null, 2));
+    await this.atomicWrite(this.playersPath, JSON.stringify(this.state.players, null, 2));
+    await this.atomicWrite(this.economyEventsPath, JSON.stringify(this.state.economyEvents, null, 2));
   }
 
   private parseReplay(match: StoredMatch): ReplayPayload | undefined {
@@ -143,6 +176,22 @@ export class JsonStore implements Store {
     };
   }
 
+  private findPlayer(playerId: string): PlayerProfile {
+    const existing = this.state.players.find((player) => player.id === playerId);
+    if (existing) return existing;
+    const created = createProfile(playerId);
+    this.state.players.push(created);
+    return created;
+  }
+
+  private hasEvent(eventId: string): boolean {
+    return this.state.economyEvents.some((evt) => evt.id === eventId);
+  }
+
+  private pushEvent(event: EconomyEvent): void {
+    this.state.economyEvents.push(event);
+  }
+
   async createChallenge(input: CreateChallengeInput): Promise<StoredChallenge> {
     await this.ready;
     const createdAtISO = nowIso();
@@ -156,6 +205,8 @@ export class JsonStore implements Store {
       creatureA: input.creatureA,
       createdAtISO,
       expiresAtISO,
+      playerAId: input.playerAId ?? null,
+      playerBId: null,
     };
 
     this.state.challenges.push(challenge);
@@ -168,7 +219,7 @@ export class JsonStore implements Store {
     return this.state.challenges.find((challenge) => challenge.token === token);
   }
 
-  async acceptChallenge(token: string, creatureB: CreatureSpec): Promise<StoredMatch> {
+  async acceptChallenge(token: string, creatureB: CreatureSpec, playerBId?: string | null): Promise<StoredMatch> {
     await this.ready;
     const challenge = this.state.challenges.find((item) => item.token === token);
     if (!challenge) {
@@ -187,6 +238,7 @@ export class JsonStore implements Store {
 
     challenge.status = "accepted";
     challenge.creatureB = creatureB;
+    challenge.playerBId = playerBId ?? null;
 
     const match: StoredMatch = {
       id: randomId("match"),
@@ -198,6 +250,7 @@ export class JsonStore implements Store {
 
     challenge.matchId = match.id;
     this.state.matches.push(match);
+    await this.recordChallengeAccepted(challenge.id);
     await this.flush();
     return match;
   }
@@ -294,6 +347,8 @@ export class JsonStore implements Store {
     match.status = "finished";
     match.finalizedAtISO = nowIso();
 
+    // Rewards are deterministic because they derive only from SummaryV1 and are idempotent via event IDs.
+    await this.applyMatchRewards(matchId);
     await this.flush();
     return match;
   }
@@ -325,5 +380,194 @@ export class JsonStore implements Store {
       seedHex: parsed.seedHex,
       matchHash: parsed.matchHash,
     };
+  }
+
+  async getOrCreatePlayer(playerId?: string): Promise<PlayerProfile> {
+    await this.ready;
+    const resolved = playerId && playerId.length > 0 ? playerId : randomId("guest");
+    const profile = this.findPlayer(resolved);
+    await this.flush();
+    return profile;
+  }
+
+  async applyMatchRewards(matchId: string): Promise<void> {
+    await this.ready;
+    const match = this.state.matches.find((item) => item.id === matchId);
+    if (!match?.summary_json) return;
+
+    const challenge = this.state.challenges.find((item) => item.id === match.challengeId);
+    if (!challenge?.playerAId && !challenge?.playerBId) return;
+
+    const summary = JSON.parse(match.summary_json) as SummaryV1;
+    const rewards = computeMatchRewards(summary);
+
+    const applyToSide = (side: Side): void => {
+      const playerId = side === "A" ? challenge.playerAId : challenge.playerBId;
+      if (!playerId) return;
+      const eventId = `match_reward:${match.id}:${side}`;
+      if (this.hasEvent(eventId)) return;
+      const profile = this.findPlayer(playerId);
+      const sideSummary = side === "A" ? summary.a : summary.b;
+      const won = summary.winner === side;
+      const draw = summary.winner === "DRAW";
+      const gc = side === "A" ? rewards.gasCoinsA : rewards.gasCoinsB;
+      const sf = side === "A" ? rewards.stinkFameA : rewards.stinkFameB;
+
+      profile.gasCoins += gc;
+      profile.stinkFame += sf;
+      profile.matchesPlayed += 1;
+      profile.totalDamageDealt += sideSummary.totalDamage;
+      profile.maxHitEver = Math.max(profile.maxHitEver, sideSummary.maxHit);
+      profile.totalBackfires += sideSummary.backfires;
+      profile.totalCataclysms += side === "A" ? summary.highlights.cataclysms.A : summary.highlights.cataclysms.B;
+
+      if (draw) {
+        profile.draws += 1;
+        profile.currentStreak = 0;
+      } else if (won) {
+        profile.wins += 1;
+        profile.currentStreak += 1;
+        profile.bestStreak = Math.max(profile.bestStreak, profile.currentStreak);
+      } else {
+        profile.losses += 1;
+        profile.currentStreak = 0;
+      }
+
+      this.pushEvent({
+        id: eventId,
+        type: "match_reward",
+        playerId,
+        matchId: match.id,
+        createdAtISO: nowIso(),
+        payload: {
+          side,
+          gc,
+          sf,
+          winner: summary.winner,
+          breakdown: side === "A" ? { gc: rewards.breakdown.gasCoins.A, sf: rewards.breakdown.stinkFame.A } : { gc: rewards.breakdown.gasCoins.B, sf: rewards.breakdown.stinkFame.B },
+        },
+      });
+    };
+
+    applyToSide("A");
+    applyToSide("B");
+    await this.flush();
+  }
+
+  async recordShare(playerId: string, matchPublicId: string): Promise<{ awarded: boolean; stinkFameGained: number }> {
+    await this.ready;
+    const profile = this.findPlayer(playerId);
+    const day = toDayKey(nowIso());
+    const eventId = `share:${playerId}:${matchPublicId}:${day}`;
+    if (this.hasEvent(eventId)) {
+      return { awarded: false, stinkFameGained: 0 };
+    }
+
+    const usedToday = profile.lastShareDay === day ? profile.lastShareCountDay ?? 0 : 0;
+    if (usedToday >= 3) {
+      this.pushEvent({ id: eventId, type: "share_no_award", playerId, createdAtISO: nowIso(), payload: { matchPublicId, day } });
+      await this.flush();
+      return { awarded: false, stinkFameGained: 0 };
+    }
+
+    profile.stinkFame += 2;
+    profile.lastShareDay = day;
+    profile.lastShareCountDay = usedToday + 1;
+    this.pushEvent({
+      id: eventId,
+      type: "share_award",
+      playerId,
+      createdAtISO: nowIso(),
+      payload: { matchPublicId, day, sf: 2 },
+    });
+
+    await this.flush();
+    return { awarded: true, stinkFameGained: 2 };
+  }
+
+  async recordChallengeAccepted(challengeId: string): Promise<void> {
+    await this.ready;
+    const eventId = `challenge_accept:${challengeId}`;
+    if (this.hasEvent(eventId)) return;
+    const challenge = this.state.challenges.find((item) => item.id === challengeId);
+    if (!challenge?.playerAId) return;
+    const profile = this.findPlayer(challenge.playerAId);
+    profile.gasCoins += 10;
+    profile.stinkFame += 5;
+    this.pushEvent({
+      id: eventId,
+      type: "challenge_accepted_bonus",
+      playerId: challenge.playerAId,
+      createdAtISO: nowIso(),
+      payload: { challengeId, gc: 10, sf: 5 },
+    });
+  }
+
+  async checkAndAwardDailyMission(playerId: string, dateISO: string): Promise<MissionStatus> {
+    await this.ready;
+    const profile = this.findPlayer(playerId);
+    const mission = getDailyMission(dateISO, playerId);
+    const day = toDayKey(dateISO);
+    const dayPrefix = `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`;
+
+    const challengeById = new Map(this.state.challenges.map((challenge) => [challenge.id, challenge]));
+    const matchesToday = this.state.matches.filter((match) => {
+      if (match.status !== "finished" || !match.finalizedAtISO?.startsWith(dayPrefix)) return false;
+      const challenge = challengeById.get(match.challengeId);
+      return challenge?.playerAId === playerId || challenge?.playerBId === playerId;
+    });
+
+    const completed = matchesToday.some((match) => {
+      if (!match.summary_json) return false;
+      const summary = JSON.parse(match.summary_json) as SummaryV1;
+      const challenge = challengeById.get(match.challengeId);
+      const side: Side | undefined = challenge?.playerAId === playerId ? "A" : challenge?.playerBId === playerId ? "B" : undefined;
+      if (!side) return false;
+      const sideSummary = side === "A" ? summary.a : summary.b;
+      switch (mission.type) {
+        case "PLAY_1":
+          return true;
+        case "WIN_1":
+          return summary.winner === side;
+        case "CATACLYSM_1":
+          return side === "A" ? summary.highlights.cataclysms.A >= 1 : summary.highlights.cataclysms.B >= 1;
+        case "BACKFIRE_SURVIVE":
+          return sideSummary.backfires >= 1 && (summary.winner === side || summary.winner === "DRAW");
+        case "MAXHIT_9":
+          return sideSummary.maxHit >= 9;
+      }
+    });
+
+    const awardId = `mission:${playerId}:${day}:${mission.type}`;
+    if (completed && !this.hasEvent(awardId)) {
+      profile.gasCoins += mission.reward.gc;
+      profile.stinkFame += mission.reward.sf;
+      profile.lastMissionDay = day;
+      this.pushEvent({
+        id: awardId,
+        type: "daily_mission_award",
+        playerId,
+        createdAtISO: nowIso(),
+        payload: { day, missionType: mission.type, gc: mission.reward.gc, sf: mission.reward.sf },
+      });
+      await this.flush();
+      return { mission, completed: true, awarded: mission.reward };
+    }
+
+    await this.flush();
+    return { mission, completed, awarded: this.hasEvent(awardId) ? mission.reward : undefined };
+  }
+
+  async getLeaderboard(scope: LeaderboardScope, metric: LeaderboardMetric): Promise<LeaderboardRow[]> {
+    await this.ready;
+    return computeLeaderboards(
+      {
+        matches: this.state.matches,
+        challenges: this.state.challenges,
+        economyEvents: this.state.economyEvents,
+      },
+      scope,
+      metric,
+    );
   }
 }

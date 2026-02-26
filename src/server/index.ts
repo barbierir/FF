@@ -3,6 +3,7 @@ import { URL } from "node:url";
 import { JsonStore } from "./storage/jsonStore.ts";
 import { RULESET_VERSION } from "../core/types.ts";
 import type { CreatureSpec, Move } from "../core/types.ts";
+import type { LeaderboardMetric, LeaderboardScope } from "./economy/leaderboards.ts";
 import type { Side } from "./storage/types.ts";
 
 const store = new JsonStore();
@@ -58,20 +59,45 @@ createServer(async (req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const path = url.pathname;
 
+    if (req.method === "POST" && path === "/api/players/guest") {
+      const profile = await store.getOrCreatePlayer();
+      sendJson(res, 200, { playerId: profile.id, profile });
+      return;
+    }
+
+    const playerMeta = path.match(/^\/api\/players\/([^/]+)$/);
+    if (req.method === "GET" && playerMeta) {
+      const playerId = decodeURIComponent(playerMeta[1]);
+      const profile = await store.getOrCreatePlayer(playerId);
+      const nowISO = new Date().toISOString();
+      const todayMission = await store.checkAndAwardDailyMission(playerId, nowISO);
+      const daily = await store.getLeaderboard("daily", "stinkFame");
+      const weekly = await store.getLeaderboard("weekly", "stinkFame");
+      sendJson(res, 200, {
+        profile,
+        todayMission,
+        leaderboards: { dailyStinkFame: daily, weeklyStinkFame: weekly },
+      });
+      return;
+    }
+
     if (req.method === "POST" && path === "/api/challenges") {
-      const body = (await parseJsonBody(req)) as { creatureA?: CreatureSpec; expiresInHours?: number };
+      const body = (await parseJsonBody(req)) as { creatureA?: CreatureSpec; expiresInHours?: number; playerId?: string };
       if (!isCreatureSpec(body.creatureA)) {
         sendJson(res, 400, { error: "Invalid creatureA" });
         return;
       }
 
+      const creator = await store.getOrCreatePlayer(body.playerId);
       const challenge = await store.createChallenge({
         creatureA: body.creatureA,
         expiresInHours: body.expiresInHours,
+        playerAId: creator.id,
       });
       sendJson(res, 200, {
         token: challenge.token,
         url: `/c/${challenge.token}`,
+        playerId: creator.id,
         challenge,
       });
       return;
@@ -80,17 +106,19 @@ createServer(async (req, res) => {
     const acceptMatch = path.match(/^\/api\/challenges\/([^/]+)\/accept$/);
     if (req.method === "POST" && acceptMatch) {
       const token = decodeURIComponent(acceptMatch[1]);
-      const body = (await parseJsonBody(req)) as { creatureB?: CreatureSpec };
+      const body = (await parseJsonBody(req)) as { creatureB?: CreatureSpec; playerId?: string };
       if (!isCreatureSpec(body.creatureB)) {
         sendJson(res, 400, { error: "Invalid creatureB" });
         return;
       }
 
-      const match = await store.acceptChallenge(token, body.creatureB);
+      const joiner = await store.getOrCreatePlayer(body.playerId);
+      const match = await store.acceptChallenge(token, body.creatureB, joiner.id);
       sendJson(res, 200, {
         matchId: match.id,
         publicId: match.publicId,
         status: match.status,
+        playerId: joiner.id,
       });
       return;
     }
@@ -122,6 +150,30 @@ createServer(async (req, res) => {
       }
 
       sendJson(res, 200, { status: "waiting_for_opponent" });
+      return;
+    }
+
+    const replayShare = path.match(/^\/api\/replay\/([^/]+)\/share$/);
+    if (req.method === "POST" && replayShare) {
+      const publicId = decodeURIComponent(replayShare[1]);
+      const body = (await parseJsonBody(req)) as { playerId?: string };
+      const profile = await store.getOrCreatePlayer(body.playerId);
+      const result = await store.recordShare(profile.id, publicId);
+      const updated = await store.getOrCreatePlayer(profile.id);
+      sendJson(res, 200, { ...result, profile: updated, playerId: profile.id });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/leaderboards") {
+      const scope = (url.searchParams.get("scope") ?? "daily") as LeaderboardScope;
+      const metricRaw = url.searchParams.get("metric") ?? "stinkFame";
+      const metric = metricRaw === "stinkFame" || metricRaw === "maxHit" || metricRaw === "cataclysms" ? (metricRaw as LeaderboardMetric) : "stinkFame";
+      if (scope !== "daily" && scope !== "weekly") {
+        sendJson(res, 400, { error: "Invalid scope" });
+        return;
+      }
+      const rows = await store.getLeaderboard(scope, metric);
+      sendJson(res, 200, { scope, metric, rows });
       return;
     }
 
@@ -172,7 +224,4 @@ createServer(async (req, res) => {
   }
 }).listen(PORT, () => {
   console.log(`[FAF] server listening on http://localhost:${PORT}`);
-  // curl examples:
-  // curl -X POST http://localhost:${PORT}/api/challenges -H 'content-type: application/json' -d '{"creatureA":{"rulesetVersion":"1.0.0","classKey":"goblin","cosmeticSeed":1}}'
-  // curl -X POST http://localhost:${PORT}/api/challenges/<token>/accept -H 'content-type: application/json' -d '{"creatureB":{"rulesetVersion":"1.0.0","classKey":"dragon","cosmeticSeed":2}}'
 });
