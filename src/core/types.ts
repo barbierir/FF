@@ -29,12 +29,18 @@ export type MatchInput = {
 export type Event = {
   rulesetVersion: RulesetVersion;
   t: number;
-  actor: "A" | "B";
+  actor: "A" | "B" | "SYSTEM";
   kind: string;
+  roll?: number;
+  outcome?: "BACKFIRE" | "NORMAL" | "TOXIC" | "CATACLYSM";
+  gasSpent?: number;
+  dmgToA?: number;
+  dmgToB?: number;
   prA: number;
   prB: number;
   pgA: number;
   pgB: number;
+  tags?: string[];
 };
 
 export type Summary = {
