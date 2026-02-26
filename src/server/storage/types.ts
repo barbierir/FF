@@ -1,4 +1,5 @@
 import type { CreatureSpec, MatchInput, Move } from "../../core/types.ts";
+import type { Mission } from "../economy/missions.ts";
 
 export type ChallengeStatus = "open" | "accepted" | "expired";
 export type MatchStatus = "collecting_moves" | "finished";
@@ -14,6 +15,8 @@ export type StoredChallenge = {
   createdAtISO: string;
   expiresAtISO: string;
   matchId?: string;
+  playerAId?: string | null;
+  playerBId?: string | null;
 };
 
 export type StoredMatch = {
@@ -39,9 +42,39 @@ export type StoredMoves = {
   submitted_at: string;
 };
 
+export type PlayerProfile = {
+  id: string;
+  createdAtISO: string;
+  gasCoins: number;
+  stinkFame: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  currentStreak: number;
+  bestStreak: number;
+  matchesPlayed: number;
+  totalDamageDealt: number;
+  maxHitEver: number;
+  totalBackfires: number;
+  totalCataclysms: number;
+  lastMissionDay?: string;
+  lastShareDay?: string;
+  lastShareCountDay?: number;
+};
+
+export type EconomyEvent = {
+  id: string;
+  type: string;
+  playerId?: string;
+  matchId?: string;
+  createdAtISO: string;
+  payload: Record<string, unknown>;
+};
+
 export type CreateChallengeInput = {
   creatureA: CreatureSpec;
   expiresInHours?: number;
+  playerAId?: string | null;
 };
 
 export type FinalizedPayload = {
@@ -63,4 +96,10 @@ export type ReplayPayload = {
 export type SideMovesSubmission = {
   side: Side;
   moves: Move[];
+};
+
+export type MissionStatus = {
+  mission: Mission;
+  completed: boolean;
+  awarded?: { gc: number; sf: number };
 };
