@@ -109,6 +109,7 @@ export function createApiServer(): import("node:http").Server {
       const path = url.pathname;
 
       if (req.method === "GET" && path === "/") {
+        console.log("serve index.html");
         await sendStaticFile(res, "index.html");
         return;
       }
@@ -125,18 +126,21 @@ export function createApiServer(): import("node:http").Server {
 
       const challengePage = path.match(/^\/c\/([^/]+)$/);
       if (req.method === "GET" && challengePage) {
+        console.log(`serve challenge.html token=${decodeURIComponent(challengePage[1])}`);
         await sendStaticFile(res, "challenge.html");
         return;
       }
 
       const matchPage = path.match(/^\/m\/([^/]+)$/);
       if (req.method === "GET" && matchPage) {
+        console.log(`serve match.html matchId=${decodeURIComponent(matchPage[1])}`);
         await sendStaticFile(res, "match.html");
         return;
       }
 
       const replayUiPage = path.match(/^\/replay\/([^/]+)$/);
       if (req.method === "GET" && replayUiPage) {
+        console.log(`serve replay.html publicId=${decodeURIComponent(replayUiPage[1])}`);
         await sendStaticFile(res, "replay.html");
         return;
       }
@@ -210,10 +214,16 @@ export function createApiServer(): import("node:http").Server {
           throw new HttpError(404, "challenge_not_found", "Challenge not found");
         }
         sendJson(res, 200, {
+          id: challenge.id,
+          token: challenge.token,
           status: challenge.status,
           creatureA: challenge.creatureA,
+          creatureB: challenge.creatureB,
+          createdAtISO: challenge.createdAtISO,
           expiresAtISO: challenge.expiresAtISO,
           acceptedAtISO: challenge.acceptedAtISO,
+          matchId: challenge.matchId,
+          publicId: challenge.matchId ? (await store.getMatch(challenge.matchId))?.publicId : undefined,
         });
         return;
       }
@@ -404,8 +414,10 @@ function assertNodeVersion(): void {
   }
 }
 
-assertNodeVersion();
-createApiServer().listen(PORT, () => {
-  console.log(`[FAF] server listening on http://localhost:${PORT}`);
-  console.log("[FAF] MVP rate limiting is best-effort and in-memory.");
-});
+if (import.meta.url === new URL(process.argv[1] ?? "", "file:").href) {
+  assertNodeVersion();
+  createApiServer().listen(PORT, () => {
+    console.log(`[FAF] server listening on http://localhost:${PORT}`);
+    console.log("[FAF] MVP rate limiting is best-effort and in-memory.");
+  });
+}

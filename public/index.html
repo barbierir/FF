@@ -9,27 +9,68 @@
       <div style="margin-top:10px"><button id="createBtn">Create Challenge</button></div>
       <p id="error" class="error"></p>
       <div id="linkWrap" style="display:none"><label>Share link</label><div class="linkbox"><input id="link" readonly/><button class="secondary" id="copyBtn">Copy</button></div></div>
+      <div id="continueWrap" style="display:none;margin-top:12px"><h3>Continue</h3><p id="continueMsg" class="small"></p></div>
     </section>
     <section class="card"><h2>Your Profile</h2><pre id="profileJson"></pre></section>
   </main>
 <script type="module">
-import { copyText, createChallenge, creatureFromDom, getOrCreateGuestPlayer, getProfile, randomSeed, setProfileBar } from '/app.js';
+import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, getProfile, randomSeed, setProfileBar } from '/app.js';
 const err = document.getElementById('error');
 document.getElementById('a-seed').value = String(randomSeed());
 const playerId = await getOrCreateGuestPlayer();
 const profileData = await getProfile(playerId);
 setProfileBar(document.getElementById('profileBar'), profileData.profile);
 document.getElementById('profileJson').textContent = JSON.stringify(profileData.profile, null, 2);
+let continuePoll = null;
+
+async function checkAndContinue(token) {
+  const status = await getChallenge(token);
+  if (status.status === 'accepted' && status.matchId) {
+    location.href = `/m/${status.matchId}?side=A`;
+    return true;
+  }
+  return false;
+}
+
+function startContinuePolling(token) {
+  document.getElementById('continueWrap').style.display = 'block';
+  document.getElementById('continueMsg').textContent = 'Waiting for opponent…';
+  if (continuePoll) clearInterval(continuePoll);
+  continuePoll = setInterval(async () => {
+    try {
+      await checkAndContinue(token);
+    } catch (e) {
+      document.getElementById('continueMsg').textContent = `Waiting for opponent… (${e.message})`;
+    }
+  }, 2000);
+}
+
 document.getElementById('createBtn').onclick = async () => {
   err.textContent = '';
   try {
     const challenge = await createChallenge(playerId, creatureFromDom('a'));
     const url = `${location.origin}/c/${challenge.token}`;
+    localStorage.setItem('lastChallengeToken', challenge.token);
     document.getElementById('link').value = url;
     document.getElementById('linkWrap').style.display = 'block';
+    const alreadyAccepted = await checkAndContinue(challenge.token);
+    if (!alreadyAccepted) startContinuePolling(challenge.token);
   } catch (e) { err.textContent = e.message; }
 };
 document.getElementById('copyBtn').onclick = async () => {
   await copyText(document.getElementById('link').value);
 };
+
+const lastChallengeToken = localStorage.getItem('lastChallengeToken');
+if (lastChallengeToken) {
+  const url = `${location.origin}/c/${lastChallengeToken}`;
+  document.getElementById('link').value = url;
+  document.getElementById('linkWrap').style.display = 'block';
+  try {
+    const alreadyAccepted = await checkAndContinue(lastChallengeToken);
+    if (!alreadyAccepted) startContinuePolling(lastChallengeToken);
+  } catch {
+    localStorage.removeItem('lastChallengeToken');
+  }
+}
 </script></body></html>
