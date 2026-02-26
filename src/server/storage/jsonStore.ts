@@ -7,6 +7,7 @@ import { deriveSeedU64 } from "../../core/sim/deriveSeed.ts";
 import { deriveMatchHash, simulateMatch } from "../../core/sim/simulate.ts";
 import { RULESET_VERSION } from "../../core/types.ts";
 import type { CreatureSpec, MatchInput, Move } from "../../core/types.ts";
+import { HttpError } from "../errors.ts";
 import { computeLeaderboards } from "../economy/leaderboards.ts";
 import type { LeaderboardMetric, LeaderboardRow, LeaderboardScope } from "../economy/leaderboards.ts";
 import { getDailyMission, toDayKey } from "../economy/missions.ts";
@@ -68,10 +69,6 @@ function createProfile(id: string): PlayerProfile {
 }
 
 function assertMoveShape(move: Move, index: number): void {
-  if (move.rulesetVersion !== RULESET_VERSION) {
-    throw new Error(`Invalid rulesetVersion at moves[${index}]`);
-  }
-
   if (move.type === "ATTACK") {
     if (!Number.isInteger(move.gas) || move.gas < 1 || move.gas > 4) {
       throw new Error(`Invalid gas at moves[${index}]`);
@@ -195,7 +192,8 @@ export class JsonStore implements Store {
   async createChallenge(input: CreateChallengeInput): Promise<StoredChallenge> {
     await this.ready;
     const createdAtISO = nowIso();
-    const expiresInHours = input.expiresInHours ?? 24;
+    const expiresInHoursRaw = input.expiresInHours ?? 24;
+    const expiresInHours = Math.min(168, Math.max(1, expiresInHoursRaw));
     const expiresAtISO = new Date(Date.parse(createdAtISO) + expiresInHours * 3600 * 1000).toISOString();
     const challenge: StoredChallenge = {
       id: randomId("chal"),
@@ -219,21 +217,26 @@ export class JsonStore implements Store {
     return this.state.challenges.find((challenge) => challenge.token === token);
   }
 
+  async getChallengeById(challengeId: string): Promise<StoredChallenge | undefined> {
+    await this.ready;
+    return this.state.challenges.find((challenge) => challenge.id === challengeId);
+  }
+
   async acceptChallenge(token: string, creatureB: CreatureSpec, playerBId?: string | null): Promise<StoredMatch> {
     await this.ready;
     const challenge = this.state.challenges.find((item) => item.token === token);
     if (!challenge) {
-      throw new Error("Challenge not found");
+      throw new HttpError(404, "challenge_not_found", "Challenge not found");
     }
 
     if (new Date(challenge.expiresAtISO).getTime() <= Date.now()) {
       challenge.status = "expired";
       await this.flush();
-      throw new Error("Challenge expired");
+      throw new HttpError(410, "challenge_expired", "Challenge has expired");
     }
 
     if (challenge.status !== "open") {
-      throw new Error("Challenge is not open");
+      throw new HttpError(409, "challenge_not_open", "Challenge is not open");
     }
 
     challenge.status = "accepted";
@@ -260,16 +263,20 @@ export class JsonStore implements Store {
     validateMoves(moves);
     const match = this.state.matches.find((item) => item.id === matchId);
     if (!match) {
-      throw new Error("Match not found");
+      throw new HttpError(404, "match_not_found", "Match not found");
     }
 
     if (match.status === "finished") {
-      throw new Error("Match already finished");
+      throw new HttpError(409, "match_finished", "Match is already finished");
     }
 
+    const canonicalMoves = canonicalStringify(moves);
     const existing = this.state.moves.find((item) => item.matchId === matchId && item.side === side);
     if (existing) {
-      throw new Error(`Moves already submitted for side ${side}`);
+      if (existing.moves_json === canonicalMoves) {
+        return existing;
+      }
+      throw new HttpError(409, "moves_already_submitted", `Moves already submitted for side ${side}`);
     }
 
     const record: StoredMoves = {
@@ -277,7 +284,7 @@ export class JsonStore implements Store {
       matchId,
       side,
       moves_received_json: JSON.stringify(moves),
-      moves_json: canonicalStringify(moves),
+      moves_json: canonicalMoves,
       submitted_at: nowIso(),
     };
 
@@ -393,7 +400,12 @@ export class JsonStore implements Store {
   async applyMatchRewards(matchId: string): Promise<void> {
     await this.ready;
     const match = this.state.matches.find((item) => item.id === matchId);
-    if (!match?.summary_json) return;
+    if (!match) {
+      throw new HttpError(404, "match_not_found", "Match not found");
+    }
+    if (match.status !== "finished" || !match.summary_json) {
+      throw new HttpError(409, "match_not_finished", "Cannot apply rewards before match is finished");
+    }
 
     const challenge = this.state.challenges.find((item) => item.id === match.challengeId);
     if (!challenge?.playerAId && !challenge?.playerBId) return;
@@ -457,6 +469,10 @@ export class JsonStore implements Store {
   async recordShare(playerId: string, matchPublicId: string): Promise<{ awarded: boolean; stinkFameGained: number }> {
     await this.ready;
     const profile = this.findPlayer(playerId);
+    const match = this.state.matches.find((item) => item.publicId === matchPublicId);
+    if (!match || match.status !== "finished") {
+      throw new HttpError(404, "replay_not_found", "Replay not found for share");
+    }
     const day = toDayKey(nowIso());
     const eventId = `share:${playerId}:${matchPublicId}:${day}`;
     if (this.hasEvent(eventId)) {

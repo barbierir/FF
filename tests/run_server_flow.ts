@@ -1,7 +1,6 @@
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import { JsonStore } from "../src/server/storage/jsonStore.ts";
-import { RULESET_VERSION } from "../src/core/types.ts";
 
 async function main(): Promise<void> {
   const baseDir = path.resolve(process.cwd(), "data", "faf-test-flow");
@@ -10,24 +9,23 @@ async function main(): Promise<void> {
   const store = new JsonStore(baseDir, "test-secret");
 
   const challenge = await store.createChallenge({
-    creatureA: { rulesetVersion: RULESET_VERSION, classKey: "goblin", cosmeticSeed: 11 },
+    creatureA: { classKey: "goblin", cosmeticSeed: 11 },
     expiresInHours: 2,
   });
 
   const match = await store.acceptChallenge(challenge.token, {
-    rulesetVersion: RULESET_VERSION,
     classKey: "dragon",
     cosmeticSeed: 99,
   });
 
   await store.submitMoves(match.id, "A", [
-    { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 2 },
-    { rulesetVersion: RULESET_VERSION, type: "RECHARGE_EXTRA" },
+    { type: "ATTACK", gas: 2 },
+    { type: "RECHARGE_EXTRA" },
   ]);
 
   await store.submitMoves(match.id, "B", [
-    { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 2 },
-    { rulesetVersion: RULESET_VERSION, type: "DEFEND" },
+    { type: "ATTACK", gas: 2 },
+    { type: "DEFEND" },
   ]);
 
   const finalized = await store.finalizeMatchIfReady(match.id);

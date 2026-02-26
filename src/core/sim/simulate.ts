@@ -91,9 +91,9 @@ function pushEvent(events: EventV1[], t: number, actor: EventV1["actor"], kind: 
 
 function defaultMove(pg: number): Move {
   if (pg >= 1) {
-    return { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 1 };
+    return { type: "ATTACK", gas: 1 };
   }
-  return { rulesetVersion: RULESET_VERSION, type: "RECHARGE_EXTRA" };
+  return { type: "RECHARGE_EXTRA" };
 }
 
 function sanitizeMove(raw: Move | undefined, side: SideState): Move {
@@ -105,14 +105,14 @@ function sanitizeMove(raw: Move | undefined, side: SideState): Move {
       gas = Math.min(4, side.pg);
     }
     if (gas === 0) {
-      return { rulesetVersion: RULESET_VERSION, type: "RECHARGE_EXTRA" };
+      return { type: "RECHARGE_EXTRA" };
     }
-    return { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: gas as 1 | 2 | 3 | 4, safe: move.safe === true };
+    return { type: "ATTACK", gas: gas as 1 | 2 | 3 | 4, safe: move.safe === true };
   }
 
   if (move.type === "DEFEND") {
     if (side.pg < 2) {
-      return { rulesetVersion: RULESET_VERSION, type: "RECHARGE_EXTRA" };
+      return { type: "RECHARGE_EXTRA" };
     }
     return move;
   }
