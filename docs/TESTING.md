@@ -12,6 +12,12 @@ Run these directly with Node (no `npm install` required):
 - `node --experimental-strip-types tests/run_replay_page.ts`
 - `node --experimental-strip-types tests/run_hardening.ts` (if present)
 
+## Run all zero-deps tests
+
+```bash
+./scripts/test-node.sh
+```
+
 ## Vitest usage
 
 Install dependencies, then run Vitest:
