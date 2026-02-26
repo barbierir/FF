@@ -1,6 +1,5 @@
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { RULESET_VERSION } from "../src/core/types.ts";
 import { getDailyMission } from "../src/server/economy/missions.ts";
 import { JsonStore } from "../src/server/storage/jsonStore.ts";
 
@@ -17,34 +16,44 @@ async function main(): Promise<void> {
   const b = await store.getOrCreatePlayer();
 
   const challenge = await store.createChallenge({
-    creatureA: { rulesetVersion: RULESET_VERSION, classKey: "goblin", cosmeticSeed: 1 },
+    creatureA: { classKey: "goblin", cosmeticSeed: 1 },
     playerAId: a.id,
   });
 
-  const match = await store.acceptChallenge(challenge.token, { rulesetVersion: RULESET_VERSION, classKey: "dragon", cosmeticSeed: 2 }, b.id);
+  const match = await store.acceptChallenge(
+    challenge.token,
+    { classKey: "dragon", cosmeticSeed: 2 },
+    b.id
+  );
 
   await store.submitMoves(match.id, "A", [
-    { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 4 },
-    { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 4 },
-    { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 4 },
+    { type: "ATTACK", gas: 4 },
+    { type: "ATTACK", gas: 4 },
+    { type: "ATTACK", gas: 4 },
   ]);
+
   await store.submitMoves(match.id, "B", [
-    { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 1 },
-    { rulesetVersion: RULESET_VERSION, type: "RECHARGE_EXTRA" },
-    { rulesetVersion: RULESET_VERSION, type: "ATTACK", gas: 1 },
+    { type: "ATTACK", gas: 1 },
+    { type: "RECHARGE_EXTRA" },
+    { type: "ATTACK", gas: 1 },
   ]);
 
   await store.finalizeMatchIfReady(match.id);
+
   const before = await store.getOrCreatePlayer(a.id);
   await store.applyMatchRewards(match.id);
   const after = await store.getOrCreatePlayer(a.id);
-  assert(before.gasCoins === after.gasCoins && before.stinkFame === after.stinkFame, "match rewards must be idempotent");
+  assert(
+    before.gasCoins === after.gasCoins && before.stinkFame === after.stinkFame,
+    "match rewards must be idempotent"
+  );
 
   const s1 = await store.recordShare(a.id, match.publicId);
   const s2 = await store.recordShare(a.id, match.publicId);
   const s3 = await store.recordShare(a.id, `${match.publicId}-x`);
   const s4 = await store.recordShare(a.id, `${match.publicId}-y`);
   const s5 = await store.recordShare(a.id, `${match.publicId}-z`);
+
   assert(s1.awarded && s1.stinkFameGained === 2, "first share should award");
   assert(!s2.awarded && s2.stinkFameGained === 0, "duplicate share should be idempotent");
   assert(s3.awarded && s4.awarded, "second/third daily shares should award");
@@ -59,8 +68,12 @@ async function main(): Promise<void> {
   const pBefore = await store.getOrCreatePlayer(a.id);
   const mission2 = await store.checkAndAwardDailyMission(a.id, fixedDate);
   const pAfter = await store.getOrCreatePlayer(a.id);
+
   assert(mission1.mission.type === mission2.mission.type, "same mission expected");
-  assert(pBefore.gasCoins === pAfter.gasCoins && pBefore.stinkFame === pAfter.stinkFame, "mission award must be once");
+  assert(
+    pBefore.gasCoins === pAfter.gasCoins && pBefore.stinkFame === pAfter.stinkFame,
+    "mission award must be once"
+  );
 
   console.log("ok");
 }
