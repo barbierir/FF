@@ -5,6 +5,9 @@ import { RULESET_VERSION } from "../core/types.ts";
 import type { CreatureSpec, Move } from "../core/types.ts";
 import type { LeaderboardMetric, LeaderboardScope } from "./economy/leaderboards.ts";
 import type { Side } from "./storage/types.ts";
+import type { SummaryV1 } from "../core/sim/simulate.ts";
+import { renderReplayPage } from "./pages/replayPage.ts";
+import { renderOgSvg } from "./pages/ogImage.ts";
 
 const store = new JsonStore();
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -44,6 +47,14 @@ function isMoveArray(value: unknown): value is Move[] {
   return Array.isArray(value);
 }
 
+function getBaseUrl(req: import("node:http").IncomingMessage): string {
+  const host = req.headers.host ?? `localhost:${PORT}`;
+  const forwardedProtoHeader = req.headers["x-forwarded-proto"];
+  const forwardedProto = Array.isArray(forwardedProtoHeader) ? forwardedProtoHeader[0] : forwardedProtoHeader;
+  const proto = forwardedProto ? forwardedProto.split(",")[0].trim() : "http";
+  return `${proto}://${host}`;
+}
+
 createServer(async (req, res) => {
   try {
     if (!req.url || !req.method) {
@@ -58,6 +69,13 @@ createServer(async (req, res) => {
 
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const path = url.pathname;
+
+    if (req.method === "GET" && path === "/") {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.end("<!doctype html><html><body><h1>Fart And Furious</h1><p>Replay page: /r/:publicId</p><p>Replay API: /api/replay/:publicId</p></body></html>");
+      return;
+    }
 
     if (req.method === "POST" && path === "/api/players/guest") {
       const profile = await store.getOrCreatePlayer();
@@ -214,6 +232,56 @@ createServer(async (req, res) => {
         matchHash: replay.matchHash,
         seedHex: replay.seedHex,
       });
+      return;
+    }
+
+    const replayPageMatch = path.match(/^\/r\/([^/]+)$/);
+    if (req.method === "GET" && replayPageMatch) {
+      const publicId = decodeURIComponent(replayPageMatch[1]);
+      const match = await store.getMatchByPublicId(publicId);
+      if (!match || match.status !== "finished" || !match.summary_json || !match.seed_hex || !match.match_hash_hex) {
+        res.statusCode = 404;
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        res.end("Replay not found");
+        return;
+      }
+
+      const html = renderReplayPage({
+        publicId,
+        replayData: {
+          summary: JSON.parse(match.summary_json) as SummaryV1,
+          matchHash: match.match_hash_hex,
+          seedHex: match.seed_hex,
+        },
+        baseUrl: getBaseUrl(req),
+      });
+
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.end(html);
+      return;
+    }
+
+    const ogImageMatch = path.match(/^\/og\/([^/]+)$/);
+    if (req.method === "GET" && ogImageMatch) {
+      const publicId = decodeURIComponent(ogImageMatch[1]);
+      const match = await store.getMatchByPublicId(publicId);
+      if (!match || match.status !== "finished" || !match.summary_json || !match.match_hash_hex) {
+        res.statusCode = 404;
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        res.end("Replay not found");
+        return;
+      }
+
+      const svg = renderOgSvg({
+        publicId,
+        summary: JSON.parse(match.summary_json) as SummaryV1,
+        matchHash: match.match_hash_hex,
+      });
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      res.end(svg);
       return;
     }
 
