@@ -66,8 +66,15 @@ export async function shareReplay(publicId, playerId) {
   });
 }
 
+let routeDebugLogged = false;
+
 export function parsePath() {
-  return location.pathname.split("/").filter(Boolean);
+  const parts = location.pathname.split("/").filter(Boolean);
+  if (!routeDebugLogged) {
+    routeDebugLogged = true;
+    console.log(`[app] route path=${location.pathname} parts=${parts.join("/") || "(root)"}`);
+  }
+  return parts;
 }
 
 export function q(name) {
