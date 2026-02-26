@@ -1,0 +1,103 @@
+const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy"];
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = json?.error?.message || `HTTP ${res.status}`;
+    throw new Error(err);
+  }
+  return json;
+}
+
+export async function getOrCreateGuestPlayer() {
+  let playerId = localStorage.getItem("faf_player_id");
+  if (playerId) return playerId;
+  const created = await api("/api/players/guest", { method: "POST", body: "{}" });
+  playerId = created.playerId;
+  localStorage.setItem("faf_player_id", playerId);
+  return playerId;
+}
+
+export async function getProfile(playerId) {
+  return api(`/api/players/${encodeURIComponent(playerId)}`);
+}
+
+export async function createChallenge(playerId, creatureA) {
+  return api("/api/challenges", {
+    method: "POST",
+    body: JSON.stringify({ playerAId: playerId, creatureA }),
+  });
+}
+
+export async function getChallenge(token) {
+  return api(`/api/challenges/${encodeURIComponent(token)}`);
+}
+
+export async function acceptChallenge(token, playerId, creatureB) {
+  return api(`/api/challenges/${encodeURIComponent(token)}/accept`, {
+    method: "POST",
+    body: JSON.stringify({ playerBId: playerId, creatureB }),
+  });
+}
+
+export async function submitMoves(matchId, side, moves) {
+  return api(`/api/matches/${encodeURIComponent(matchId)}/moves`, {
+    method: "POST",
+    body: JSON.stringify({ side, moves }),
+  });
+}
+
+export async function getMatch(matchId) {
+  return api(`/api/matches/${encodeURIComponent(matchId)}`);
+}
+
+export async function fetchReplay(publicId) {
+  return api(`/api/replay/${encodeURIComponent(publicId)}`);
+}
+
+export async function shareReplay(publicId, playerId) {
+  return api(`/api/replay/${encodeURIComponent(publicId)}/share`, {
+    method: "POST",
+    body: JSON.stringify({ playerId }),
+  });
+}
+
+export function parsePath() {
+  return location.pathname.split("/").filter(Boolean);
+}
+
+export function q(name) {
+  return new URLSearchParams(location.search).get(name);
+}
+
+export function creatureFromDom(prefix) {
+  const classKey = document.getElementById(`${prefix}-class`).value;
+  const cosmeticSeed = Number.parseInt(document.getElementById(`${prefix}-seed`).value, 10);
+  if (!CLASS_KEYS.includes(classKey)) throw new Error("Invalid class key");
+  return { classKey, cosmeticSeed };
+}
+
+export async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  ta.remove();
+}
+
+export function randomSeed() {
+  return Math.floor(Math.random() * 1000000);
+}
+
+export function setProfileBar(el, profile) {
+  el.textContent = `⛽ GasCoins ${profile.gasCoins} · 🦨 StinkFame ${profile.stinkFame} · W${profile.wins}/L${profile.losses}/D${profile.draws}`;
+}

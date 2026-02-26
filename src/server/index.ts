@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { URL } from "node:url";
 import { JsonStore } from "./storage/jsonStore.ts";
 import type { LeaderboardMetric, LeaderboardScope } from "./economy/leaderboards.ts";
@@ -14,6 +16,15 @@ const store = new JsonStore();
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
 const limiter = new TokenBucketRateLimiter();
 const shareIpDailyCounts = new Map<string, number>();
+const publicDir = path.resolve(process.cwd(), "public");
+
+const STATIC_MIME: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml; charset=utf-8",
+};
 
 function sendJson(res: import("node:http").ServerResponse, status: number, body: unknown): void {
   res.statusCode = status;
@@ -26,6 +37,16 @@ function sendJson(res: import("node:http").ServerResponse, status: number, body:
 
 function sendError(res: import("node:http").ServerResponse, status: number, code: string, message: string): void {
   sendJson(res, status, { error: { code, message } });
+}
+
+async function sendStaticFile(res: import("node:http").ServerResponse, fileName: string): Promise<void> {
+  const fullPath = path.join(publicDir, fileName);
+  const ext = path.extname(fileName).toLowerCase();
+  const mime = STATIC_MIME[ext] ?? "application/octet-stream";
+  const body = await readFile(fullPath);
+  res.statusCode = 200;
+  res.setHeader("Content-Type", mime);
+  res.end(body);
 }
 
 async function parseJsonBody(req: import("node:http").IncomingMessage): Promise<unknown> {
@@ -88,9 +109,35 @@ export function createApiServer(): import("node:http").Server {
       const path = url.pathname;
 
       if (req.method === "GET" && path === "/") {
-        res.statusCode = 200;
-        res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.end("<!doctype html><html><body><h1>Fart And Furious</h1><p>Replay page: /r/:publicId</p><p>Replay API: /api/replay/:publicId</p></body></html>");
+        await sendStaticFile(res, "index.html");
+        return;
+      }
+
+      if (req.method === "GET" && path === "/styles.css") {
+        await sendStaticFile(res, "styles.css");
+        return;
+      }
+
+      if (req.method === "GET" && path === "/app.js") {
+        await sendStaticFile(res, "app.js");
+        return;
+      }
+
+      const challengePage = path.match(/^\/c\/([^/]+)$/);
+      if (req.method === "GET" && challengePage) {
+        await sendStaticFile(res, "challenge.html");
+        return;
+      }
+
+      const matchPage = path.match(/^\/m\/([^/]+)$/);
+      if (req.method === "GET" && matchPage) {
+        await sendStaticFile(res, "match.html");
+        return;
+      }
+
+      const replayUiPage = path.match(/^\/replay\/([^/]+)$/);
+      if (req.method === "GET" && replayUiPage) {
+        await sendStaticFile(res, "replay.html");
         return;
       }
 
@@ -118,10 +165,10 @@ export function createApiServer(): import("node:http").Server {
 
       if (req.method === "POST" && path === "/api/challenges") {
         enforceRateLimit(req, "createChallenge", 10);
-        const body = (await parseJsonBody(req)) as { creatureA?: unknown; expiresInHours?: unknown; playerId?: unknown };
+        const body = (await parseJsonBody(req)) as { creatureA?: unknown; expiresInHours?: unknown; playerId?: unknown; playerAId?: unknown };
         const creatureA = validateCreatureSpec(body.creatureA);
         const expiresInHours = validateExpiresInHours(body.expiresInHours);
-        const playerId = maybeValidatePlayerId(body.playerId);
+        const playerId = maybeValidatePlayerId(body.playerAId ?? body.playerId);
 
         const creator = await store.getOrCreatePlayer(playerId);
         const challenge = await store.createChallenge({
@@ -142,15 +189,31 @@ export function createApiServer(): import("node:http").Server {
       if (req.method === "POST" && acceptMatch) {
         enforceRateLimit(req, "acceptChallenge", 20);
         const token = validateId("token", decodeURIComponent(acceptMatch[1]));
-        const body = (await parseJsonBody(req)) as { creatureB?: unknown; playerId?: unknown };
+        const body = (await parseJsonBody(req)) as { creatureB?: unknown; playerId?: unknown; playerBId?: unknown };
         const creatureB = validateCreatureSpec(body.creatureB);
-        const joiner = await store.getOrCreatePlayer(maybeValidatePlayerId(body.playerId));
+        const joiner = await store.getOrCreatePlayer(maybeValidatePlayerId(body.playerBId ?? body.playerId));
         const match = await store.acceptChallenge(token, creatureB, joiner.id);
         sendJson(res, 200, {
           matchId: match.id,
           publicId: match.publicId,
           status: match.status,
           playerId: joiner.id,
+        });
+        return;
+      }
+
+      const challengeMeta = path.match(/^\/api\/challenges\/([^/]+)$/);
+      if (req.method === "GET" && challengeMeta) {
+        const token = validateId("token", decodeURIComponent(challengeMeta[1]));
+        const challenge = await store.getChallengeByToken(token);
+        if (!challenge) {
+          throw new HttpError(404, "challenge_not_found", "Challenge not found");
+        }
+        sendJson(res, 200, {
+          status: challenge.status,
+          creatureA: challenge.creatureA,
+          expiresAtISO: challenge.expiresAtISO,
+          acceptedAtISO: challenge.acceptedAtISO,
         });
         return;
       }
@@ -234,12 +297,15 @@ export function createApiServer(): import("node:http").Server {
           throw new HttpError(404, "match_not_found", "Match not found");
         }
 
+        const challenge = await store.getChallengeById(match.challengeId);
         const payload = await store.getFinalizedPayload(matchId);
         sendJson(res, 200, {
           id: match.id,
           publicId: match.publicId,
           status: match.status,
           challengeId: match.challengeId,
+          creatureA: challenge?.creatureA,
+          creatureB: challenge?.creatureB,
           seedHex: match.seed_hex,
           summary: payload?.summary,
         });
@@ -318,6 +384,10 @@ export function createApiServer(): import("node:http").Server {
     } catch (error) {
       if (error instanceof HttpError) {
         sendError(res, error.status, error.code, error.message);
+        return;
+      }
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+        sendError(res, 404, "not_found", "Not found");
         return;
       }
       const message = error instanceof Error ? error.message : "Unknown error";

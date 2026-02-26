@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Fart And Furious</title><link rel="stylesheet" href="/styles.css"/></head>
+<body>
+  <div class="topbar"><strong>Fart And Furious</strong><span id="profileBar">Loading profile…</span></div>
+  <main>
+    <section class="card"><h1>Fart And Furious</h1><p>Create a challenge link and send it to a friend.</p></section>
+    <section class="card"><h2>Your Creature</h2>
+      <div class="row"><div><label>classKey</label><select id="a-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option></select></div>
+      <div><label>cosmeticSeed</label><input id="a-seed" type="number" min="0" max="2147483647"/></div></div>
+      <div style="margin-top:10px"><button id="createBtn">Create Challenge</button></div>
+      <p id="error" class="error"></p>
+      <div id="linkWrap" style="display:none"><label>Share link</label><div class="linkbox"><input id="link" readonly/><button class="secondary" id="copyBtn">Copy</button></div></div>
+    </section>
+    <section class="card"><h2>Your Profile</h2><pre id="profileJson"></pre></section>
+  </main>
+<script type="module">
+import { copyText, createChallenge, creatureFromDom, getOrCreateGuestPlayer, getProfile, randomSeed, setProfileBar } from '/app.js';
+const err = document.getElementById('error');
+document.getElementById('a-seed').value = String(randomSeed());
+const playerId = await getOrCreateGuestPlayer();
+const profileData = await getProfile(playerId);
+setProfileBar(document.getElementById('profileBar'), profileData.profile);
+document.getElementById('profileJson').textContent = JSON.stringify(profileData.profile, null, 2);
+document.getElementById('createBtn').onclick = async () => {
+  err.textContent = '';
+  try {
+    const challenge = await createChallenge(playerId, creatureFromDom('a'));
+    const url = `${location.origin}/c/${challenge.token}`;
+    document.getElementById('link').value = url;
+    document.getElementById('linkWrap').style.display = 'block';
+  } catch (e) { err.textContent = e.message; }
+};
+document.getElementById('copyBtn').onclick = async () => {
+  await copyText(document.getElementById('link').value);
+};
+</script></body></html>

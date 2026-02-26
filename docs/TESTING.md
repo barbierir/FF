@@ -31,3 +31,18 @@ npm run test:vitest
 
 - `run_*.ts` scripts are zero-deps integration tests.
 - `*.vitest.ts` files are unit tests that require Vitest.
+
+## Manual web UI flow
+
+1. Start the server:
+
+```bash
+node --experimental-strip-types src/server/index.ts
+```
+
+2. In browser A, open `http://localhost:3000/` and create a challenge.
+3. Copy the generated `/c/<token>` link and open it in browser B.
+4. Accept challenge in browser B, then submit moves in both browsers.
+5. After both submissions, ensure redirect to `/replay/<publicId>`.
+6. Verify the animated log/HP bars run and "Share Page" points to `/r/<publicId>`.
+7. Click **I shared this** and confirm profile balances update in top bar on refresh.

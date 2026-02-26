@@ -1,0 +1,48 @@
+<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
+<body><div class="topbar"><strong>Replay</strong><span id="profileBar">Loading…</span></div><main>
+<section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button id="shareBtn">I shared this</button><p id="shareMsg"></p></section>
+<section class="card"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><button class="secondary" id="skip">Skip</button> <button class="secondary" id="replay">Replay</button><div class="log" id="log"></div></section>
+</main>
+<script type="module">
+import { copyText, fetchReplay, getOrCreateGuestPlayer, getProfile, parsePath, setProfileBar, shareReplay } from '/app.js';
+const publicId = parsePath()[1];
+const data = await fetchReplay(publicId);
+const playerId = await getOrCreateGuestPlayer();
+const profile = await getProfile(playerId);
+setProfileBar(document.getElementById('profileBar'), profile.profile);
+
+document.getElementById('winner').textContent = `Winner: ${data.summary.winner}`;
+document.getElementById('stats').textContent = `Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;
+document.getElementById('hash').textContent = data.matchHash;
+document.getElementById('sharePage').href = `/r/${publicId}`;
+document.getElementById('copyHash').onclick = () => copyText(data.matchHash);
+document.getElementById('shareBtn').onclick = async ()=>{
+  try { const r = await shareReplay(publicId, playerId); document.getElementById('shareMsg').textContent = `Shared! +${r.awarded?.gc ?? 0} GC`; }
+  catch(e){ document.getElementById('shareMsg').textContent = e.message; }
+};
+
+const icon = (ev)=>{
+  if(ev.kind==='DEFEND') return '🛡️'; if(ev.kind==='HEAL') return '🧚✨'; if(ev.kind==='DOT') return '🔥';
+  if(ev.kind==='ATTACK' && ev.outcome==='BACKFIRE') return '💥↩️';
+  if(ev.kind==='ATTACK' && ev.outcome==='TOXIC') return '☠️💨';
+  if(ev.kind==='ATTACK' && ev.outcome==='CATACLYSM') return '🌪️💨🔥';
+  if(ev.kind==='ATTACK') return '💨';
+  return '➖';
+};
+
+const hpA=document.getElementById('hpA'); const hpB=document.getElementById('hpB'); const log=document.getElementById('log');
+let i=0, timer;
+function renderEvent(ev){
+  hpA.style.width = `${Math.max(0, Math.min(100, (ev.prA/20)*100))}%`;
+  hpB.style.width = `${Math.max(0, Math.min(100, (ev.prB/20)*100))}%`;
+  const line=document.createElement('div');
+  line.textContent=`T${ev.t} ${ev.actor} ${icon(ev)} ${ev.kind}${ev.outcome?` ${ev.outcome}`:''} | HP A:${ev.prA} B:${ev.prB}`;
+  log.appendChild(line); log.scrollTop = log.scrollHeight;
+}
+function play(){ clearInterval(timer); log.innerHTML=''; i=0; timer=setInterval(()=>{ if(i>=data.events.length){ clearInterval(timer); return; } renderEvent(data.events[i++]); },250); }
+function skip(){ clearInterval(timer); for(;i<data.events.length;i++) renderEvent(data.events[i]); }
+
+document.getElementById('skip').onclick = skip;
+document.getElementById('replay').onclick = play;
+play();
+</script></body></html>
