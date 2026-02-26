@@ -240,6 +240,7 @@ export class JsonStore implements Store {
     }
 
     challenge.status = "accepted";
+    challenge.acceptedAtISO = nowIso();
     challenge.creatureB = creatureB;
     challenge.playerBId = playerBId ?? null;
 

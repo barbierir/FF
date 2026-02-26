@@ -1,0 +1,59 @@
+<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Submit Moves</title><link rel="stylesheet" href="/styles.css"/></head>
+<body><div class="topbar"><strong>Match</strong><span id="meta"></span></div><main>
+<section class="card"><h1>Submit your move script</h1><p id="tips" class="small"></p><div id="moves"></div><button id="submitBtn">Submit Moves</button><p id="error" class="error"></p><p id="wait" class="small"></p><button id="refreshBtn" class="secondary" style="display:none">Refresh</button></section>
+</main>
+<script type="module">
+import { getMatch, parsePath, q, submitMoves } from '/app.js';
+const matchId = parsePath()[1];
+const side = q('side') === 'A' ? 'A' : 'B';
+const state = { classKey: 'goblin', safeUsed: false, polling: null };
+const sel = ['','ATTACK_1','ATTACK_2','ATTACK_3','ATTACK_4','DEFEND','RECHARGE_EXTRA','HEAL'];
+
+function row(i){
+  const div = document.createElement('div'); div.className = 'turn-grid';
+  div.innerHTML = `<strong>T${i+1}</strong><select data-turn='${i}'>${sel.map(v=>`<option value='${v}'>${v || '(blank)'}</option>`).join('')}</select><label><input type='checkbox' data-safe='${i}'/> safe</label>`;
+  return div;
+}
+for(let i=0;i<10;i++) document.getElementById('moves').appendChild(row(i));
+
+const m = await getMatch(matchId);
+if (side==='A' && m.creatureA) state.classKey = m.creatureA.classKey;
+if (side==='B' && m.creatureB) state.classKey = m.creatureB.classKey;
+document.getElementById('meta').textContent = `Side ${side}`;
+document.getElementById('tips').textContent = state.classKey==='fairy' ? 'Fairy can HEAL.' : 'HEAL may be auto-sanitized if class cannot use it.';
+
+function collectMoves(){
+  const out=[];
+  const rows=[...document.querySelectorAll('select[data-turn]')];
+  for (const s of rows){
+    const idx=Number(s.dataset.turn); const safe=document.querySelector(`input[data-safe='${idx}']`).checked;
+    const v=s.value;
+    if (!v) {
+      out.push(null);
+    } else if(v.startsWith('ATTACK_')){
+      const gas=Number(v.split('_')[1]); const mv={type:'ATTACK',gas};
+      if(state.classKey==='skunk' && safe && !state.safeUsed){ mv.safe=true; state.safeUsed=true; }
+      out.push(mv);
+    } else if(v==='DEFEND'||v==='RECHARGE_EXTRA'||v==='HEAL'){ out.push({type:v}); }
+  }
+  while(out.length && out[out.length-1]===null) out.pop();
+  return out.filter(Boolean);
+}
+
+async function poll(){
+  const latest = await getMatch(matchId);
+  if(latest.status==='finished') location.href = `/replay/${latest.publicId}`;
+}
+
+document.getElementById('refreshBtn').onclick = poll;
+document.getElementById('submitBtn').onclick = async()=>{
+  const err=document.getElementById('error'); err.textContent='';
+  try{
+    const resp=await submitMoves(matchId, side, collectMoves());
+    if(resp.status==='finished'){ location.href=resp.replayUrl.replace('/api',''); return; }
+    document.getElementById('wait').textContent='Waiting for opponent...';
+    document.getElementById('refreshBtn').style.display='block';
+    state.polling=setInterval(poll,2000);
+  }catch(e){ err.textContent=e.message.includes('already')?'Moves already submitted. Waiting for opponent…':e.message; }
+};
+</script></body></html>

@@ -14,6 +14,7 @@ export type StoredChallenge = {
   creatureB?: CreatureSpec;
   createdAtISO: string;
   expiresAtISO: string;
+  acceptedAtISO?: string;
   matchId?: string;
   playerAId?: string | null;
   playerBId?: string | null;
