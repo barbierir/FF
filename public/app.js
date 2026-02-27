@@ -1,6 +1,7 @@
 const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy"];
 const PLAYER_ID_KEY = "faf_playerId";
 const LEGACY_PLAYER_ID_KEY = "faf_player_id";
+const LAST_REPLAY_PUBLIC_ID_KEY = "faf_lastReplayPublicId";
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -34,11 +35,30 @@ export async function getOrCreateGuestPlayer() {
   return playerId;
 }
 
+export function rememberLastReplayPublicId(publicId) {
+  if (!publicId) return;
+  localStorage.setItem(LAST_REPLAY_PUBLIC_ID_KEY, publicId);
+}
+
+export function updateResumeReplayLink() {
+  const resumeLink = document.getElementById("navResumeReplay");
+  if (!resumeLink) return;
+  const publicId = localStorage.getItem(LAST_REPLAY_PUBLIC_ID_KEY);
+  if (!publicId) {
+    resumeLink.hidden = true;
+    resumeLink.href = "/";
+    return;
+  }
+  resumeLink.href = `/replay/${encodeURIComponent(publicId)}`;
+  resumeLink.hidden = false;
+}
+
 export function updateTopNav() {
   const profileLink = document.getElementById("myProfileLink");
   if (!profileLink) return;
   const playerId = getPlayerIdOrNull();
   profileLink.href = playerId ? `/p/${encodeURIComponent(playerId)}` : "/";
+  updateResumeReplayLink();
 }
 
 export async function getProfile(playerId) {
