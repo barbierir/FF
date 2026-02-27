@@ -8,7 +8,7 @@ import type { Side } from "./storage/types.ts";
 import type { SummaryV1 } from "../core/sim/simulate.ts";
 import { renderReplayPage } from "./pages/replayPage.ts";
 import { renderOgSvg } from "./pages/ogImage.ts";
-import { buildShareText } from "./pages/shareText.ts";
+import { buildRematchText, buildShareText } from "./pages/shareText.ts";
 import { renderDailyShell, renderLeaderboardShell, renderProfileShell, renderRivalryShell } from "./pages/simplePages.ts";
 import { HttpError } from "./errors.ts";
 import { dayKey, getRequestIp, TokenBucketRateLimiter } from "./rateLimit.ts";
@@ -355,6 +355,52 @@ export function createApiServer(): import("node:http").Server {
       }
 
       const replayShare = path.match(/^\/api\/replay\/([^/]+)\/share$/);
+      const rematchMatch = path.match(/^\/api\/rematch\/([^/]+)$/);
+      if (req.method === "POST" && rematchMatch) {
+        enforceRateLimit(req, "createChallenge", 10);
+        const publicId = validateId("publicId", decodeURIComponent(rematchMatch[1]));
+        const body = (await parseJsonBody(req)) as { playerId?: unknown; side?: unknown };
+        const playerId = validateId("playerId", body.playerId, 3);
+        const side = body.side;
+        if (side !== "A" && side !== "B") {
+          throw new HttpError(400, "invalid_side", "side must be 'A' or 'B'");
+        }
+
+        const match = await store.getMatchByPublicId(publicId);
+        if (!match || match.status !== "finished") {
+          throw new HttpError(404, "replay_not_found", "Replay not found");
+        }
+
+        const replay = await store.getReplayByPublicId(publicId);
+        if (!replay) {
+          throw new HttpError(409, "replay_incomplete", "Replay is incomplete");
+        }
+
+        const sidePlayerId = side === "A" ? (match.playerAId ?? null) : (match.playerBId ?? null);
+        if (sidePlayerId && sidePlayerId !== playerId) {
+          throw new HttpError(403, "player_mismatch", "playerId does not match side playerId");
+        }
+
+        const challenge = await store.createChallenge({
+          creatureA: side === "A" ? replay.input.creatureA : replay.input.creatureB,
+          expiresInHours: 24,
+          playerAId: playerId,
+        });
+
+        const rematchUrl = `${getBaseUrl(req)}/c/${challenge.token}`;
+        const replayUrl = `${getBaseUrl(req)}/r/${publicId}`;
+        const opponentPlayerId = side === "A" ? (match.playerBId ?? null) : (match.playerAId ?? null);
+
+        sendJson(res, 200, {
+          token: challenge.token,
+          url: `/c/${challenge.token}`,
+          challenge,
+          suggestedText: buildRematchText(replay.summary as SummaryV1, replayUrl, rematchUrl),
+          opponentHint: opponentPlayerId ? { playerId: opponentPlayerId } : null,
+        });
+        return;
+      }
+
       if (req.method === "POST" && replayShare) {
         enforceRateLimit(req, "share", 60);
         enforceShareIpDailyCap(req);
@@ -421,6 +467,7 @@ export function createApiServer(): import("node:http").Server {
           summary: replay.summary,
           matchHash: replay.matchHash,
           seedHex: replay.seedHex,
+          match: replay.match,
         });
         return;
       }

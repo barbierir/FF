@@ -25,6 +25,8 @@ export type StoredMatch = {
   challengeId: string;
   publicId: string;
   status: MatchStatus;
+  playerAId?: string | null;
+  playerBId?: string | null;
   input_json?: string;
   seed_hex?: string;
   events_json?: string;
@@ -92,6 +94,12 @@ export type ReplayPayload = {
   summary: Record<string, unknown>;
   matchHash: string;
   seedHex: string;
+  match: {
+    publicId: string;
+    playerAId: string | null;
+    playerBId: string | null;
+    challengeId: string;
+  };
 };
 
 export type SideMovesSubmission = {
