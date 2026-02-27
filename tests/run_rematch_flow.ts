@@ -25,6 +25,7 @@ async function main(): Promise<void> {
   try {
     const playerAId = "pla_rematch_A";
     const playerBId = "pla_rematch_B";
+    const outsiderId = "pla_rematch_C";
 
     const challenge = await api(baseUrl, "/api/challenges", {
       method: "POST",
@@ -44,11 +45,11 @@ async function main(): Promise<void> {
 
     await api(baseUrl, `/api/matches/${accepted.matchId}/moves`, {
       method: "POST",
-      body: JSON.stringify({ side: "A", moves: [{ type: "ATTACK", gas: 2 }] }),
+      body: JSON.stringify({ playerId: playerAId, side: "A", moves: [{ type: "ATTACK", gas: 2 }] }),
     });
     await api(baseUrl, `/api/matches/${accepted.matchId}/moves`, {
       method: "POST",
-      body: JSON.stringify({ side: "B", moves: [{ type: "DEFEND" }] }),
+      body: JSON.stringify({ playerId: playerBId, side: "B", moves: [{ type: "DEFEND" }] }),
     });
 
     const rematch = await api(baseUrl, `/api/rematch/${accepted.publicId}`, {
@@ -57,6 +58,23 @@ async function main(): Promise<void> {
     });
 
     if (!rematch.token) throw new Error("missing rematch token");
+
+    const rematchAgain = await api(baseUrl, `/api/rematch/${accepted.publicId}`, {
+      method: "POST",
+      body: JSON.stringify({ playerId: playerAId, side: "A" }),
+    });
+    if (rematchAgain.token !== rematch.token) {
+      throw new Error("rematch endpoint is not idempotent");
+    }
+
+    await api(baseUrl, `/api/challenges/${rematch.token}?viewerId=${playerBId}`);
+
+    let outsiderStatus = 0;
+    const outsiderRes = await fetch(`${baseUrl}/api/challenges/${rematch.token}?viewerId=${outsiderId}`);
+    outsiderStatus = outsiderRes.status;
+    if (outsiderStatus !== 403) {
+      throw new Error(`expected outsider to be rejected with 403, got ${outsiderStatus}`);
+    }
 
     const open = await api(baseUrl, `/api/challenges/open?excludePlayerId=${playerBId}&limit=20`);
     if (!open.items.some((item: { token: string }) => item.token === rematch.token)) {
@@ -72,6 +90,23 @@ async function main(): Promise<void> {
     });
 
     if (!rematchAccepted.matchId) throw new Error("rematch accept did not create match");
+
+    const waiting = await api(baseUrl, `/api/matches/${rematchAccepted.matchId}/moves`, {
+      method: "POST",
+      body: JSON.stringify({ playerId: playerAId, side: "B", moves: [{ type: "ATTACK", gas: 1 }] }),
+    });
+    if (waiting.status !== "waiting_for_opponent") {
+      throw new Error("first rematch submit should wait for opponent");
+    }
+
+    const done = await api(baseUrl, `/api/matches/${rematchAccepted.matchId}/moves`, {
+      method: "POST",
+      body: JSON.stringify({ playerId: playerBId, side: "A", moves: [{ type: "DEFEND" }] }),
+    });
+    if (done.status !== "finished" || !done.replayUrl) {
+      throw new Error("both rematch moves did not finalize");
+    }
+
     console.log("ok");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));

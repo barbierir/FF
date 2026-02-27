@@ -337,7 +337,9 @@ export function createApiServer(): import("node:http").Server {
       const challengeMeta = path.match(/^\/api\/challenges\/([^/]+)$/);
       if (req.method === "GET" && challengeMeta) {
         const token = validateId("token", decodeURIComponent(challengeMeta[1]));
-        const challenge = await store.getChallengeByToken(token);
+        const viewerIdRaw = url.searchParams.get("viewerId");
+        const viewerId = viewerIdRaw ? validateId("viewerId", viewerIdRaw, 3) : undefined;
+        const challenge = viewerId ? await store.joinChallengeIfEligible(token, viewerId) : await store.getChallengeByToken(token);
         if (!challenge) {
           throw new HttpError(404, "challenge_not_found", "Challenge not found");
         }
@@ -360,10 +362,8 @@ export function createApiServer(): import("node:http").Server {
       if (req.method === "POST" && movesMatch) {
         enforceRateLimit(req, "submitMoves", 30);
         const matchId = validateId("matchId", decodeURIComponent(movesMatch[1]), 4);
-        const body = (await parseJsonBody(req)) as { side?: Side; moves?: unknown };
-        if (body.side !== "A" && body.side !== "B") {
-          throw new HttpError(400, "invalid_side", "side must be 'A' or 'B'");
-        }
+        const body = (await parseJsonBody(req)) as { side?: Side; moves?: unknown; playerId?: unknown };
+        const playerId = validateId("playerId", body.playerId, 3);
 
         const match = await store.getMatch(matchId);
         if (!match) {
@@ -374,14 +374,21 @@ export function createApiServer(): import("node:http").Server {
         }
 
         const challengeObj = await store.getChallengeById(match.challengeId);
+        if (!challengeObj) {
+          throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
+        }
 
-        const classKey = body.side === "A" ? challengeObj?.creatureA?.classKey : challengeObj?.creatureB?.classKey;
+        const side: Side = challengeObj.playerAId === playerId ? "A" : challengeObj.playerBId === playerId ? "B" : (() => {
+          throw new HttpError(403, "player_not_in_match", "playerId is not part of this match");
+        })();
+        const classKey = side === "A" ? challengeObj.creatureA?.classKey : challengeObj.creatureB?.classKey;
         if (!classKey) {
           throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
         }
         const moves = validateMoves(classKey, body.moves);
 
-        await store.submitMoves(matchId, body.side, moves);
+        await store.submitMoves(matchId, side, moves);
+        console.log(`[match.finalize-check] matchId=${matchId} playerId=${playerId} side=${side}`);
         const finalized = await store.finalizeMatchIfReady(matchId);
         if (finalized.status === "finished") {
           const payload = await store.getFinalizedPayload(matchId);
@@ -424,11 +431,15 @@ export function createApiServer(): import("node:http").Server {
           throw new HttpError(403, "player_mismatch", "playerId does not match side playerId");
         }
 
-        const challenge = await store.createChallenge({
-          creatureA: side === "A" ? replay.input.creatureA : replay.input.creatureB,
-          expiresInHours: 24,
-          playerAId: playerId,
-        });
+        const existing = await store.getOpenRematchChallenge(publicId, playerId);
+        const challenge =
+          existing ??
+          (await store.createChallenge({
+            creatureA: side === "A" ? replay.input.creatureA : replay.input.creatureB,
+            expiresInHours: 24,
+            playerAId: playerId,
+            rematchOfPublicId: publicId,
+          }));
 
         const rematchUrl = `${getBaseUrl(req)}/c/${challenge.token}`;
         const replayUrl = `${getBaseUrl(req)}/r/${publicId}`;

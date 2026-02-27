@@ -20,6 +20,8 @@ export interface Store {
   createChallenge(input: CreateChallengeInput): Promise<StoredChallenge>;
   getChallengeById(challengeId: string): Promise<StoredChallenge | undefined>;
   getChallengeByToken(token: string): Promise<StoredChallenge | undefined>;
+  getOpenRematchChallenge(rematchOfPublicId: string, playerAId: string): Promise<StoredChallenge | undefined>;
+  joinChallengeIfEligible(token: string, viewerId: string): Promise<StoredChallenge>;
   listChallenges(playerId: string | undefined, status: "open" | "accepted", limit: number, excludePlayerId?: string): Promise<StoredChallenge[]>;
   acceptChallenge(token: string, creatureB: CreatureSpec, playerBId?: string | null): Promise<StoredMatch>;
   submitMoves(matchId: string, side: Side, moves: Move[]): Promise<StoredMoves>;

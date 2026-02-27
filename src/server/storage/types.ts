@@ -18,6 +18,7 @@ export type StoredChallenge = {
   matchId?: string;
   playerAId?: string | null;
   playerBId?: string | null;
+  rematchOfPublicId?: string;
 };
 
 export type StoredMatch = {
@@ -78,6 +79,7 @@ export type CreateChallengeInput = {
   creatureA: CreatureSpec;
   expiresInHours?: number;
   playerAId?: string | null;
+  rematchOfPublicId?: string;
 };
 
 export type FinalizedPayload = {
