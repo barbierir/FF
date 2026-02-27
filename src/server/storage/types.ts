@@ -104,3 +104,58 @@ export type MissionStatus = {
   completed: boolean;
   awarded?: { gc: number; sf: number };
 };
+
+export type PublicProfile = {
+  gasCoins: number;
+  stinkFame: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  bestStreak: number;
+  maxHitEver: number;
+  totalCataclysms: number;
+  totalBackfires: number;
+};
+
+export type PublicRecentMatch = {
+  publicId: string;
+  winner: "A" | "B" | "DRAW";
+  maxHit: number;
+  createdAtISO: string;
+};
+
+export type PublicRivalryRow = {
+  opponentId: string;
+  totalMatches: number;
+  wins: number;
+  losses: number;
+};
+
+export type PublicPlayerResponse = {
+  profile: PublicProfile;
+  recentMatches: PublicRecentMatch[];
+  rivalries: PublicRivalryRow[];
+};
+
+export type GlobalLeaderboardRow = {
+  playerId: string;
+  stinkFame: number;
+  wins: number;
+  maxHitEver: number;
+};
+
+export type RivalryStats = {
+  totalMatches: number;
+  winsA: number;
+  winsB: number;
+  totalDamageA: number;
+  totalDamageB: number;
+  matches: string[];
+};
+
+export type DailyHighlight = {
+  highlightType: "highest_max_hit" | "most_cataclysms" | "most_humiliating_win";
+  publicId: string;
+  playerId: string;
+  value: number;
+};

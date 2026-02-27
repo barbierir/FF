@@ -2,10 +2,14 @@ import type { CreatureSpec, Move } from "../../core/types.ts";
 import type { LeaderboardMetric, LeaderboardRow, LeaderboardScope } from "../economy/leaderboards.ts";
 import type {
   CreateChallengeInput,
+  DailyHighlight,
   FinalizedPayload,
+  GlobalLeaderboardRow,
   MissionStatus,
   PlayerProfile,
+  PublicPlayerResponse,
   ReplayPayload,
+  RivalryStats,
   Side,
   StoredChallenge,
   StoredMatch,
@@ -29,4 +33,8 @@ export interface Store {
   recordChallengeAccepted(challengeId: string): Promise<void>;
   checkAndAwardDailyMission(playerId: string, dateISO: string): Promise<MissionStatus>;
   getLeaderboard(scope: LeaderboardScope, metric: LeaderboardMetric): Promise<LeaderboardRow[]>;
+  getPublicPlayer(playerId: string): Promise<PublicPlayerResponse | undefined>;
+  getGlobalLeaderboard(): Promise<GlobalLeaderboardRow[]>;
+  getRivalry(playerA: string, playerB: string): Promise<RivalryStats>;
+  getDailyHighlight(nowISO?: string): Promise<DailyHighlight | undefined>;
 }

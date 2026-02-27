@@ -1,4 +1,5 @@
 import type { SummaryV1 } from "../../core/sim/simulate.ts";
+import { buildShareText } from "./shareText.ts";
 
 type ReplayPageParams = {
   publicId: string;
@@ -21,7 +22,8 @@ export function renderReplayPage(params: ReplayPageParams): string {
   const matchup = `${summary.a.classKey} vs ${summary.b.classKey}`;
   const winner = summary.winner === "DRAW" ? "DRAW" : `${summary.winner} (${summary.winner === "A" ? summary.a.classKey : summary.b.classKey})`;
   const hashPrefix = matchHash.slice(0, 10);
-  const description = `Winner ${summary.winner} • Max Hit ${summary.highlights.maxHitValue} by ${summary.highlights.maxHitBy} • Cataclysms A:${summary.highlights.cataclysms.A}/B:${summary.highlights.cataclysms.B} • Hash ${hashPrefix}`;
+  const shareText = buildShareText(summary, publicId, baseUrl);
+  const description = `${shareText.split("\n")[0]} • Hash ${hashPrefix}`;
   const ogImage = `${baseUrl}/og/${encodeURIComponent(publicId)}`;
   const replayJson = `/api/replay/${encodeURIComponent(publicId)}`;
   const shareApi = `/api/replay/${encodeURIComponent(publicId)}/share`;
@@ -62,7 +64,16 @@ export function renderReplayPage(params: ReplayPageParams): string {
     <p class="row"><strong>Match Hash:</strong> <code>${escapeHtml(matchHash)}</code></p>
     <p class="row"><a href="${replayJson}">View JSON replay</a></p>
     <p class="row">Share hint: send a POST request to <code>${shareApi}</code> with JSON body <code>{"playerId":"..."}</code>.</p>
+    <p class="row"><button id="copyShareText">Copy Share Text</button></p>
   </main>
+  <script>
+    const shareText = ${JSON.stringify(shareText)};
+    document.getElementById('copyShareText')?.addEventListener('click', async () => {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareText);
+      }
+    });
+  </script>
 </body>
 </html>`;
 }

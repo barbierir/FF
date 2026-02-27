@@ -8,6 +8,8 @@ import type { Side } from "./storage/types.ts";
 import type { SummaryV1 } from "../core/sim/simulate.ts";
 import { renderReplayPage } from "./pages/replayPage.ts";
 import { renderOgSvg } from "./pages/ogImage.ts";
+import { buildShareText } from "./pages/shareText.ts";
+import { renderDailyShell, renderLeaderboardShell, renderProfileShell, renderRivalryShell } from "./pages/simplePages.ts";
 import { HttpError } from "./errors.ts";
 import { dayKey, getRequestIp, TokenBucketRateLimiter } from "./rateLimit.ts";
 import { maybeValidatePlayerId, validateCreatureSpec, validateExpiresInHours, validateId, validateMoves } from "./validate.ts";
@@ -124,6 +126,16 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
+      if (req.method === "GET" && path === "/profile.html") {
+        await sendStaticFile(res, "profile.html");
+        return;
+      }
+
+      if (req.method === "GET" && path === "/profile.js") {
+        await sendStaticFile(res, "profile.js");
+        return;
+      }
+
       const challengePage = path.match(/^\/c\/([^/]+)$/);
       if (req.method === "GET" && challengePage) {
         console.log(`serve challenge.html token=${decodeURIComponent(challengePage[1])}`);
@@ -142,6 +154,39 @@ export function createApiServer(): import("node:http").Server {
       if (req.method === "GET" && replayUiPage) {
         console.log(`serve replay.html publicId=${decodeURIComponent(replayUiPage[1])}`);
         await sendStaticFile(res, "replay.html");
+        return;
+      }
+
+      const publicProfilePage = path.match(/^\/p\/([^/]+)$/);
+      if (req.method === "GET" && publicProfilePage) {
+        const playerId = validateId("playerId", decodeURIComponent(publicProfilePage[1]), 3);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(renderProfileShell(playerId));
+        return;
+      }
+
+      if (req.method === "GET" && path === "/leaderboard") {
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(renderLeaderboardShell());
+        return;
+      }
+
+      const rivalryPage = path.match(/^\/rivalry\/([^/]+)-vs-([^/]+)$/);
+      if (req.method === "GET" && rivalryPage) {
+        const playerA = validateId("playerId", decodeURIComponent(rivalryPage[1]), 3);
+        const playerB = validateId("playerId", decodeURIComponent(rivalryPage[2]), 3);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(renderRivalryShell(playerA, playerB));
+        return;
+      }
+
+      if (req.method === "GET" && path === "/daily") {
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(renderDailyShell());
         return;
       }
 
@@ -164,6 +209,41 @@ export function createApiServer(): import("node:http").Server {
           todayMission,
           leaderboards: { dailyStinkFame: daily, weeklyStinkFame: weekly },
         });
+        return;
+      }
+
+      const playerPublic = path.match(/^\/api\/players\/([^/]+)\/public$/);
+      if (req.method === "GET" && playerPublic) {
+        const playerId = validateId("playerId", decodeURIComponent(playerPublic[1]), 3);
+        const payload = await store.getPublicPlayer(playerId);
+        if (!payload) {
+          throw new HttpError(404, "player_not_found", "Player not found");
+        }
+        sendJson(res, 200, payload);
+        return;
+      }
+
+      if (req.method === "GET" && path === "/api/leaderboard/global") {
+        const rows = await store.getGlobalLeaderboard();
+        sendJson(res, 200, { rows });
+        return;
+      }
+
+      const rivalryApi = path.match(/^\/api\/rivalry\/([^/]+)\/([^/]+)$/);
+      if (req.method === "GET" && rivalryApi) {
+        const playerA = validateId("playerId", decodeURIComponent(rivalryApi[1]), 3);
+        const playerB = validateId("playerId", decodeURIComponent(rivalryApi[2]), 3);
+        const data = await store.getRivalry(playerA, playerB);
+        sendJson(res, 200, data);
+        return;
+      }
+
+      if (req.method === "GET" && path === "/api/daily-highlight") {
+        const daily = await store.getDailyHighlight();
+        if (!daily) {
+          throw new HttpError(404, "daily_not_found", "No daily highlight yet");
+        }
+        sendJson(res, 200, daily);
         return;
       }
 
@@ -337,6 +417,18 @@ export function createApiServer(): import("node:http").Server {
           matchHash: replay.matchHash,
           seedHex: replay.seedHex,
         });
+        return;
+      }
+
+      const replayShareText = path.match(/^\/api\/replay\/([^/]+)\/share-text$/);
+      if (req.method === "GET" && replayShareText) {
+        const publicId = validateId("publicId", decodeURIComponent(replayShareText[1]));
+        const replay = await store.getReplayByPublicId(publicId);
+        if (!replay) {
+          throw new HttpError(404, "replay_not_found", "Replay not found");
+        }
+        const text = buildShareText(replay.summary as SummaryV1, publicId, getBaseUrl(req));
+        sendJson(res, 200, { text });
         return;
       }
 

@@ -1,6 +1,6 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
 <body><div class="topbar"><strong>Replay</strong><span id="profileBar">Loading…</span></div><main>
-<section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button id="shareBtn">I shared this</button><p id="shareMsg"></p></section>
+<section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p></section>
 <section class="card"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><button class="secondary" id="skip">Skip</button> <button class="secondary" id="replay">Replay</button><div class="log" id="log"></div></section>
 </main>
 <script type="module">
@@ -16,6 +16,15 @@ document.getElementById('stats').textContent = `Turns ${data.summary.turns} · M
 document.getElementById('hash').textContent = data.matchHash;
 document.getElementById('sharePage').href = `/r/${publicId}`;
 document.getElementById('copyHash').onclick = () => copyText(data.matchHash);
+document.getElementById('copyShareText').onclick = async () => {
+  try {
+    const shareText = await fetch(`/api/replay/${encodeURIComponent(publicId)}/share-text`).then((r) => r.json());
+    await copyText(shareText.text);
+    document.getElementById('shareMsg').textContent = 'Share text copied!';
+  } catch {
+    document.getElementById('shareMsg').textContent = 'Could not generate share text';
+  }
+};
 document.getElementById('shareBtn').onclick = async ()=>{
   try { const r = await shareReplay(publicId, playerId); document.getElementById('shareMsg').textContent = `Shared! +${r.awarded?.gc ?? 0} GC`; }
   catch(e){ document.getElementById('shareMsg').textContent = e.message; }
