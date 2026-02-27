@@ -1,23 +1,58 @@
-<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Fart And Furious</title><link rel="stylesheet" href="/styles.css"/></head>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Fart And Furious</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
 <body>
-  <div class="topbar"><strong>Fart And Furious</strong><span id="profileBar">Loading profile…</span></div>
+  <div class="topbar">
+    <strong>Fart And Furious</strong>
+    <nav class="nav-links">
+      <a href="/home">Home</a>
+      <a href="/">New Challenge</a>
+      <a href="/leaderboard">Leaderboard</a>
+      <a id="myProfileLink" href="/">My Profile</a>
+    </nav>
+    <span id="profileBar">Loading profile…</span>
+  </div>
   <main>
-    <section class="card"><h1>Fart And Furious</h1><p>Create a challenge link and send it to a friend.</p></section>
-    <section class="card"><h2>Your Creature</h2>
-      <div class="row"><div><label>classKey</label><select id="a-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option></select></div>
-      <div><label>cosmeticSeed</label><input id="a-seed" type="number" min="0" max="2147483647"/></div></div>
+    <section class="card">
+      <h1>Fart And Furious</h1>
+      <p>Create a challenge link and send it to a friend.</p>
+      <p><a class="button-link" href="/home">Go to Home</a></p>
+    </section>
+
+    <section class="card">
+      <h2>Your Creature</h2>
+      <div class="row">
+        <div>
+          <label>classKey</label>
+          <select id="a-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option></select>
+        </div>
+        <div>
+          <label>cosmeticSeed</label>
+          <input id="a-seed" type="number" min="0" max="2147483647"/>
+        </div>
+      </div>
       <div style="margin-top:10px"><button id="createBtn">Create Challenge</button></div>
       <p id="error" class="error"></p>
-      <div id="linkWrap" style="display:none"><label>Share link</label><div class="linkbox"><input id="link" readonly/><button class="secondary" id="copyBtn">Copy</button></div></div>
+      <div id="linkWrap" style="display:none">
+        <label>Share link</label>
+        <div class="linkbox"><input id="link" readonly/><button class="secondary" id="copyBtn">Copy</button></div>
+      </div>
       <div id="continueWrap" style="display:none;margin-top:12px"><h3>Continue</h3><p id="continueMsg" class="small"></p></div>
     </section>
+
     <section class="card"><h2>Your Profile</h2><pre id="profileJson"></pre></section>
   </main>
 <script type="module">
-import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, getProfile, randomSeed, setProfileBar } from '/app.js';
+import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, getProfile, randomSeed, setProfileBar, updateTopNav } from '/app.js';
 const err = document.getElementById('error');
 document.getElementById('a-seed').value = String(randomSeed());
 const playerId = await getOrCreateGuestPlayer();
+updateTopNav();
 const profileData = await getProfile(playerId);
 setProfileBar(document.getElementById('profileBar'), profileData.profile);
 document.getElementById('profileJson').textContent = JSON.stringify(profileData.profile, null, 2);

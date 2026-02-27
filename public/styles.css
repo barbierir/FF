@@ -94,3 +94,8 @@ pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.12); }
 a { color: var(--accent); }
+
+.nav-links { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.nav-links a { color: var(--text); text-decoration: none; font-weight: 600; }
+.button-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.button-link { display: inline-block; padding: 10px 14px; border-radius: 10px; text-decoration: none; font-weight: 700; background: linear-gradient(120deg, var(--accent2), var(--accent)); color: #0b1022; }

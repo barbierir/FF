@@ -1,4 +1,6 @@
 const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy"];
+const PLAYER_ID_KEY = "faf_playerId";
+const LEGACY_PLAYER_ID_KEY = "faf_player_id";
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -13,13 +15,30 @@ async function api(path, opts = {}) {
   return json;
 }
 
+export function getPlayerIdOrNull() {
+  const playerId = localStorage.getItem(PLAYER_ID_KEY);
+  if (playerId) return playerId;
+  const legacyPlayerId = localStorage.getItem(LEGACY_PLAYER_ID_KEY);
+  if (!legacyPlayerId) return null;
+  localStorage.setItem(PLAYER_ID_KEY, legacyPlayerId);
+  localStorage.removeItem(LEGACY_PLAYER_ID_KEY);
+  return legacyPlayerId;
+}
+
 export async function getOrCreateGuestPlayer() {
-  let playerId = localStorage.getItem("faf_player_id");
+  let playerId = getPlayerIdOrNull();
   if (playerId) return playerId;
   const created = await api("/api/players/guest", { method: "POST", body: "{}" });
   playerId = created.playerId;
-  localStorage.setItem("faf_player_id", playerId);
+  localStorage.setItem(PLAYER_ID_KEY, playerId);
   return playerId;
+}
+
+export function updateTopNav() {
+  const profileLink = document.getElementById("myProfileLink");
+  if (!profileLink) return;
+  const playerId = getPlayerIdOrNull();
+  profileLink.href = playerId ? `/p/${encodeURIComponent(playerId)}` : "/";
 }
 
 export async function getProfile(playerId) {
