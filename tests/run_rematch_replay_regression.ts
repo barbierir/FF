@@ -6,14 +6,20 @@ const replayHtml = fs.readFileSync(path.resolve(process.cwd(), "public/replay.ht
 
 assert.match(
   replayHtml,
-  /document\.getElementById\('sideA'\)\.onclick\s*=\s*\(\)\s*=>\s*pickSide\('A'\)/,
+  /sideAButton\.addEventListener\('click',\s*\(\)\s*=>\s*pickSide\('A'\)\)/,
   "Picking side A must only set side selection state",
 );
 
 assert.match(
   replayHtml,
-  /document\.getElementById\('sideB'\)\.onclick\s*=\s*\(\)\s*=>\s*pickSide\('B'\)/,
+  /sideBButton\.addEventListener\('click',\s*\(\)\s*=>\s*pickSide\('B'\)\)/,
   "Picking side B must only set side selection state",
+);
+
+assert.match(
+  replayHtml,
+  /if\s*\(!sideAButton\s*\|\|\s*!sideBButton\s*\|\|\s*!cancelSidePickerButton\)\s*\{\s*\n\s*throw new Error\('side picker buttons missing from DOM'\);/,
+  "Side picker wiring should fail fast if button elements are missing",
 );
 
 assert.match(
