@@ -2,6 +2,44 @@ const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy"];
 const PLAYER_ID_KEY = "faf_playerId";
 const LEGACY_PLAYER_ID_KEY = "faf_player_id";
 const LAST_REPLAY_PUBLIC_ID_KEY = "faf_lastReplayPublicId";
+const FORCE_NEW_QUERY_KEY = "new";
+const FORCE_NEW_QUERY_VALUE = "1";
+
+const STICKY_RESUME_KEYS = [
+  "faf_lastMatchId",
+  "faf_lastReplayPublicId",
+  "faf_lastPublicId",
+  "faf_lastRoute",
+  "faf_resume",
+  "lastMatchId",
+  "lastPublicId",
+  "lastReplay",
+  "lastChallengeToken",
+];
+
+function forceNewChallengeRequested() {
+  return new URLSearchParams(location.search).get(FORCE_NEW_QUERY_KEY) === FORCE_NEW_QUERY_VALUE;
+}
+
+function clearStickyResumeState() {
+  for (const key of STICKY_RESUME_KEYS) {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+    try {
+      sessionStorage.removeItem(key);
+    } catch {}
+  }
+}
+
+window.__FAF_FORCE_NEW = forceNewChallengeRequested();
+if (window.__FAF_FORCE_NEW) {
+  clearStickyResumeState();
+}
+
+export function shouldSkipAutoResume() {
+  return Boolean(window.__FAF_FORCE_NEW);
+}
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -36,6 +74,7 @@ export async function getOrCreateGuestPlayer() {
 }
 
 export function rememberLastReplayPublicId(publicId) {
+  if (shouldSkipAutoResume()) return;
   if (!publicId) return;
   localStorage.setItem(LAST_REPLAY_PUBLIC_ID_KEY, publicId);
 }
@@ -43,6 +82,11 @@ export function rememberLastReplayPublicId(publicId) {
 export function updateResumeReplayLink() {
   const resumeLink = document.getElementById("navResumeReplay");
   if (!resumeLink) return;
+  if (shouldSkipAutoResume()) {
+    resumeLink.hidden = true;
+    resumeLink.href = "/";
+    return;
+  }
   const publicId = localStorage.getItem(LAST_REPLAY_PUBLIC_ID_KEY);
   if (!publicId) {
     resumeLink.hidden = true;

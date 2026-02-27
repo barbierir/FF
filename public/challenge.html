@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Accept Challenge</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><div class="topbar"><strong>Challenge</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="profileBar">Loading…</span></div><main>
+<body><div class="topbar"><strong>Challenge</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="profileBar">Loading…</span></div><main>
 <section class="card"><h1>Challenge Found</h1><p id="chalInfo"></p></section>
 <section class="card"><h2>Your Creature</h2><div class="row"><div><label>classKey</label><select id="b-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option></select></div><div><label>cosmeticSeed</label><input id="b-seed" type="number"/></div></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
 </main>
@@ -20,7 +20,7 @@ try {
     document.getElementById('acceptBtn').style.display = 'none';
   }
 } catch (e) {
-  document.getElementById('chalInfo').innerHTML = `Could not load challenge. <a href='/'>Go home</a>`;
+  document.getElementById('chalInfo').innerHTML = `Could not load challenge. <a href='/?new=1'>Go home</a>`;
   err.textContent = e.message;
 }
 document.getElementById('acceptBtn').onclick = async () => {
