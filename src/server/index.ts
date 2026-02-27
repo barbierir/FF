@@ -5,6 +5,8 @@ import { URL } from "node:url";
 import { JsonStore } from "./storage/jsonStore.ts";
 import type { LeaderboardMetric, LeaderboardScope } from "./economy/leaderboards.ts";
 import type { Side } from "./storage/types.ts";
+import { createRematchFromReplay, loadChallengeForViewer, submitMovesForPlayer } from "./rematchLifecycle.ts";
+import { runRematchSmokeTest } from "./devRematchSmokeTest.ts";
 import type { SummaryV1 } from "../core/sim/simulate.ts";
 import { renderReplayPage } from "./pages/replayPage.ts";
 import { renderOgSvg } from "./pages/ogImage.ts";
@@ -213,6 +215,13 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
+      if ((req.method === "GET" || req.method === "POST") && path === "/api/dev/rematch-smoke-test") {
+        enforceDevResetAccess(req);
+        const report = await runRematchSmokeTest(store);
+        sendJson(res, report.ok ? 200 : 500, report);
+        return;
+      }
+
       if (req.method === "POST" && path === "/api/dev/reset") {
         enforceDevResetAccess(req);
         const cleared = await store.resetAllData();
@@ -364,10 +373,7 @@ export function createApiServer(): import("node:http").Server {
         const token = validateId("token", decodeURIComponent(challengeMeta[1]));
         const viewerIdRaw = url.searchParams.get("viewerId");
         const viewerId = viewerIdRaw ? validateId("viewerId", viewerIdRaw, 3) : undefined;
-        const challenge = viewerId ? await store.joinChallengeIfEligible(token, viewerId) : await store.getChallengeByToken(token);
-        if (!challenge) {
-          throw new HttpError(404, "challenge_not_found", "Challenge not found");
-        }
+        const challenge = await loadChallengeForViewer(store, token, viewerId);
         sendJson(res, 200, {
           id: challenge.id,
           token: challenge.token,
@@ -389,38 +395,37 @@ export function createApiServer(): import("node:http").Server {
         const matchId = validateId("matchId", decodeURIComponent(movesMatch[1]), 4);
         const body = (await parseJsonBody(req)) as { side?: Side; moves?: unknown; playerId?: unknown };
         const playerId = validateId("playerId", body.playerId, 3);
+        const hintedSide = body.side === "A" || body.side === "B" ? body.side : undefined;
 
         const match = await store.getMatch(matchId);
         if (!match) {
           throw new HttpError(404, "match_not_found", "Match not found");
         }
-        if (match.status === "finished") {
-          throw new HttpError(409, "match_finished", "Match is already finished");
-        }
-
         const challengeObj = await store.getChallengeById(match.challengeId);
         if (!challengeObj) {
           throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
         }
-
-        const side: Side = challengeObj.playerAId === playerId ? "A" : challengeObj.playerBId === playerId ? "B" : (() => {
+        const resolvedSide: Side = challengeObj.playerAId === playerId ? "A" : challengeObj.playerBId === playerId ? "B" : (() => {
           throw new HttpError(403, "player_not_in_match", "playerId is not part of this match");
         })();
-        const classKey = side === "A" ? challengeObj.creatureA?.classKey : challengeObj.creatureB?.classKey;
+        const classKey = resolvedSide === "A" ? challengeObj.creatureA?.classKey : challengeObj.creatureB?.classKey;
         if (!classKey) {
           throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
         }
         const moves = validateMoves(classKey, body.moves);
 
-        await store.submitMoves(matchId, side, moves);
-        console.log(`[match.finalize-check] matchId=${matchId} playerId=${playerId} side=${side}`);
-        const finalized = await store.finalizeMatchIfReady(matchId);
-        if (finalized.status === "finished") {
+        const submission = await submitMovesForPlayer(store, matchId, playerId, moves, hintedSide);
+        console.log(`[match.finalize-check] matchId=${matchId} playerId=${playerId} side=${submission.side}`);
+        if (submission.sideHintIgnored) {
+          console.log(`[match.side-hint-ignored] matchId=${matchId} playerId=${playerId} hinted=${hintedSide} resolved=${submission.side}`);
+        }
+        if (submission.status === "finished") {
+          const finalized = await store.getMatch(matchId);
           const payload = await store.getFinalizedPayload(matchId);
           sendJson(res, 200, {
             status: "finished",
             summary: payload?.summary,
-            replayUrl: `/api/replay/${finalized.publicId}`,
+            replayUrl: finalized ? `/api/replay/${finalized.publicId}` : undefined,
           });
           return;
         }
@@ -441,40 +446,18 @@ export function createApiServer(): import("node:http").Server {
           throw new HttpError(400, "invalid_side", "side must be 'A' or 'B'");
         }
 
+        const challenge = await createRematchFromReplay(store, publicId, playerId, side);
         const match = await store.getMatchByPublicId(publicId);
-        if (!match || match.status !== "finished") {
-          throw new HttpError(404, "replay_not_found", "Replay not found");
-        }
-
         const replay = await store.getReplayByPublicId(publicId);
-        if (!replay) {
-          throw new HttpError(409, "replay_incomplete", "Replay is incomplete");
-        }
-
-        const sidePlayerId = side === "A" ? (match.playerAId ?? null) : (match.playerBId ?? null);
-        if (sidePlayerId && sidePlayerId !== playerId) {
-          throw new HttpError(403, "player_mismatch", "playerId does not match side playerId");
-        }
-
-        const existing = await store.getOpenRematchChallenge(publicId, playerId);
-        const challenge =
-          existing ??
-          (await store.createChallenge({
-            creatureA: side === "A" ? replay.input.creatureA : replay.input.creatureB,
-            expiresInHours: 24,
-            playerAId: playerId,
-            rematchOfPublicId: publicId,
-          }));
-
         const rematchUrl = `${getBaseUrl(req)}/c/${challenge.token}`;
         const replayUrl = `${getBaseUrl(req)}/r/${publicId}`;
-        const opponentPlayerId = side === "A" ? (match.playerBId ?? null) : (match.playerAId ?? null);
+        const opponentPlayerId = side === "A" ? (match?.playerBId ?? null) : (match?.playerAId ?? null);
 
         sendJson(res, 200, {
           token: challenge.token,
           url: `/c/${challenge.token}`,
           challenge,
-          suggestedText: buildRematchText(replay.summary as SummaryV1, replayUrl, rematchUrl),
+          suggestedText: replay ? buildRematchText(replay.summary as SummaryV1, replayUrl, rematchUrl) : undefined,
           opponentHint: opponentPlayerId ? { playerId: opponentPlayerId } : null,
           baseUrl: getBaseUrl(req),
         });

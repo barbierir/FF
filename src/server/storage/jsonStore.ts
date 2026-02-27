@@ -378,6 +378,16 @@ export class JsonStore implements Store {
     return record;
   }
 
+  async getMovesForMatch(matchId: string): Promise<Partial<Record<Side, Move[]>>> {
+    await this.ready;
+    const out: Partial<Record<Side, Move[]>> = {};
+    const movesA = this.state.moves.find((item) => item.matchId === matchId && item.side === "A");
+    const movesB = this.state.moves.find((item) => item.matchId === matchId && item.side === "B");
+    if (movesA) out.A = JSON.parse(movesA.moves_json) as Move[];
+    if (movesB) out.B = JSON.parse(movesB.moves_json) as Move[];
+    return out;
+  }
+
   async getMatch(matchId: string): Promise<StoredMatch | undefined> {
     await this.ready;
     return this.state.matches.find((item) => item.id === matchId);

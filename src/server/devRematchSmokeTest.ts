@@ -1,0 +1,292 @@
+import type { Move } from "../core/types.ts";
+import { HttpError } from "./errors.ts";
+import { createRematchFromReplay, loadChallengeForViewer, submitMovesForPlayer } from "./rematchLifecycle.ts";
+import type { Store } from "./storage/store.ts";
+import type { Side, StoredChallenge } from "./storage/types.ts";
+
+type StepResult = {
+  name: string;
+  ok: boolean;
+  details: Record<string, unknown>;
+  error?: {
+    message: string;
+    expected?: unknown;
+    actual?: unknown;
+  };
+};
+
+type SmokeReport = {
+  ok: boolean;
+  startedAtISO: string;
+  steps: StepResult[];
+  artifacts: {
+    replayPublicId: string | null;
+    rematchToken: string | null;
+    matchId: string | null;
+    playerAId: string;
+    playerBId: string;
+    playerCId: string;
+  };
+};
+
+function makeId(prefix: string): string {
+  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function snapshotChallenge(store: Store, challenge: StoredChallenge): Promise<Record<string, unknown>> {
+  const moves = challenge.matchId ? await store.getMovesForMatch(challenge.matchId) : {};
+  return {
+    id: challenge.id,
+    token: challenge.token,
+    status: challenge.status,
+    playerAId: challenge.playerAId ?? null,
+    playerBId: challenge.playerBId ?? null,
+    movesA: moves.A ?? null,
+    movesB: moves.B ?? null,
+  };
+}
+
+function failStep(name: string, details: Record<string, unknown>, message: string, expected?: unknown, actual?: unknown): StepResult {
+  return {
+    name,
+    ok: false,
+    details,
+    error: { message, expected, actual },
+  };
+}
+
+export async function runRematchSmokeTest(store: Store): Promise<SmokeReport> {
+  const startedAtISO = new Date().toISOString();
+  const playerAId = makeId("guest_a");
+  const playerBId = makeId("guest_b");
+  const playerCId = makeId("guest_c");
+  const steps: StepResult[] = [];
+
+  const artifacts: SmokeReport["artifacts"] = {
+    replayPublicId: null,
+    rematchToken: null,
+    matchId: null,
+    playerAId,
+    playerBId,
+    playerCId,
+  };
+
+  try {
+    await store.getOrCreatePlayer(playerAId);
+    await store.getOrCreatePlayer(playerBId);
+    await store.getOrCreatePlayer(playerCId);
+
+    const seedChallenge = await store.createChallenge({
+      creatureA: { classKey: "goblin", cosmeticSeed: 101 },
+      playerAId,
+      expiresInHours: 2,
+    });
+    const seedMatch = await store.acceptChallenge(seedChallenge.token, { classKey: "dragon", cosmeticSeed: 202 }, playerBId);
+    await store.submitMoves(seedMatch.id, "A", [{ type: "ATTACK", gas: 2 }]);
+    await store.submitMoves(seedMatch.id, "B", [{ type: "DEFEND" }]);
+    const seededFinal = await store.finalizeMatchIfReady(seedMatch.id);
+    artifacts.replayPublicId = seededFinal.publicId;
+  } catch (error) {
+    steps.push(failStep("0) Setup", { where: "seed match/replay creation" }, error instanceof Error ? error.message : "unknown setup error"));
+    return { ok: false, startedAtISO, steps, artifacts };
+  }
+
+  if (!artifacts.replayPublicId) {
+    steps.push(failStep("0) Setup", { where: "seed replay" }, "replayPublicId missing", "non-empty replay id", artifacts.replayPublicId));
+    return { ok: false, startedAtISO, steps, artifacts };
+  }
+
+  steps.push({
+    name: "0) Setup",
+    ok: true,
+    details: { replayPublicId: artifacts.replayPublicId, playerAId, playerBId, playerCId },
+  });
+
+  let rematch: StoredChallenge;
+  try {
+    const first = await createRematchFromReplay(store, artifacts.replayPublicId, playerAId, "A");
+    const second = await createRematchFromReplay(store, artifacts.replayPublicId, playerAId, "A");
+    artifacts.rematchToken = first.token;
+    if (first.token !== second.token) {
+      steps.push(
+        failStep(
+          "1) Rematch idempotency",
+          { token1: first.token, token2: second.token, function: "createRematchFromReplay" },
+          "rematch token changed between identical requests",
+          "same token for both calls",
+          { token1: first.token, token2: second.token },
+        ),
+      );
+      return { ok: false, startedAtISO, steps, artifacts };
+    }
+    rematch = first;
+    steps.push({ name: "1) Rematch idempotency", ok: true, details: { token1: first.token, token2: second.token } });
+  } catch (error) {
+    steps.push(failStep("1) Rematch idempotency", { function: "createRematchFromReplay" }, error instanceof Error ? error.message : "unknown rematch error"));
+    return { ok: false, startedAtISO, steps, artifacts };
+  }
+
+  try {
+    const beforeJoin = await store.getChallengeByToken(rematch.token);
+    const joined = await loadChallengeForViewer(store, rematch.token, playerBId);
+    const challengeAfterB = await store.getChallengeByToken(rematch.token);
+
+    let thirdPartyRejected = false;
+    let thirdPartyResult: Record<string, unknown> = {};
+    try {
+      await loadChallengeForViewer(store, rematch.token, playerCId);
+      thirdPartyResult = { accepted: true };
+    } catch (error) {
+      if (error instanceof HttpError) {
+        thirdPartyRejected = error.status === 403;
+        thirdPartyResult = { accepted: false, status: error.status, code: error.code, message: error.message };
+      } else {
+        thirdPartyResult = { accepted: false, error: error instanceof Error ? error.message : "unknown error" };
+      }
+    }
+
+    const unchangedAfterThird = await store.getChallengeByToken(rematch.token);
+
+    if (!joined.playerBId || joined.playerBId !== playerBId) {
+      steps.push(
+        failStep(
+          "2) Join-on-view",
+          {
+            before: beforeJoin ? await snapshotChallenge(store, beforeJoin) : null,
+            after: challengeAfterB ? await snapshotChallenge(store, challengeAfterB) : null,
+            function: "loadChallengeForViewer",
+          },
+          "playerBId was not bound on challenge view",
+          playerBId,
+          joined.playerBId,
+        ),
+      );
+      return { ok: false, startedAtISO, steps, artifacts };
+    }
+
+    if (!thirdPartyRejected) {
+      steps.push(
+        failStep(
+          "2) Join-on-view",
+          {
+            thirdPartyResult,
+            stateAfterThirdParty: unchangedAfterThird ? await snapshotChallenge(store, unchangedAfterThird) : null,
+            function: "joinChallengeIfEligible",
+          },
+          "third-party viewer was not blocked",
+          "403 challenge_forbidden",
+          thirdPartyResult,
+        ),
+      );
+      return { ok: false, startedAtISO, steps, artifacts };
+    }
+
+    steps.push({
+      name: "2) Join-on-view",
+      ok: true,
+      details: {
+        playerBBefore: beforeJoin?.playerBId ?? null,
+        playerBAfter: challengeAfterB?.playerBId ?? null,
+        thirdPartyResult,
+      },
+    });
+  } catch (error) {
+    steps.push(failStep("2) Join-on-view", { function: "loadChallengeForViewer" }, error instanceof Error ? error.message : "unknown join error"));
+    return { ok: false, startedAtISO, steps, artifacts };
+  }
+
+  try {
+    const accepted = await store.acceptChallenge(rematch.token, { classKey: "troll", cosmeticSeed: 303 }, playerBId);
+    artifacts.matchId = accepted.id;
+
+    const movesA: Move[] = [{ type: "ATTACK", gas: 1 }];
+    const movesB: Move[] = [{ type: "HEAL" }];
+
+    const submitA = await submitMovesForPlayer(store, accepted.id, playerAId, movesA);
+    const stateAfterA = await store.getMovesForMatch(accepted.id);
+
+    const hintedSide: Side = "A";
+    const submitB = await submitMovesForPlayer(store, accepted.id, playerBId, movesB, hintedSide);
+    const stateAfterB = await store.getMovesForMatch(accepted.id);
+
+    const aMapped = Array.isArray(stateAfterA.A) && !stateAfterA.B;
+    const bMapped = Array.isArray(stateAfterB.A) && Array.isArray(stateAfterB.B);
+    const sideHintIgnored = submitB.sideHintIgnored && submitB.side === "B";
+
+    if (!aMapped || !bMapped || !sideHintIgnored) {
+      const challengeState = await store.getChallengeByToken(rematch.token);
+      steps.push(
+        failStep(
+          "3) Identity-based slot mapping",
+          {
+            submitA,
+            submitB,
+            hintedSide,
+            stateAfterA,
+            stateAfterB,
+            challenge: challengeState ? await snapshotChallenge(store, challengeState) : null,
+            function: "submitMovesForPlayer",
+          },
+          "move slot mapping did not follow player identity",
+          { afterA: { A: "set", B: "unset" }, afterB: { A: "set", B: "set" }, submitBSide: "B" },
+          { stateAfterA, stateAfterB, submitBSide: submitB.side },
+        ),
+      );
+      return { ok: false, startedAtISO, steps, artifacts };
+    }
+
+    steps.push({
+      name: "3) Identity-based slot mapping",
+      ok: true,
+      details: {
+        playerASubmitResolvedSide: submitA.side,
+        playerBSubmitResolvedSide: submitB.side,
+        intentionallyWrongSideHint: hintedSide,
+        slotsAfterA: { movesASet: Boolean(stateAfterA.A), movesBSet: Boolean(stateAfterA.B) },
+        slotsAfterB: { movesASet: Boolean(stateAfterB.A), movesBSet: Boolean(stateAfterB.B) },
+      },
+    });
+  } catch (error) {
+    steps.push(failStep("3) Identity-based slot mapping", { function: "submitMovesForPlayer" }, error instanceof Error ? error.message : "unknown submit error"));
+    return { ok: false, startedAtISO, steps, artifacts };
+  }
+
+  try {
+    const match = artifacts.matchId ? await store.getMatch(artifacts.matchId) : undefined;
+    const payload = artifacts.matchId ? await store.getFinalizedPayload(artifacts.matchId) : undefined;
+    if (!match || match.status !== "finished") {
+      const challenge = await store.getChallengeByToken(rematch.token);
+      steps.push(
+        failStep(
+          "4) Finalization",
+          {
+            matchId: artifacts.matchId,
+            matchStatus: match?.status,
+            challenge: challenge ? await snapshotChallenge(store, challenge) : null,
+            function: "finalizeMatchIfReady",
+          },
+          "match did not finalize after both moves",
+          "finished",
+          match?.status,
+        ),
+      );
+      return { ok: false, startedAtISO, steps, artifacts };
+    }
+
+    steps.push({
+      name: "4) Finalization",
+      ok: true,
+      details: {
+        matchId: match.id,
+        matchStatus: match.status,
+        replayPublicId: match.publicId,
+        outcome: payload?.summary ?? null,
+      },
+    });
+  } catch (error) {
+    steps.push(failStep("4) Finalization", { function: "finalizeMatchIfReady" }, error instanceof Error ? error.message : "unknown finalize error"));
+    return { ok: false, startedAtISO, steps, artifacts };
+  }
+
+  return { ok: true, startedAtISO, steps, artifacts };
+}

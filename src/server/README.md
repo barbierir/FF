@@ -56,3 +56,13 @@ curl -sS -X POST http://localhost:3000/api/dev/reset
 curl -sS -X POST http://localhost:3000/api/dev/reset \
   -H "x-dev-reset-token: $DEV_RESET_TOKEN"
 ```
+
+## Dev rematch smoke-test endpoint
+
+`GET /api/dev/rematch-smoke-test` (also accepts `POST`) runs a dev-only verification harness for the rematch lifecycle and returns a JSON step report.
+
+If `DEV_RESET_TOKEN` is set, include it via `x-dev-reset-token`.
+
+```bash
+curl -sS http://localhost:3000/api/dev/rematch-smoke-test | jq
+```
