@@ -3,7 +3,7 @@
 <section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><div class="button-row"><a class="button-link" href="/?new=1">New Challenge</a><button class="secondary" id="rematchBtn" disabled>Rematch</button><a class="button-link" href="/home">Home</a><a class="button-link" id="profileBtn" href="/">My Profile</a></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p><div id="rematchResult"></div></section>
 <section class="card"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><button class="secondary" id="skip">Skip</button> <button class="secondary" id="replay">Replay</button><div class="log" id="log"></div></section>
 </main>
-<div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
+<div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button><p id="sidePickerStatus" class="small" aria-live="polite"></p></div></div>
 <script type="module">
 import { copyText, createRematch, fetchReplay, getViewerPlayerId, getProfile, parsePath, rememberLastReplayPublicId, setProfileBar, shareReplay, updateTopNav } from '/app.js';
 
@@ -13,10 +13,17 @@ const rematchBtn = document.getElementById('rematchBtn');
 const sideModal = document.getElementById('sideModal');
 const rematchResult = document.getElementById('rematchResult');
 const shareMsg = document.getElementById('shareMsg');
+const sidePickerStatus = document.getElementById('sidePickerStatus');
+const sideAButton = document.getElementById('sideA');
+const sideBButton = document.getElementById('sideB');
+const cancelSidePickerButton = document.getElementById('cancelSidePicker');
 let data = null;
 let viewerPlayerId = null;
 let pickedSide = null;
 let rematchInFlight = false;
+let sideAAlerted = false;
+
+console.log('[replay-side-picker] mounted');
 
 function getDetectedSide() {
   if (!data) return null;
@@ -37,6 +44,10 @@ function getResolvedSide() {
 
 function showSidePicker() { sideModal.hidden = false; }
 function hideSidePicker() { sideModal.hidden = true; }
+
+function setSidePickerStatus(message) {
+  sidePickerStatus.textContent = message;
+}
 
 function renderRematchResult(payload) {
   const absUrl = `${location.origin}${payload.url}`;
@@ -78,14 +89,28 @@ async function requestRematch() {
 }
 
 function pickSide(side) {
+  console.log(`[replay-side-picker] pickSide(${side})`);
+  setSidePickerStatus(`Clicked: ${side}`);
+  if (side === 'A' && !sideAAlerted) {
+    sideAAlerted = true;
+    alert('CLICK');
+  }
   pickedSide = side;
   sessionStorage.setItem(sideStorageKey, side);
   hideSidePicker();
 }
 
-document.getElementById('sideA').onclick = () => pickSide('A');
-document.getElementById('sideB').onclick = () => pickSide('B');
-document.getElementById('cancelSidePicker').onclick = hideSidePicker;
+if (!sideAButton || !sideBButton || !cancelSidePickerButton) {
+  throw new Error('side picker buttons missing from DOM');
+}
+
+sideAButton.addEventListener('click', () => pickSide('A'));
+sideBButton.addEventListener('click', () => pickSide('B'));
+cancelSidePickerButton.addEventListener('click', () => {
+  console.log('[replay-side-picker] cancel clicked');
+  setSidePickerStatus('Clicked: Cancel');
+  hideSidePicker();
+});
 
 rematchBtn.onclick = requestRematch;
 
