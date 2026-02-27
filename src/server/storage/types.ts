@@ -167,3 +167,12 @@ export type DailyHighlight = {
   playerId: string;
   value: number;
 };
+
+export type OpenChallengeItem = {
+  token: string;
+  createdAtISO: string;
+  expiresAtISO: string;
+  creatureA: CreatureSpec;
+  playerAId: string | null;
+  status: ChallengeStatus;
+};

@@ -240,6 +240,27 @@ export class JsonStore implements Store {
     return this.state.challenges.find((challenge) => challenge.id === challengeId);
   }
 
+  async listChallenges(
+    playerId: string | undefined,
+    status: "open" | "accepted",
+    limit: number,
+    excludePlayerId?: string,
+  ): Promise<StoredChallenge[]> {
+    await this.ready;
+    const now = Date.now();
+    const boundedLimit = Math.min(50, Math.max(1, limit));
+    return this.state.challenges
+      .filter((challenge) => {
+        if (challenge.status !== status) return false;
+        if (new Date(challenge.expiresAtISO).getTime() <= now) return false;
+        if (playerId && challenge.playerAId !== playerId && challenge.playerBId !== playerId) return false;
+        if (excludePlayerId && challenge.playerAId === excludePlayerId) return false;
+        return true;
+      })
+      .sort((a, b) => Date.parse(b.createdAtISO) - Date.parse(a.createdAtISO))
+      .slice(0, boundedLimit);
+  }
+
   async acceptChallenge(token: string, creatureB: CreatureSpec, playerBId?: string | null): Promise<StoredMatch> {
     await this.ready;
     const challenge = this.state.challenges.find((item) => item.token === token);

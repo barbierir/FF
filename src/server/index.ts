@@ -291,6 +291,49 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
+      const openChallenges = path === "/api/challenges/open";
+      if (req.method === "GET" && openChallenges) {
+        const excludePlayerIdRaw = url.searchParams.get("excludePlayerId");
+        const excludePlayerId = excludePlayerIdRaw ? validateId("playerId", excludePlayerIdRaw, 3) : undefined;
+        const limitRaw = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
+        const limit = Number.isFinite(limitRaw) ? Math.min(50, Math.max(1, limitRaw)) : 20;
+        const challenges = await store.listChallenges(undefined, "open", limit, excludePlayerId);
+        sendJson(res, 200, {
+          items: challenges.map((challenge) => ({
+            token: challenge.token,
+            createdAtISO: challenge.createdAtISO,
+            expiresAtISO: challenge.expiresAtISO,
+            creatureA: challenge.creatureA,
+            playerAId: challenge.playerAId ?? null,
+          })),
+        });
+        return;
+      }
+
+      const myChallenges = path === "/api/challenges/mine";
+      if (req.method === "GET" && myChallenges) {
+        const playerId = validateId("playerId", url.searchParams.get("playerId"), 3);
+        const statusRaw = url.searchParams.get("status") ?? "open";
+        if (statusRaw !== "open" && statusRaw !== "accepted") {
+          throw new HttpError(400, "invalid_status", "status must be 'open' or 'accepted'");
+        }
+        const limitRaw = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
+        const limit = Number.isFinite(limitRaw) ? Math.min(50, Math.max(1, limitRaw)) : 20;
+        const challenges = await store.listChallenges(playerId, statusRaw, limit);
+        sendJson(res, 200, {
+          items: challenges.map((challenge) => ({
+            token: challenge.token,
+            createdAtISO: challenge.createdAtISO,
+            expiresAtISO: challenge.expiresAtISO,
+            creatureA: challenge.creatureA,
+            playerAId: challenge.playerAId ?? null,
+            status: challenge.status,
+          })),
+        });
+        return;
+      }
+
+
       const challengeMeta = path.match(/^\/api\/challenges\/([^/]+)$/);
       if (req.method === "GET" && challengeMeta) {
         const token = validateId("token", decodeURIComponent(challengeMeta[1]));
@@ -397,6 +440,7 @@ export function createApiServer(): import("node:http").Server {
           challenge,
           suggestedText: buildRematchText(replay.summary as SummaryV1, replayUrl, rematchUrl),
           opponentHint: opponentPlayerId ? { playerId: opponentPlayerId } : null,
+          baseUrl: getBaseUrl(req),
         });
         return;
       }
