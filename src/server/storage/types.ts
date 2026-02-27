@@ -82,6 +82,14 @@ export type CreateChallengeInput = {
   rematchOfPublicId?: string;
 };
 
+export type ResetCounts = {
+  challenges: number;
+  matches: number;
+  moves: number;
+  players: number;
+  economyEvents: number;
+};
+
 export type FinalizedPayload = {
   input: MatchInput;
   events: unknown[];

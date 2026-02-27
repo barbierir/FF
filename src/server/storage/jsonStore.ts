@@ -11,7 +11,7 @@ import { HttpError } from "../errors.ts";
 import { computeLeaderboards } from "../economy/leaderboards.ts";
 import type { LeaderboardMetric, LeaderboardRow, LeaderboardScope } from "../economy/leaderboards.ts";
 import { getDailyMission, toDayKey } from "../economy/missions.ts";
-import type { MissionStatus } from "./types.ts";
+import type { MissionStatus, ResetCounts } from "./types.ts";
 import { computeMatchRewards } from "../economy/rewards.ts";
 import type { SummaryV1 } from "../../core/sim/simulate.ts";
 import type { Store } from "./store.ts";
@@ -674,6 +674,27 @@ export class JsonStore implements Store {
 
     await this.flush();
     return { mission, completed, awarded: this.hasEvent(awardId) ? mission.reward : undefined };
+  }
+
+  async resetAllData(): Promise<ResetCounts> {
+    await this.ready;
+    const cleared: ResetCounts = {
+      challenges: this.state.challenges.length,
+      matches: this.state.matches.length,
+      moves: this.state.moves.length,
+      players: this.state.players.length,
+      economyEvents: this.state.economyEvents.length,
+    };
+
+    this.state = {
+      challenges: [],
+      matches: [],
+      moves: [],
+      players: [],
+      economyEvents: [],
+    };
+    await this.flush();
+    return cleared;
   }
 
   async getLeaderboard(scope: LeaderboardScope, metric: LeaderboardMetric): Promise<LeaderboardRow[]> {
