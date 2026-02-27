@@ -1,91 +1,116 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
 <body><div class="topbar"><strong>Replay</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="profileBar">Loading…</span></div><main>
-<section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><div class="button-row"><a class="button-link" href="/?new=1">New Challenge</a><button class="secondary" id="rematchBtn">Rematch</button><a class="button-link" href="/home">Home</a><a class="button-link" id="profileBtn" href="/">My Profile</a></div><div id="sidePicker" hidden><small>Which side are you?</small> <button class="secondary" id="sideA">I'm A</button> <button class="secondary" id="sideB">I'm B</button></div><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p><div id="rematchResult"></div></section>
+<section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><div class="button-row"><a class="button-link" href="/?new=1">New Challenge</a><button class="secondary" id="rematchBtn" disabled>Rematch</button><a class="button-link" href="/home">Home</a><a class="button-link" id="profileBtn" href="/">My Profile</a></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p><div id="rematchResult"></div></section>
 <section class="card"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><button class="secondary" id="skip">Skip</button> <button class="secondary" id="replay">Replay</button><div class="log" id="log"></div></section>
 </main>
+<div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
 <script type="module">
 import { copyText, createRematch, fetchReplay, getOrCreateGuestPlayer, getProfile, parsePath, rememberLastReplayPublicId, setProfileBar, shareReplay, updateTopNav } from '/app.js';
+
 const publicId = parsePath()[1];
-const data = await fetchReplay(publicId);
-rememberLastReplayPublicId(publicId);
-const playerId = await getOrCreateGuestPlayer();
-updateTopNav();
-const profile = await getProfile(playerId);
-setProfileBar(document.getElementById('profileBar'), profile.profile);
-document.getElementById('profileBtn').href = `/p/${encodeURIComponent(playerId)}`;
-
-document.getElementById('winner').textContent = `Winner: ${data.summary.winner}`;
-document.getElementById('stats').textContent = `Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;
-document.getElementById('hash').textContent = data.matchHash;
-document.getElementById('sharePage').href = `/r/${publicId}`;
-document.getElementById('copyHash').onclick = () => copyText(data.matchHash);
-document.getElementById('copyShareText').onclick = async () => {
-  try {
-    const shareText = await fetch(`/api/replay/${encodeURIComponent(publicId)}/share-text`).then((r) => r.json());
-    await copyText(shareText.text);
-    document.getElementById('shareMsg').textContent = 'Share text copied!';
-  } catch {
-    document.getElementById('shareMsg').textContent = 'Could not generate share text';
-  }
-};
-document.getElementById('shareBtn').onclick = async ()=>{
-  try { const r = await shareReplay(publicId, playerId); document.getElementById('shareMsg').textContent = `Shared! +${r.awarded?.gc ?? 0} GC`; }
-  catch(e){ document.getElementById('shareMsg').textContent = e.message; }
-};
-
+const sideStorageKey = `faf_rematch_side_${publicId}`;
 const rematchBtn = document.getElementById('rematchBtn');
-const sidePicker = document.getElementById('sidePicker');
+const sideModal = document.getElementById('sideModal');
 const rematchResult = document.getElementById('rematchResult');
+const shareMsg = document.getElementById('shareMsg');
+let data = null;
+let playerId = null;
 
-function detectSide() {
-  if (data.match?.playerAId && data.match.playerAId === playerId) return 'A';
-  if (data.match?.playerBId && data.match.playerBId === playerId) return 'B';
+function getDetectedSide() {
+  if (!data) return null;
+  if (data.match?.playerAId === playerId) return 'A';
+  if (data.match?.playerBId === playerId) return 'B';
   return null;
 }
 
+function getPreferredSide() {
+  const detected = getDetectedSide();
+  if (detected) return detected;
+  const stored = sessionStorage.getItem(sideStorageKey);
+  return stored === 'A' || stored === 'B' ? stored : null;
+}
+
+function showSidePicker() { sideModal.hidden = false; }
+function hideSidePicker() { sideModal.hidden = true; }
+
 function renderRematchResult(payload) {
   const absUrl = `${location.origin}${payload.url}`;
-  rematchResult.innerHTML = '';
-  const msg = document.createElement('p');
-  msg.textContent = 'Rematch challenge created!';
-  const link = document.createElement('p');
-  link.innerHTML = `Share link: <a href="${payload.url}">${absUrl}</a>`;
-  const copy = document.createElement('button');
-  copy.className = 'secondary';
-  copy.textContent = 'Copy link';
-  copy.onclick = () => copyText(absUrl);
-  const open = document.createElement('a');
-  open.className = 'button-link';
-  open.href = payload.url;
-  open.textContent = 'Open challenge page';
-  const share = document.createElement('button');
-  share.className = 'secondary';
-  share.textContent = 'Copy rematch text';
-  share.onclick = () => copyText(payload.suggestedText);
-  rematchResult.append(msg, link, copy, document.createTextNode(' '), share, document.createTextNode(' '), open);
+  rematchResult.innerHTML = `
+    <div class="card invite-panel">
+      <h3>Rematch created!</h3>
+      <p>Accept link: <a href="${payload.url}">${absUrl}</a></p>
+      <div class="button-row">
+        <button class="secondary" id="copyRematchLink">Copy Link</button>
+        <button class="secondary" id="copyRematchText">Copy Meme Text</button>
+        <a class="button-link" id="openAcceptPage" href="${payload.url}">Open Accept Page</a>
+        <a class="button-link" href="/?new=1">New Challenge</a>
+      </div>
+    </div>
+  `;
+  document.getElementById('copyRematchLink').onclick = () => copyText(absUrl);
+  document.getElementById('copyRematchText').onclick = () => copyText(payload.suggestedText);
 }
 
 async function requestRematch(side) {
   try {
     const payload = await createRematch(publicId, playerId, side);
-    sidePicker.hidden = true;
+    sessionStorage.setItem(sideStorageKey, side);
+    hideSidePicker();
     renderRematchResult(payload);
   } catch (error) {
     rematchResult.textContent = error.message;
   }
 }
 
+document.getElementById('sideA').onclick = () => requestRematch('A');
+document.getElementById('sideB').onclick = () => requestRematch('B');
+document.getElementById('cancelSidePicker').onclick = hideSidePicker;
+
 rematchBtn.onclick = async () => {
-  const side = detectSide();
+  const side = getPreferredSide();
   if (side) {
     await requestRematch(side);
     return;
   }
-  sidePicker.hidden = false;
+  showSidePicker();
 };
 
-document.getElementById('sideA').onclick = () => requestRematch('A');
-document.getElementById('sideB').onclick = () => requestRematch('B');
+try {
+  data = await fetchReplay(publicId);
+  rememberLastReplayPublicId(publicId);
+  playerId = await getOrCreateGuestPlayer();
+  updateTopNav();
+  const profile = await getProfile(playerId);
+  setProfileBar(document.getElementById('profileBar'), profile.profile);
+  document.getElementById('profileBtn').href = `/p/${encodeURIComponent(playerId)}`;
+
+  document.getElementById('winner').textContent = `Winner: ${data.summary.winner}`;
+  document.getElementById('stats').textContent = `Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;
+  document.getElementById('hash').textContent = data.matchHash;
+  document.getElementById('sharePage').href = `/r/${publicId}`;
+  rematchBtn.disabled = false;
+} catch (error) {
+  shareMsg.textContent = error.message;
+}
+
+document.getElementById('copyHash').onclick = () => data && copyText(data.matchHash);
+document.getElementById('copyShareText').onclick = async () => {
+  try {
+    const shareText = await fetch(`/api/replay/${encodeURIComponent(publicId)}/share-text`).then((r) => r.json());
+    await copyText(shareText.text);
+    shareMsg.textContent = 'Share text copied!';
+  } catch {
+    shareMsg.textContent = 'Could not generate share text';
+  }
+};
+document.getElementById('shareBtn').onclick = async ()=>{
+  try {
+    const r = await shareReplay(publicId, playerId);
+    shareMsg.textContent = `Shared! +${r.awarded?.gc ?? 0} GC`;
+  } catch(e) {
+    shareMsg.textContent = e.message;
+  }
+};
 
 const icon = (ev)=>{
   if(ev.kind==='DEFEND') return '🛡️'; if(ev.kind==='HEAL') return '🧚✨'; if(ev.kind==='DOT') return '🔥';
@@ -105,8 +130,8 @@ function renderEvent(ev){
   line.textContent=`T${ev.t} ${ev.actor} ${icon(ev)} ${ev.kind}${ev.outcome?` ${ev.outcome}`:''} | HP A:${ev.prA} B:${ev.prB}`;
   log.appendChild(line); log.scrollTop = log.scrollHeight;
 }
-function play(){ clearInterval(timer); log.innerHTML=''; i=0; timer=setInterval(()=>{ if(i>=data.events.length){ clearInterval(timer); return; } renderEvent(data.events[i++]); },250); }
-function skip(){ clearInterval(timer); for(;i<data.events.length;i++) renderEvent(data.events[i]); }
+function play(){ if(!data) return; clearInterval(timer); log.innerHTML=''; i=0; timer=setInterval(()=>{ if(i>=data.events.length){ clearInterval(timer); return; } renderEvent(data.events[i++]); },250); }
+function skip(){ if(!data) return; clearInterval(timer); for(;i<data.events.length;i++) renderEvent(data.events[i]); }
 
 document.getElementById('skip').onclick = skip;
 document.getElementById('replay').onclick = play;

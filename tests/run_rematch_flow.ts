@@ -1,51 +1,81 @@
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { JsonStore } from "../src/server/storage/jsonStore.ts";
+
+async function api(baseUrl: string, p: string, init?: RequestInit): Promise<any> {
+  const res = await fetch(`${baseUrl}${p}`, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
+  return body;
+}
 
 async function main(): Promise<void> {
-  const baseDir = path.resolve(process.cwd(), "data", "faf-test-rematch-flow");
-  await rm(baseDir, { recursive: true, force: true });
+  const dataDir = path.resolve(process.cwd(), "data", "faf");
+  await rm(dataDir, { recursive: true, force: true });
 
-  const store = new JsonStore(baseDir, "test-secret");
-  const playerAId = "pla_rematch_A";
-  const playerBId = "pla_rematch_B";
+  process.env.PORT = "3311";
+  const { createApiServer } = await import("../src/server/index.ts");
+  const server = createApiServer();
 
-  const challenge = await store.createChallenge({
-    creatureA: { classKey: "skunk", cosmeticSeed: 321 },
-    expiresInHours: 2,
-    playerAId,
-  });
+  await new Promise<void>((resolve) => server.listen(3311, resolve));
+  const baseUrl = "http://localhost:3311";
 
-  const match = await store.acceptChallenge(
-    challenge.token,
-    { classKey: "dragon", cosmeticSeed: 444 },
-    playerBId,
-  );
+  try {
+    const playerAId = "pla_rematch_A";
+    const playerBId = "pla_rematch_B";
 
-  await store.submitMoves(match.id, "A", [{ type: "ATTACK", gas: 2 }]);
-  await store.submitMoves(match.id, "B", [{ type: "DEFEND" }]);
+    const challenge = await api(baseUrl, "/api/challenges", {
+      method: "POST",
+      body: JSON.stringify({
+        playerId: playerAId,
+        creatureA: { classKey: "skunk", cosmeticSeed: 321 },
+      }),
+    });
 
-  const finalized = await store.finalizeMatchIfReady(match.id);
-  if (finalized.status !== "finished") throw new Error("match not finished");
+    const accepted = await api(baseUrl, `/api/challenges/${challenge.token}/accept`, {
+      method: "POST",
+      body: JSON.stringify({
+        playerId: playerBId,
+        creatureB: { classKey: "dragon", cosmeticSeed: 444 },
+      }),
+    });
 
-  const replay = await store.getReplayByPublicId(finalized.publicId);
-  if (!replay) throw new Error("missing replay");
-  if (replay.match.playerAId !== playerAId || replay.match.playerBId !== playerBId) {
-    throw new Error("player IDs missing in replay payload");
+    await api(baseUrl, `/api/matches/${accepted.matchId}/moves`, {
+      method: "POST",
+      body: JSON.stringify({ side: "A", moves: [{ type: "ATTACK", gas: 2 }] }),
+    });
+    await api(baseUrl, `/api/matches/${accepted.matchId}/moves`, {
+      method: "POST",
+      body: JSON.stringify({ side: "B", moves: [{ type: "DEFEND" }] }),
+    });
+
+    const rematch = await api(baseUrl, `/api/rematch/${accepted.publicId}`, {
+      method: "POST",
+      body: JSON.stringify({ playerId: playerAId, side: "A" }),
+    });
+
+    if (!rematch.token) throw new Error("missing rematch token");
+
+    const open = await api(baseUrl, `/api/challenges/open?excludePlayerId=${playerBId}&limit=20`);
+    if (!open.items.some((item: { token: string }) => item.token === rematch.token)) {
+      throw new Error("rematch token missing from open list");
+    }
+
+    const rematchAccepted = await api(baseUrl, `/api/challenges/${rematch.token}/accept`, {
+      method: "POST",
+      body: JSON.stringify({
+        playerId: playerBId,
+        creatureB: { classKey: "troll", cosmeticSeed: 7 },
+      }),
+    });
+
+    if (!rematchAccepted.matchId) throw new Error("rematch accept did not create match");
+    console.log("ok");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
-
-  const rematch = await store.createChallenge({
-    creatureA: replay.input.creatureA,
-    playerAId,
-    expiresInHours: 24,
-  });
-
-  if (!rematch.token) throw new Error("missing rematch token");
-  if (rematch.creatureA.classKey !== challenge.creatureA.classKey || rematch.creatureA.cosmeticSeed !== challenge.creatureA.cosmeticSeed) {
-    throw new Error("rematch creature did not match original creator creature");
-  }
-
-  console.log("ok");
 }
 
 await main();

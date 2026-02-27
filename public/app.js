@@ -142,6 +142,14 @@ export async function fetchReplay(publicId) {
   return api(`/api/replay/${encodeURIComponent(publicId)}`);
 }
 
+
+export async function fetchOpenChallenges(excludePlayerId, limit = 20) {
+  const params = new URLSearchParams();
+  if (excludePlayerId) params.set("excludePlayerId", excludePlayerId);
+  params.set("limit", String(limit));
+  return api(`/api/challenges/open?${params.toString()}`);
+}
+
 export async function createRematch(publicId, playerId, side) {
   return api(`/api/rematch/${encodeURIComponent(publicId)}`, {
     method: "POST",

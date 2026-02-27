@@ -31,12 +31,18 @@
     </section>
 
     <section class="card">
+      <h2>Open challenges</h2>
+      <p class="small">If your friend sent you a Rematch link, open it. Otherwise pick one below.</p>
+      <ul id="openChallenges"></ul>
+    </section>
+
+    <section class="card">
       <h2>Recent matches</h2>
       <ul id="recent"></ul>
     </section>
   </main>
   <script type="module">
-    import { getOrCreateGuestPlayer, getProfile, setProfileBar, shouldSkipAutoResume, updateTopNav } from '/app.js';
+    import { fetchOpenChallenges, getOrCreateGuestPlayer, getProfile, setProfileBar, shouldSkipAutoResume, updateTopNav } from '/app.js';
 
     if (shouldSkipAutoResume()) {
       const note = document.getElementById('homeNewModeNote');
@@ -57,6 +63,20 @@
       recent.innerHTML = publicData.recentMatches
         .map((m) => `<li><a href="/replay/${m.publicId}">${m.publicId}</a> · Winner ${m.winner} · MaxHit ${m.maxHit}</li>`)
         .join('');
+    }
+
+    const openChallenges = document.getElementById('openChallenges');
+    try {
+      const inbox = await fetchOpenChallenges(playerId);
+      if (!inbox.items?.length) {
+        openChallenges.innerHTML = '<li>No open challenges right now.</li>';
+      } else {
+        openChallenges.innerHTML = inbox.items
+          .map((item) => `<li>${item.creatureA.classKey} challenger ${item.playerAId ?? 'unknown'} · <a class="button-link" href="/c/${item.token}">Accept</a></li>`)
+          .join('');
+      }
+    } catch (error) {
+      openChallenges.innerHTML = `<li class="error">Could not load open challenges: ${error.message}</li>`;
     }
   </script>
 </body>
