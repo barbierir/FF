@@ -49,6 +49,14 @@ assert.match(
   "Overlay should show only when side is unresolved",
 );
 
+
+const stylesCss = fs.readFileSync(path.resolve(process.cwd(), "public/styles.css"), "utf8");
+assert.match(
+  stylesCss,
+  /\.modal\[hidden\]\s*\{\s*display:\s*none;/,
+  "Hidden side-picker modal must not remain visible when hidden attribute is set",
+);
+
 const appJs = fs.readFileSync(path.resolve(process.cwd(), "public/app.js"), "utf8");
 assert.match(
   appJs,
