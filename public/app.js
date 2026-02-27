@@ -73,6 +73,10 @@ export async function getOrCreateGuestPlayer() {
   return playerId;
 }
 
+export async function getViewerPlayerId() {
+  return getOrCreateGuestPlayer();
+}
+
 export function rememberLastReplayPublicId(publicId) {
   if (shouldSkipAutoResume()) return;
   if (!publicId) return;
