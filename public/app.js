@@ -142,6 +142,13 @@ export async function fetchReplay(publicId) {
   return api(`/api/replay/${encodeURIComponent(publicId)}`);
 }
 
+export async function createRematch(publicId, playerId, side) {
+  return api(`/api/rematch/${encodeURIComponent(publicId)}`, {
+    method: "POST",
+    body: JSON.stringify({ playerId, side }),
+  });
+}
+
 export async function shareReplay(publicId, playerId) {
   return api(`/api/replay/${encodeURIComponent(publicId)}/share`, {
     method: "POST",

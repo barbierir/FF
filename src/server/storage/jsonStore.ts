@@ -174,6 +174,12 @@ export class JsonStore implements Store {
       summary: JSON.parse(match.summary_json) as Record<string, unknown>,
       matchHash: match.match_hash_hex,
       seedHex: match.seed_hex,
+      match: {
+        publicId: match.publicId,
+        playerAId: match.playerAId ?? null,
+        playerBId: match.playerBId ?? null,
+        challengeId: match.challengeId,
+      },
     };
   }
 
@@ -261,6 +267,8 @@ export class JsonStore implements Store {
       challengeId: challenge.id,
       publicId: randomToken(18),
       status: "collecting_moves",
+      playerAId: challenge.playerAId ?? null,
+      playerBId: challenge.playerBId ?? null,
       createdAtISO: nowIso(),
     };
 

@@ -1,10 +1,10 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
 <body><div class="topbar"><strong>Replay</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="profileBar">Loading…</span></div><main>
-<section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><div class="button-row"><a class="button-link" href="/?new=1">New Challenge</a><a class="button-link" href="/home">Home</a><a class="button-link" id="profileBtn" href="/">My Profile</a></div><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p></section>
+<section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><div class="button-row"><a class="button-link" href="/?new=1">New Challenge</a><button class="secondary" id="rematchBtn">Rematch</button><a class="button-link" href="/home">Home</a><a class="button-link" id="profileBtn" href="/">My Profile</a></div><div id="sidePicker" hidden><small>Which side are you?</small> <button class="secondary" id="sideA">I'm A</button> <button class="secondary" id="sideB">I'm B</button></div><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p><div id="rematchResult"></div></section>
 <section class="card"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><button class="secondary" id="skip">Skip</button> <button class="secondary" id="replay">Replay</button><div class="log" id="log"></div></section>
 </main>
 <script type="module">
-import { copyText, fetchReplay, getOrCreateGuestPlayer, getProfile, parsePath, rememberLastReplayPublicId, setProfileBar, shareReplay, updateTopNav } from '/app.js';
+import { copyText, createRematch, fetchReplay, getOrCreateGuestPlayer, getProfile, parsePath, rememberLastReplayPublicId, setProfileBar, shareReplay, updateTopNav } from '/app.js';
 const publicId = parsePath()[1];
 const data = await fetchReplay(publicId);
 rememberLastReplayPublicId(publicId);
@@ -32,6 +32,60 @@ document.getElementById('shareBtn').onclick = async ()=>{
   try { const r = await shareReplay(publicId, playerId); document.getElementById('shareMsg').textContent = `Shared! +${r.awarded?.gc ?? 0} GC`; }
   catch(e){ document.getElementById('shareMsg').textContent = e.message; }
 };
+
+const rematchBtn = document.getElementById('rematchBtn');
+const sidePicker = document.getElementById('sidePicker');
+const rematchResult = document.getElementById('rematchResult');
+
+function detectSide() {
+  if (data.match?.playerAId && data.match.playerAId === playerId) return 'A';
+  if (data.match?.playerBId && data.match.playerBId === playerId) return 'B';
+  return null;
+}
+
+function renderRematchResult(payload) {
+  const absUrl = `${location.origin}${payload.url}`;
+  rematchResult.innerHTML = '';
+  const msg = document.createElement('p');
+  msg.textContent = 'Rematch challenge created!';
+  const link = document.createElement('p');
+  link.innerHTML = `Share link: <a href="${payload.url}">${absUrl}</a>`;
+  const copy = document.createElement('button');
+  copy.className = 'secondary';
+  copy.textContent = 'Copy link';
+  copy.onclick = () => copyText(absUrl);
+  const open = document.createElement('a');
+  open.className = 'button-link';
+  open.href = payload.url;
+  open.textContent = 'Open challenge page';
+  const share = document.createElement('button');
+  share.className = 'secondary';
+  share.textContent = 'Copy rematch text';
+  share.onclick = () => copyText(payload.suggestedText);
+  rematchResult.append(msg, link, copy, document.createTextNode(' '), share, document.createTextNode(' '), open);
+}
+
+async function requestRematch(side) {
+  try {
+    const payload = await createRematch(publicId, playerId, side);
+    sidePicker.hidden = true;
+    renderRematchResult(payload);
+  } catch (error) {
+    rematchResult.textContent = error.message;
+  }
+}
+
+rematchBtn.onclick = async () => {
+  const side = detectSide();
+  if (side) {
+    await requestRematch(side);
+    return;
+  }
+  sidePicker.hidden = false;
+};
+
+document.getElementById('sideA').onclick = () => requestRematch('A');
+document.getElementById('sideB').onclick = () => requestRematch('B');
 
 const icon = (ev)=>{
   if(ev.kind==='DEFEND') return '🛡️'; if(ev.kind==='HEAL') return '🧚✨'; if(ev.kind==='DOT') return '🔥';

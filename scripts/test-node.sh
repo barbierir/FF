@@ -23,6 +23,7 @@ run tests/run_determinism.ts
 run tests/run_server_flow.ts
 run tests/run_economy_flow.ts
 run tests/run_replay_page.ts
+run tests/run_rematch_flow.ts
 
 if [ -f tests/run_hardening.ts ]; then
   run tests/run_hardening.ts
