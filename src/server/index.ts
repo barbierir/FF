@@ -116,6 +116,11 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
+      if (req.method === "GET" && path === "/home") {
+        await sendStaticFile(res, "home.html");
+        return;
+      }
+
       if (req.method === "GET" && path === "/styles.css") {
         await sendStaticFile(res, "styles.css");
         return;

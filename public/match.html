@@ -1,13 +1,15 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Submit Moves</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><div class="topbar"><strong>Match</strong><span id="meta"></span></div><main>
-<section class="card"><h1>Submit your move script</h1><p id="tips" class="small"></p><div id="moves"></div><button id="submitBtn">Submit Moves</button><p id="error" class="error"></p><p id="wait" class="small"></p><button id="refreshBtn" class="secondary" style="display:none">Refresh</button></section>
+<body><div class="topbar"><strong>Match</strong><nav class="nav-links"><a href="/home">Home</a><a href="/">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a></nav><span id="meta"></span></div><main>
+<section class="card" id="submitPanel"><h1>Submit your move script</h1><p id="tips" class="small"></p><div id="moves"></div><button id="submitBtn">Submit Moves</button><p id="error" class="error"></p><p id="wait" class="small"></p><button id="refreshBtn" class="secondary" style="display:none">Refresh</button></section>
+<section class="card" id="finishedPanel" style="display:none"><h2>This match is finished</h2><p><a class="button-link" id="viewReplayLink" href="#">View Replay</a></p><p><a class="button-link" href="/">New Challenge</a></p></section>
 </main>
 <script type="module">
-import { getMatch, parsePath, q, submitMoves } from '/app.js';
+import { getMatch, parsePath, q, submitMoves, updateTopNav } from '/app.js';
 const matchId = parsePath()[1];
 const side = q('side') === 'A' ? 'A' : 'B';
 const state = { classKey: 'goblin', safeUsed: false, polling: null };
 const sel = ['','ATTACK_1','ATTACK_2','ATTACK_3','ATTACK_4','DEFEND','RECHARGE_EXTRA','HEAL'];
+updateTopNav();
 
 function row(i){
   const div = document.createElement('div'); div.className = 'turn-grid';
@@ -17,10 +19,19 @@ function row(i){
 for(let i=0;i<10;i++) document.getElementById('moves').appendChild(row(i));
 
 const m = await getMatch(matchId);
-if (side==='A' && m.creatureA) state.classKey = m.creatureA.classKey;
-if (side==='B' && m.creatureB) state.classKey = m.creatureB.classKey;
-document.getElementById('meta').textContent = `Side ${side}`;
-document.getElementById('tips').textContent = state.classKey==='fairy' ? 'Fairy can HEAL.' : 'HEAL may be auto-sanitized if class cannot use it.';
+if (m.status === 'finished') {
+  if (m.publicId) {
+    location.replace(`/replay/${m.publicId}`);
+  }
+  document.getElementById('submitPanel').style.display = 'none';
+  document.getElementById('finishedPanel').style.display = 'block';
+  document.getElementById('viewReplayLink').href = m.publicId ? `/replay/${m.publicId}` : '/home';
+} else {
+  if (side==='A' && m.creatureA) state.classKey = m.creatureA.classKey;
+  if (side==='B' && m.creatureB) state.classKey = m.creatureB.classKey;
+  document.getElementById('meta').textContent = `Side ${side}`;
+  document.getElementById('tips').textContent = state.classKey==='fairy' ? 'Fairy can HEAL.' : 'HEAL may be auto-sanitized if class cannot use it.';
+}
 
 function collectMoves(){
   const out=[];
