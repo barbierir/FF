@@ -43,3 +43,16 @@ curl -sS -X POST http://localhost:3000/api/replay/<PUBLIC_ID>/share \
   -H 'content-type: application/json' \
   -d '{"playerId":"guest_abc123"}'
 ```
+
+## Dev reset endpoint
+
+`POST /api/dev/reset` clears all persisted gameplay data (challenges, matches, moves/replays, players/leaderboards, economy events/rivalry data). The endpoint is only available when `NODE_ENV=development`.
+
+If `DEV_RESET_TOKEN` is set, include it via `x-dev-reset-token`.
+
+```bash
+curl -sS -X POST http://localhost:3000/api/dev/reset
+
+curl -sS -X POST http://localhost:3000/api/dev/reset \
+  -H "x-dev-reset-token: $DEV_RESET_TOKEN"
+```

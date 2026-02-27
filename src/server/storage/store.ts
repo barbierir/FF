@@ -9,6 +9,7 @@ import type {
   PlayerProfile,
   PublicPlayerResponse,
   ReplayPayload,
+  ResetCounts,
   RivalryStats,
   Side,
   StoredChallenge,
@@ -38,4 +39,5 @@ export interface Store {
   getGlobalLeaderboard(): Promise<GlobalLeaderboardRow[]>;
   getRivalry(playerA: string, playerB: string): Promise<RivalryStats>;
   getDailyHighlight(nowISO?: string): Promise<DailyHighlight | undefined>;
+  resetAllData(): Promise<ResetCounts>;
 }

@@ -80,6 +80,14 @@ export type CreateChallengeInput = {
   playerAId?: string | null;
 };
 
+export type ResetCounts = {
+  challenges: number;
+  matches: number;
+  moves: number;
+  players: number;
+  economyEvents: number;
+};
+
 export type FinalizedPayload = {
   input: MatchInput;
   events: unknown[];

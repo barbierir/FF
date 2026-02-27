@@ -32,7 +32,7 @@ function sendJson(res: import("node:http").ServerResponse, status: number, body:
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,x-dev-reset-token");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.end(JSON.stringify(body));
 }
@@ -92,6 +92,24 @@ function enforceShareIpDailyCap(req: import("node:http").IncomingMessage): void 
     throw new HttpError(429, "share_ip_cap_reached", "Daily share cap reached for this IP");
   }
   shareIpDailyCounts.set(key, next);
+}
+
+
+function enforceDevResetAccess(req: import("node:http").IncomingMessage): void {
+  if (process.env.NODE_ENV !== "development") {
+    throw new HttpError(404, "dev_only", "This endpoint is available only in development");
+  }
+
+  const expectedToken = process.env.DEV_RESET_TOKEN;
+  if (!expectedToken) {
+    return;
+  }
+
+  const header = req.headers["x-dev-reset-token"];
+  const providedToken = Array.isArray(header) ? header[0] : header;
+  if (providedToken !== expectedToken) {
+    throw new HttpError(403, "invalid_dev_reset_token", "Invalid x-dev-reset-token");
+  }
 }
 
 export function createApiServer(): import("node:http").Server {
@@ -192,6 +210,13 @@ export function createApiServer(): import("node:http").Server {
         res.statusCode = 200;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.end(renderDailyShell());
+        return;
+      }
+
+      if (req.method === "POST" && path === "/api/dev/reset") {
+        enforceDevResetAccess(req);
+        const cleared = await store.resetAllData();
+        sendJson(res, 200, { ok: true, cleared });
         return;
       }
 
