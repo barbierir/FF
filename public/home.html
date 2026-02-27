@@ -11,7 +11,7 @@
     <strong>Player Home</strong>
     <nav class="nav-links">
       <a href="/home">Home</a>
-      <a id="navNewChallenge" href="/">New Challenge</a>
+      <a id="navNewChallenge" href="/?new=1">New Challenge</a>
       <a href="/leaderboard">Leaderboard</a>
       <a id="myProfileLink" href="/">My Profile</a>
       <a id="navResumeReplay" href="/" hidden>Resume last replay</a>
@@ -21,8 +21,9 @@
   <main>
     <section class="card">
       <h1>Dashboard</h1>
+      <p id="homeNewModeNote" class="small" style="display:none">New Challenge mode is active.</p>
       <div class="button-row">
-        <a class="button-link" href="/">New Challenge</a>
+        <a class="button-link" href="/?new=1">New Challenge</a>
         <a class="button-link" id="profileBtn" href="/">My Profile</a>
         <a class="button-link" href="/leaderboard">Leaderboard</a>
         <a class="button-link" href="/daily">Daily</a>
@@ -35,7 +36,12 @@
     </section>
   </main>
   <script type="module">
-    import { getOrCreateGuestPlayer, getProfile, setProfileBar, updateTopNav } from '/app.js';
+    import { getOrCreateGuestPlayer, getProfile, setProfileBar, shouldSkipAutoResume, updateTopNav } from '/app.js';
+
+    if (shouldSkipAutoResume()) {
+      const note = document.getElementById('homeNewModeNote');
+      if (note) note.style.display = 'block';
+    }
 
     const playerId = await getOrCreateGuestPlayer();
     updateTopNav();

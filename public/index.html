@@ -11,7 +11,7 @@
     <strong>Fart And Furious</strong>
     <nav class="nav-links">
       <a href="/home">Home</a>
-      <a id="navNewChallenge" href="/">New Challenge</a>
+      <a id="navNewChallenge" href="/?new=1">New Challenge</a>
       <a href="/leaderboard">Leaderboard</a>
       <a id="myProfileLink" href="/">My Profile</a>
       <a id="navResumeReplay" href="/" hidden>Resume last replay</a>
@@ -22,6 +22,7 @@
     <section class="card">
       <h1>Fart And Furious</h1>
       <p>Create a challenge link and send it to a friend.</p>
+      <p id="newModeNote" class="small" style="display:none">New Challenge mode: cleared previous replay state.</p>
       <p><a class="button-link" href="/home">Go to Home</a></p>
     </section>
 
@@ -49,8 +50,14 @@
     <section class="card"><h2>Your Profile</h2><pre id="profileJson"></pre></section>
   </main>
 <script type="module">
-import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, getProfile, randomSeed, setProfileBar, updateTopNav } from '/app.js';
+import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, getProfile, randomSeed, setProfileBar, shouldSkipAutoResume, updateTopNav } from '/app.js';
 const err = document.getElementById('error');
+const forceNewMode = shouldSkipAutoResume();
+if (forceNewMode) {
+  const note = document.getElementById('newModeNote');
+  if (note) note.style.display = 'block';
+  history.replaceState({}, '', '/');
+}
 document.getElementById('a-seed').value = String(randomSeed());
 const playerId = await getOrCreateGuestPlayer();
 updateTopNav();
@@ -97,7 +104,7 @@ document.getElementById('copyBtn').onclick = async () => {
   await copyText(document.getElementById('link').value);
 };
 
-const lastChallengeToken = localStorage.getItem('lastChallengeToken');
+const lastChallengeToken = forceNewMode ? null : localStorage.getItem('lastChallengeToken');
 if (lastChallengeToken) {
   const url = `${location.origin}/c/${lastChallengeToken}`;
   document.getElementById('link').value = url;

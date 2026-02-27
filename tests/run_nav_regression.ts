@@ -17,16 +17,16 @@ for (const rel of staticPages) {
   const html = fs.readFileSync(path.resolve(root, rel), "utf8");
   assert.match(
     html,
-    /id="navNewChallenge"\s+href="\/"[^>]*>New Challenge</,
-    `${rel} must keep New Challenge hard-linked to /`,
+    /id="navNewChallenge"\s+href="\/\?new=1"[^>]*>New Challenge</,
+    `${rel} must keep New Challenge hard-linked to /?new=1`,
   );
 }
 
 const simplePages = fs.readFileSync(path.resolve(root, "src/server/pages/simplePages.ts"), "utf8");
 assert.match(
   simplePages,
-  /id="navNewChallenge"\s+href="\/"[^>]*>New Challenge</,
-  "simplePages layout must keep New Challenge hard-linked to /",
+  /id="navNewChallenge"\s+href="\/\?new=1"[^>]*>New Challenge</,
+  "simplePages layout must keep New Challenge hard-linked to /?new=1",
 );
 
 console.log("nav regression checks passed");

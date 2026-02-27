@@ -1,7 +1,7 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Submit Moves</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><div class="topbar"><strong>Match</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="meta"></span></div><main>
+<body><div class="topbar"><strong>Match</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="meta"></span></div><main>
 <section class="card" id="submitPanel"><h1>Submit your move script</h1><p id="tips" class="small"></p><div id="moves"></div><button id="submitBtn">Submit Moves</button><p id="error" class="error"></p><p id="wait" class="small"></p><button id="refreshBtn" class="secondary" style="display:none">Refresh</button></section>
-<section class="card" id="finishedPanel" style="display:none"><h2>This match is finished</h2><p><a class="button-link" id="viewReplayLink" href="#">View Replay</a></p><p><a class="button-link" href="/">New Challenge</a></p></section>
+<section class="card" id="finishedPanel" style="display:none"><h2>This match is finished</h2><p><a class="button-link" id="viewReplayLink" href="#">View Replay</a></p><p><a class="button-link" href="/?new=1">New Challenge</a></p></section>
 </main>
 <script type="module">
 import { getMatch, parsePath, q, submitMoves, updateTopNav } from '/app.js';
