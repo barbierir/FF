@@ -1,15 +1,17 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><div class="topbar"><strong>Replay</strong><span id="profileBar">Loading…</span></div><main>
-<section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p></section>
+<body><div class="topbar"><strong>Replay</strong><nav class="nav-links"><a href="/home">Home</a><a href="/">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a></nav><span id="profileBar">Loading…</span></div><main>
+<section class="card"><h1 id="title">Battle Replay</h1><p id="winner"></p><p id="stats"></p><div class="button-row"><a class="button-link" href="/">New Challenge</a><a class="button-link" href="/home">Home</a><a class="button-link" id="profileBtn" href="/">My Profile</a></div><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p></section>
 <section class="card"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><button class="secondary" id="skip">Skip</button> <button class="secondary" id="replay">Replay</button><div class="log" id="log"></div></section>
 </main>
 <script type="module">
-import { copyText, fetchReplay, getOrCreateGuestPlayer, getProfile, parsePath, setProfileBar, shareReplay } from '/app.js';
+import { copyText, fetchReplay, getOrCreateGuestPlayer, getProfile, parsePath, setProfileBar, shareReplay, updateTopNav } from '/app.js';
 const publicId = parsePath()[1];
 const data = await fetchReplay(publicId);
 const playerId = await getOrCreateGuestPlayer();
+updateTopNav();
 const profile = await getProfile(playerId);
 setProfileBar(document.getElementById('profileBar'), profile.profile);
+document.getElementById('profileBtn').href = `/p/${encodeURIComponent(playerId)}`;
 
 document.getElementById('winner').textContent = `Winner: ${data.summary.winner}`;
 document.getElementById('stats').textContent = `Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;

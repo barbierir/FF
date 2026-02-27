@@ -12,7 +12,14 @@ function layout(title: string, ogTitle: string, ogDescription: string, body: str
 <meta property="og:description" content="${escapeHtml(ogDescription)}" />
 <meta property="og:type" content="website" />
 <link rel="stylesheet" href="/styles.css" />
-</head><body><main>${body}</main></body></html>`;
+</head><body>
+<div class="topbar"><strong>Fart And Furious</strong><nav class="nav-links"><a href="/home">Home</a><a href="/">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a></nav></div>
+<main>${body}</main>
+<script type="module">
+import { updateTopNav } from '/app.js';
+updateTopNav();
+</script>
+</body></html>`;
 }
 
 export function renderProfileShell(playerId: string): string {
