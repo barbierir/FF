@@ -17,10 +17,14 @@ import type { SummaryV1 } from "../../core/sim/simulate.ts";
 import type { Store } from "./store.ts";
 import type {
   CreateChallengeInput,
+  DailyHighlight,
   EconomyEvent,
   FinalizedPayload,
+  GlobalLeaderboardRow,
   PlayerProfile,
+  PublicPlayerResponse,
   ReplayPayload,
+  RivalryStats,
   Side,
   StoredChallenge,
   StoredMatch,
@@ -187,6 +191,14 @@ export class JsonStore implements Store {
 
   private pushEvent(event: EconomyEvent): void {
     this.state.economyEvents.push(event);
+  }
+
+  private isFinishedMatchWithSummary(match: StoredMatch): match is StoredMatch & { summary_json: string; finalizedAtISO: string } {
+    return match.status === "finished" && Boolean(match.summary_json) && Boolean(match.finalizedAtISO);
+  }
+
+  private findMatchChallenge(match: StoredMatch): StoredChallenge | undefined {
+    return this.state.challenges.find((item) => item.id === match.challengeId);
   }
 
   async createChallenge(input: CreateChallengeInput): Promise<StoredChallenge> {
@@ -357,8 +369,25 @@ export class JsonStore implements Store {
 
     // Rewards are deterministic because they derive only from SummaryV1 and are idempotent via event IDs.
     await this.applyMatchRewards(matchId);
+    await this.recordRivalry(match);
     await this.flush();
     return match;
+  }
+
+  private async recordRivalry(match: StoredMatch): Promise<void> {
+    if (!match.summary_json) return;
+    const challenge = this.findMatchChallenge(match);
+    if (!challenge?.playerAId || !challenge.playerBId) return;
+    const [playerLo, playerHi] = [challenge.playerAId, challenge.playerBId].sort((a, b) => a.localeCompare(b));
+    const eventId = `rivalry:${match.id}`;
+    if (this.hasEvent(eventId)) return;
+    this.pushEvent({
+      id: eventId,
+      type: "rivalry_increment",
+      matchId: match.id,
+      createdAtISO: match.finalizedAtISO ?? nowIso(),
+      payload: { playerLo, playerHi, publicId: match.publicId },
+    });
   }
 
   async getReplayByPublicId(publicId: string): Promise<ReplayPayload | undefined> {
@@ -586,5 +615,187 @@ export class JsonStore implements Store {
       scope,
       metric,
     );
+  }
+
+  async getPublicPlayer(playerId: string): Promise<PublicPlayerResponse | undefined> {
+    await this.ready;
+    const profile = this.state.players.find((player) => player.id === playerId);
+    if (!profile) return undefined;
+
+    const challengeById = new Map(this.state.challenges.map((challenge) => [challenge.id, challenge]));
+    const involvedMatches = this.state.matches
+      .filter((match) => this.isFinishedMatchWithSummary(match))
+      .map((match) => ({ match, challenge: challengeById.get(match.challengeId) }))
+      .filter((row) => row.challenge && (row.challenge.playerAId === playerId || row.challenge.playerBId === playerId));
+
+    const recentMatches = involvedMatches
+      .slice()
+      .sort((a, b) => Date.parse(b.match.finalizedAtISO) - Date.parse(a.match.finalizedAtISO))
+      .slice(0, 10)
+      .map(({ match }) => {
+        const summary = JSON.parse(match.summary_json) as SummaryV1;
+        return {
+          publicId: match.publicId,
+          winner: summary.winner,
+          maxHit: summary.highlights.maxHitValue,
+          createdAtISO: match.finalizedAtISO,
+        };
+      });
+
+    const rivalryMap = new Map<string, { totalMatches: number; wins: number; losses: number }>();
+    for (const row of involvedMatches) {
+      const challenge = row.challenge;
+      if (!challenge) continue;
+      const summary = JSON.parse(row.match.summary_json) as SummaryV1;
+      const isA = challenge.playerAId === playerId;
+      const opponentId = isA ? challenge.playerBId : challenge.playerAId;
+      if (!opponentId) continue;
+      const bucket = rivalryMap.get(opponentId) ?? { totalMatches: 0, wins: 0, losses: 0 };
+      bucket.totalMatches += 1;
+      if (summary.winner !== "DRAW") {
+        const won = (summary.winner === "A" && isA) || (summary.winner === "B" && !isA);
+        if (won) bucket.wins += 1;
+        else bucket.losses += 1;
+      }
+      rivalryMap.set(opponentId, bucket);
+    }
+
+    const rivalries = [...rivalryMap.entries()]
+      .map(([opponentId, stats]) => ({ opponentId, ...stats }))
+      .sort((a, b) => b.totalMatches - a.totalMatches || a.opponentId.localeCompare(b.opponentId));
+
+    return {
+      profile: {
+        gasCoins: profile.gasCoins,
+        stinkFame: profile.stinkFame,
+        wins: profile.wins,
+        losses: profile.losses,
+        draws: profile.draws,
+        bestStreak: profile.bestStreak,
+        maxHitEver: profile.maxHitEver,
+        totalCataclysms: profile.totalCataclysms,
+        totalBackfires: profile.totalBackfires,
+      },
+      recentMatches,
+      rivalries,
+    };
+  }
+
+  async getGlobalLeaderboard(): Promise<GlobalLeaderboardRow[]> {
+    await this.ready;
+    return this.state.players
+      .slice()
+      .sort((a, b) => b.stinkFame - a.stinkFame || b.wins - a.wins || a.id.localeCompare(b.id))
+      .slice(0, 50)
+      .map((player) => ({
+        playerId: player.id,
+        stinkFame: player.stinkFame,
+        wins: player.wins,
+        maxHitEver: player.maxHitEver,
+      }));
+  }
+
+  async getRivalry(playerA: string, playerB: string): Promise<RivalryStats> {
+    await this.ready;
+    const challengeById = new Map(this.state.challenges.map((challenge) => [challenge.id, challenge]));
+    const matches = this.state.matches
+      .filter((match) => this.isFinishedMatchWithSummary(match))
+      .filter((match) => {
+        const challenge = challengeById.get(match.challengeId);
+        if (!challenge?.playerAId || !challenge.playerBId) return false;
+        return (
+          (challenge.playerAId === playerA && challenge.playerBId === playerB) ||
+          (challenge.playerAId === playerB && challenge.playerBId === playerA)
+        );
+      });
+
+    let winsA = 0;
+    let winsB = 0;
+    let totalDamageA = 0;
+    let totalDamageB = 0;
+    const publicIds: string[] = [];
+
+    for (const match of matches) {
+      const challenge = challengeById.get(match.challengeId);
+      if (!challenge) continue;
+      const summary = JSON.parse(match.summary_json) as SummaryV1;
+      const aIsLeft = challenge.playerAId === playerA;
+      const sideForA = aIsLeft ? "A" : "B";
+      const sideForB = aIsLeft ? "B" : "A";
+      totalDamageA += sideForA === "A" ? summary.a.totalDamage : summary.b.totalDamage;
+      totalDamageB += sideForB === "A" ? summary.a.totalDamage : summary.b.totalDamage;
+      if (summary.winner === sideForA) winsA += 1;
+      if (summary.winner === sideForB) winsB += 1;
+      publicIds.push(match.publicId);
+    }
+
+    return {
+      totalMatches: matches.length,
+      winsA,
+      winsB,
+      totalDamageA,
+      totalDamageB,
+      matches: publicIds,
+    };
+  }
+
+  async getDailyHighlight(nowISO = nowIso()): Promise<DailyHighlight | undefined> {
+    await this.ready;
+    const dayPrefix = nowISO.slice(0, 10);
+    const challengeById = new Map(this.state.challenges.map((challenge) => [challenge.id, challenge]));
+    const todayMatches = this.state.matches
+      .filter((match) => this.isFinishedMatchWithSummary(match))
+      .filter((match) => match.finalizedAtISO.startsWith(dayPrefix));
+    if (todayMatches.length === 0) return undefined;
+
+    let highestMaxHit: DailyHighlight | undefined;
+    let mostCataclysms: DailyHighlight | undefined;
+    let mostHumiliating: DailyHighlight | undefined;
+
+    for (const match of todayMatches) {
+      const challenge = challengeById.get(match.challengeId);
+      if (!challenge) continue;
+      const summary = JSON.parse(match.summary_json) as SummaryV1;
+
+      const maxHitPlayer = summary.highlights.maxHitBy === "A" ? challenge.playerAId : challenge.playerBId;
+      if (maxHitPlayer) {
+        const candidate: DailyHighlight = {
+          highlightType: "highest_max_hit",
+          publicId: match.publicId,
+          playerId: maxHitPlayer,
+          value: summary.highlights.maxHitValue,
+        };
+        if (!highestMaxHit || candidate.value > highestMaxHit.value) highestMaxHit = candidate;
+      }
+
+      const catA = summary.highlights.cataclysms.A;
+      const catB = summary.highlights.cataclysms.B;
+      const maxCat = catA >= catB ? { v: catA, p: challenge.playerAId } : { v: catB, p: challenge.playerBId };
+      if (maxCat.p) {
+        const candidate: DailyHighlight = {
+          highlightType: "most_cataclysms",
+          publicId: match.publicId,
+          playerId: maxCat.p,
+          value: maxCat.v,
+        };
+        if (!mostCataclysms || candidate.value > mostCataclysms.value) mostCataclysms = candidate;
+      }
+
+      if (summary.highlights.humiliationWin && summary.winner !== "DRAW") {
+        const humPlayer = summary.winner === "A" ? challenge.playerAId : challenge.playerBId;
+        const loserPr = summary.winner === "A" ? summary.b.prFinal : summary.a.prFinal;
+        if (humPlayer) {
+          const candidate: DailyHighlight = {
+            highlightType: "most_humiliating_win",
+            publicId: match.publicId,
+            playerId: humPlayer,
+            value: Math.max(0, 20 - loserPr),
+          };
+          if (!mostHumiliating || candidate.value > mostHumiliating.value) mostHumiliating = candidate;
+        }
+      }
+    }
+
+    return highestMaxHit ?? mostCataclysms ?? mostHumiliating;
   }
 }
