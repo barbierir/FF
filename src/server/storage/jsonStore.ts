@@ -223,6 +223,7 @@ export class JsonStore implements Store {
       expiresAtISO,
       playerAId: input.playerAId ?? null,
       playerBId: null,
+      rematchOfPublicId: input.rematchOfPublicId,
     };
 
     this.state.challenges.push(challenge);
@@ -233,6 +234,48 @@ export class JsonStore implements Store {
   async getChallengeByToken(token: string): Promise<StoredChallenge | undefined> {
     await this.ready;
     return this.state.challenges.find((challenge) => challenge.token === token);
+  }
+
+  async getOpenRematchChallenge(rematchOfPublicId: string, playerAId: string): Promise<StoredChallenge | undefined> {
+    await this.ready;
+    const now = Date.now();
+    return this.state.challenges.find(
+      (challenge) =>
+        challenge.status === "open" &&
+        challenge.rematchOfPublicId === rematchOfPublicId &&
+        challenge.playerAId === playerAId &&
+        new Date(challenge.expiresAtISO).getTime() > now,
+    );
+  }
+
+  async joinChallengeIfEligible(token: string, viewerId: string): Promise<StoredChallenge> {
+    await this.ready;
+    const challenge = this.state.challenges.find((item) => item.token === token);
+    if (!challenge) {
+      throw new HttpError(404, "challenge_not_found", "Challenge not found");
+    }
+
+    if (challenge.playerAId === viewerId || challenge.playerBId === viewerId) {
+      return challenge;
+    }
+
+    if (challenge.status !== "open") {
+      throw new HttpError(403, "challenge_forbidden", "Challenge is only visible to participating players");
+    }
+
+    if (new Date(challenge.expiresAtISO).getTime() <= Date.now()) {
+      challenge.status = "expired";
+      await this.flush();
+      throw new HttpError(410, "challenge_expired", "Challenge has expired");
+    }
+
+    if (!challenge.playerBId) {
+      challenge.playerBId = viewerId;
+      await this.flush();
+      return challenge;
+    }
+
+    throw new HttpError(403, "challenge_forbidden", "Challenge is only visible to participating players");
   }
 
   async getChallengeById(challengeId: string): Promise<StoredChallenge | undefined> {

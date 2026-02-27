@@ -13,7 +13,7 @@ updateTopNav();
 const profile = await getProfile(playerId);
 setProfileBar(document.getElementById('profileBar'), profile.profile);
 try {
-  const c = await getChallenge(token);
+  const c = await getChallenge(token, playerId);
   document.getElementById('chalInfo').textContent = `Opponent picked ${c.creatureA.classKey} (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
   if (c.status !== 'open') {
     document.getElementById('chalInfo').textContent = 'This challenge is not open anymore. Start a new one!';

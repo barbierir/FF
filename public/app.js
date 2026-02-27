@@ -120,8 +120,11 @@ export async function createChallenge(playerId, creatureA) {
   });
 }
 
-export async function getChallenge(token) {
-  return api(`/api/challenges/${encodeURIComponent(token)}`);
+export async function getChallenge(token, viewerId) {
+  const params = new URLSearchParams();
+  if (viewerId) params.set("viewerId", viewerId);
+  const query = params.toString();
+  return api(`/api/challenges/${encodeURIComponent(token)}${query ? `?${query}` : ""}`);
 }
 
 export async function acceptChallenge(token, playerId, creatureB) {
@@ -131,10 +134,10 @@ export async function acceptChallenge(token, playerId, creatureB) {
   });
 }
 
-export async function submitMoves(matchId, side, moves) {
+export async function submitMoves(matchId, side, moves, playerId) {
   return api(`/api/matches/${encodeURIComponent(matchId)}/moves`, {
     method: "POST",
-    body: JSON.stringify({ side, moves }),
+    body: JSON.stringify({ side, moves, playerId }),
   });
 }
 
