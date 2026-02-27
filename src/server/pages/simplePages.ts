@@ -13,7 +13,7 @@ function layout(title: string, ogTitle: string, ogDescription: string, body: str
 <meta property="og:type" content="website" />
 <link rel="stylesheet" href="/styles.css" />
 </head><body>
-<div class="topbar"><strong>Fart And Furious</strong><nav class="nav-links"><a href="/home">Home</a><a href="/">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a></nav></div>
+<div class="topbar"><strong>Fart And Furious</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav></div>
 <main>${body}</main>
 <script type="module">
 import { updateTopNav } from '/app.js';
