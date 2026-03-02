@@ -6,7 +6,7 @@
   "scripts": {
     "test": "vitest run",
     "test:vitest": "vitest",
-    "test:node": "node --experimental-strip-types tests/run_determinism.ts && node --experimental-strip-types tests/run_dev_reset.ts && node --experimental-strip-types tests/run_server_flow.ts && node --experimental-strip-types tests/run_economy_flow.ts && node --experimental-strip-types tests/run_replay_page.ts && node --experimental-strip-types tests/run_rematch_flow.ts && node --experimental-strip-types tests/run_ui_smoke.ts && node --experimental-strip-types tests/run_nav_regression.ts && node --experimental-strip-types tests/run_rematch_replay_regression.ts && node --experimental-strip-types tests/run_rematch_smoke_harness.ts"
+    "test:node": "node --experimental-strip-types tests/run_determinism.ts && node --experimental-strip-types tests/run_dev_reset.ts && node --experimental-strip-types tests/run_self_accept_regression.ts && node --experimental-strip-types tests/run_server_flow.ts && node --experimental-strip-types tests/run_economy_flow.ts && node --experimental-strip-types tests/run_replay_page.ts && node --experimental-strip-types tests/run_rematch_flow.ts && node --experimental-strip-types tests/run_ui_smoke.ts && node --experimental-strip-types tests/run_nav_regression.ts && node --experimental-strip-types tests/run_rematch_replay_regression.ts && node --experimental-strip-types tests/run_rematch_smoke_harness.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

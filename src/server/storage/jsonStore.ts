@@ -321,6 +321,10 @@ export class JsonStore implements Store {
       throw new HttpError(409, "challenge_not_open", "Challenge is not open");
     }
 
+    if (playerBId && challenge.playerAId && playerBId === challenge.playerAId) {
+      throw new HttpError(403, "self_accept_forbidden", "Challenge creator cannot accept their own challenge");
+    }
+
     challenge.status = "accepted";
     challenge.acceptedAtISO = nowIso();
     challenge.creatureB = creatureB;
