@@ -17,12 +17,12 @@ try {
   if (c.matchId && (c.playerAId === playerId || c.playerBId === playerId)) {
     const side = c.playerAId === playerId ? 'A' : 'B';
     location.replace(`/m/${c.matchId}?side=${side}`);
-    return;
-  }
-  document.getElementById('chalInfo').textContent = `Opponent picked ${c.creatureA.classKey} (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
-  if (c.status !== 'open') {
-    document.getElementById('chalInfo').textContent = 'This challenge is no longer open for new players.';
-    document.getElementById('acceptBtn').style.display = 'none';
+  } else {
+    document.getElementById('chalInfo').textContent = `Opponent picked ${c.creatureA.classKey} (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
+    if (c.status !== 'open') {
+      document.getElementById('chalInfo').textContent = 'This challenge is no longer open for new players.';
+      document.getElementById('acceptBtn').style.display = 'none';
+    }
   }
 } catch (e) {
   document.getElementById('chalInfo').innerHTML = `Could not load challenge. <a href='/?new=1'>Go home</a>`;
