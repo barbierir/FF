@@ -38,13 +38,13 @@ async function main(): Promise<void> {
     await fetch(`${baseUrl}/api/matches/${accepted.matchId}/moves`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ side: "A", moves: [{ type: "ATTACK", gas: 2 }, { type: "DEFEND" }] }),
+      body: JSON.stringify({ playerId: "reset_tester_a", side: "A", moves: [{ type: "ATTACK", gas: 2 }, { type: "DEFEND" }] }),
     });
 
     await fetch(`${baseUrl}/api/matches/${accepted.matchId}/moves`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ side: "B", moves: [{ type: "ATTACK", gas: 2 }, { type: "RECHARGE_EXTRA" }] }),
+      body: JSON.stringify({ playerId: "reset_tester_b", side: "B", moves: [{ type: "ATTACK", gas: 2 }, { type: "RECHARGE_EXTRA" }] }),
     });
 
     const beforeReset = await fetch(`${baseUrl}/api/leaderboard/global`);

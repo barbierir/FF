@@ -133,7 +133,7 @@ document.getElementById('copyShareText').onclick = async () => {
 document.getElementById('shareBtn').onclick = async ()=>{
   try {
     const r = await shareReplay(publicId, viewerPlayerId);
-    shareMsg.textContent = `Shared! +${r.awarded?.gc ?? 0} GC`;
+    shareMsg.textContent = r.awarded ? `Shared! +${r.stinkFameGained ?? 0} SF` : "Shared! (daily cap reached)";
   } catch(e) {
     shareMsg.textContent = e.message;
   }
