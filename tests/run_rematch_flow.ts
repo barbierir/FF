@@ -91,17 +91,27 @@ async function main(): Promise<void> {
 
     if (!rematchAccepted.matchId) throw new Error("rematch accept did not create match");
 
+    const challengeForAAfterBJoin = await api(baseUrl, `/api/challenges/${rematch.token}?viewerId=${playerAId}`);
+    if (challengeForAAfterBJoin.status !== "accepted" || challengeForAAfterBJoin.matchId !== rematchAccepted.matchId) {
+      throw new Error("accepted rematch should remain visible to player A with active match metadata");
+    }
+
     const waiting = await api(baseUrl, `/api/matches/${rematchAccepted.matchId}/moves`, {
       method: "POST",
-      body: JSON.stringify({ playerId: playerAId, side: "B", moves: [{ type: "ATTACK", gas: 1 }] }),
+      body: JSON.stringify({ playerId: playerBId, side: "A", moves: [{ type: "DEFEND" }] }),
     });
     if (waiting.status !== "waiting_for_opponent") {
       throw new Error("first rematch submit should wait for opponent");
     }
 
+    const challengeForAAfterBMove = await api(baseUrl, `/api/challenges/${rematch.token}?viewerId=${playerAId}`);
+    if (challengeForAAfterBMove.matchId !== rematchAccepted.matchId) {
+      throw new Error("player A should still be able to load accepted rematch after player B submits");
+    }
+
     const done = await api(baseUrl, `/api/matches/${rematchAccepted.matchId}/moves`, {
       method: "POST",
-      body: JSON.stringify({ playerId: playerBId, side: "A", moves: [{ type: "DEFEND" }] }),
+      body: JSON.stringify({ playerId: playerAId, side: "B", moves: [{ type: "ATTACK", gas: 1 }] }),
     });
     if (done.status !== "finished" || !done.replayUrl) {
       throw new Error("both rematch moves did not finalize");

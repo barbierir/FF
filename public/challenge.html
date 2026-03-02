@@ -14,9 +14,14 @@ const profile = await getProfile(playerId);
 setProfileBar(document.getElementById('profileBar'), profile.profile);
 try {
   const c = await getChallenge(token, playerId);
+  if (c.matchId && (c.playerAId === playerId || c.playerBId === playerId)) {
+    const side = c.playerAId === playerId ? 'A' : 'B';
+    location.replace(`/m/${c.matchId}?side=${side}`);
+    return;
+  }
   document.getElementById('chalInfo').textContent = `Opponent picked ${c.creatureA.classKey} (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
   if (c.status !== 'open') {
-    document.getElementById('chalInfo').textContent = 'This challenge is not open anymore. Start a new one!';
+    document.getElementById('chalInfo').textContent = 'This challenge is no longer open for new players.';
     document.getElementById('acceptBtn').style.display = 'none';
   }
 } catch (e) {

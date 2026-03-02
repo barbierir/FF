@@ -378,6 +378,8 @@ export function createApiServer(): import("node:http").Server {
           id: challenge.id,
           token: challenge.token,
           status: challenge.status,
+          playerAId: challenge.playerAId ?? null,
+          playerBId: challenge.playerBId ?? null,
           creatureA: challenge.creatureA,
           creatureB: challenge.creatureB,
           createdAtISO: challenge.createdAtISO,
