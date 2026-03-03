@@ -40,7 +40,7 @@ export function renderLeaderboardShell(): string {
     "Fart And Furious — Leaderboard",
     "Top Fart And Furious Players",
     "Global top 50 by StinkFame.",
-    `<section class="card"><h1>Global Leaderboard</h1><table><thead><tr><th>#</th><th>Player</th><th>StinkFame</th><th>Wins</th><th>Max Hit</th></tr></thead><tbody id="rows"></tbody></table></section>
+    `<section class="card"><h1 class="chaos-glow">🏆 GLOBAL STENCH RANKING</h1><table><thead><tr><th>#</th><th>Player</th><th>StinkFame</th><th>Wins</th><th>Max Hit</th></tr></thead><tbody id="rows"></tbody></table></section>
 <script type="module">
 import { apiLeaderboardGlobal } from '/profile.js';
 apiLeaderboardGlobal();
