@@ -1,10 +1,18 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Accept Challenge</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><div class="topbar"><strong>Challenge</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="profileBar">Loading…</span></div><main>
-<section class="card"><h1>Challenge Found</h1><p id="chalInfo"></p></section>
-<section class="card"><h2>Your Creature</h2><div class="row"><div><label>classKey</label><select id="b-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option></select></div><div><label>cosmeticSeed</label><input id="b-seed" type="number"/></div></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
+<body><div class="topbar"><strong>Challenge</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="profileBar">Loading…</span></div><main class="arena-shell">
+<div class="arena-particles" aria-hidden="true"></div>
+<section class="card chaotic-arena-panel">
+<h1 class="chaos-glow">Challenge Found</h1><p id="chalInfo"></p>
+<div class="arena-faceoff">
+  <article class="arena-player-card"><h2 id="playerAName">Player A</h2><div id="playerARank" class="gas-rank-badge">Gas Trainee</div><p class="small" id="playerACreature">Creature: ???</p></article>
+  <div class="arena-vs chaos-glow">⚡ VS ⚡</div>
+  <article class="arena-player-card"><h2 id="playerBName">You</h2><div id="playerBRank" class="gas-rank-badge">Gas Trainee</div><p class="small" id="playerBCreature">Creature: Pending</p></article>
+</div>
+</section>
+<section class="card chaotic-arena-panel"><h2 class="chaos-glow">Your Creature</h2><div class="row"><div><label>classKey</label><select id="b-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option></select></div><div><label>cosmeticSeed</label><input id="b-seed" type="number"/></div></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
 </main>
 <script type="module">
-import { acceptChallenge, getChallenge, getOrCreateGuestPlayer, getProfile, parsePath, randomSeed, setProfileBar, creatureFromDom, updateTopNav } from '/app.js';
+import { acceptChallenge, getChallenge, getOrCreateGuestPlayer, getProfile, parsePath, randomSeed, setProfileBar, creatureFromDom, updateTopNav, getGasRankTitle } from '/app.js';
 const err = document.getElementById('error');
 document.getElementById('b-seed').value = String(randomSeed());
 const token = parsePath()[1];
@@ -19,6 +27,18 @@ try {
     location.replace(`/m/${c.matchId}?side=${side}`);
   } else {
     document.getElementById('chalInfo').textContent = `Opponent picked ${c.creatureA.classKey} (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
+    document.getElementById('playerACreature').textContent = `Creature: ${c.creatureA.classKey}`;
+    if (c.playerAId) {
+      document.getElementById('playerAName').textContent = c.playerAId;
+      const hostProfile = await getProfile(c.playerAId);
+      const hostTitle = getGasRankTitle(hostProfile.profile.wins ?? 0);
+      document.getElementById('playerARank').textContent = hostTitle;
+      document.getElementById('playerARank').classList.toggle('top-tier', hostTitle.includes('👑'));
+    }
+    document.getElementById('playerBName').textContent = playerId;
+    const guestTitle = getGasRankTitle(profile.profile.wins ?? 0);
+    document.getElementById('playerBRank').textContent = guestTitle;
+    document.getElementById('playerBRank').classList.toggle('top-tier', guestTitle.includes('👑'));
     if (c.status !== 'open') {
       document.getElementById('chalInfo').textContent = 'This challenge is no longer open for new players.';
       document.getElementById('acceptBtn').style.display = 'none';
@@ -30,6 +50,7 @@ try {
 }
 document.getElementById('acceptBtn').onclick = async () => {
   err.textContent = '';
+  document.getElementById('playerBCreature').textContent = `Creature: ${document.getElementById('b-class').value}`;
   try {
     const r = await acceptChallenge(token, playerId, creatureFromDom('b'));
     location.href = `/m/${r.matchId}?side=B`;
