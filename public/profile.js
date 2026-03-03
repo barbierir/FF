@@ -1,3 +1,5 @@
+import { getGasRankTitle } from "/app.js";
+
 async function api(path) {
   const res = await fetch(path);
   const json = await res.json();
@@ -7,6 +9,11 @@ async function api(path) {
 
 export async function apiPlayerPublic(playerId) {
   const data = await api(`/api/players/${encodeURIComponent(playerId)}/public`);
+  const rankTitle = getGasRankTitle(data.profile.wins ?? 0);
+  const playerName = document.getElementById("player");
+  if (playerName) {
+    playerName.insertAdjacentHTML("afterend", `<div class="gas-rank-badge${rankTitle.includes("👑") ? " top-tier" : ""}">${rankTitle}</div>`);
+  }
   const stats = Object.entries(data.profile).map(([k, v]) => `<div><strong>${k}</strong><div>${v}</div></div>`).join("");
   document.getElementById("profile").innerHTML = `<div class="grid">${stats}</div>`;
   document.getElementById("maxHit").textContent = String(data.profile.maxHitEver);
@@ -21,7 +28,11 @@ export async function apiPlayerPublic(playerId) {
 export async function apiLeaderboardGlobal() {
   const data = await api("/api/leaderboard/global");
   document.getElementById("rows").innerHTML = data.rows
-    .map((r, i) => `<tr><td>${i + 1}</td><td><a href="/p/${encodeURIComponent(r.playerId)}">${r.playerId}</a></td><td>${r.stinkFame}</td><td>${r.wins}</td><td>${r.maxHitEver}</td></tr>`)
+    .map((r, i) => {
+      const rankTitle = getGasRankTitle(r.wins ?? 0);
+      const badgeClass = rankTitle.includes("👑") ? "gas-rank-badge top-tier" : "gas-rank-badge";
+      return `<tr><td>${i + 1}</td><td><a href="/p/${encodeURIComponent(r.playerId)}">${r.playerId}</a><div class="${badgeClass}">${rankTitle}</div></td><td>${r.stinkFame}</td><td>${r.wins}</td><td>${r.maxHitEver}</td></tr>`;
+    })
     .join("");
 }
 

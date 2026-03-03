@@ -213,3 +213,11 @@ export function randomSeed() {
 export function setProfileBar(el, profile) {
   el.textContent = `⛽ GasCoins ${profile.gasCoins} · 🦨 StinkFame ${profile.stinkFame} · W${profile.wins}/L${profile.losses}/D${profile.draws}`;
 }
+
+export function getGasRankTitle(wins) {
+  if (wins <= 1) return "Gas Trainee";
+  if (wins <= 3) return "Odor Apprentice";
+  if (wins <= 6) return "Toxic Specialist";
+  if (wins <= 9) return "Fume Overlord";
+  return "Supreme Gas Lord 👑";
+}
