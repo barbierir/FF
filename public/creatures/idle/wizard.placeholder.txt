@@ -1,1 +1,0 @@
-PLACEHOLDER: Replace this with wizard.webp or wizard.gif animated idle sprite.
