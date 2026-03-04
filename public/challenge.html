@@ -4,15 +4,16 @@
 <section class="card chaotic-arena-panel">
 <h1 class="chaos-glow">Challenge Found</h1><p id="chalInfo"></p>
 <div class="arena-faceoff">
-  <article class="arena-player-card"><h2 id="playerAName">Player A</h2><div id="playerARank" class="gas-rank-badge">Gas Trainee</div><p class="small" id="playerACreature">Creature: ???</p></article>
+  <article class="arena-player-card"><h2 id="playerAName">Player A</h2><div id="playerARank" class="gas-rank-badge">Gas Trainee</div><div class="creature-slot" id="playerACreatureVisual"></div><p class="small" id="playerACreature">Creature: ???</p></article>
   <div class="arena-vs chaos-glow">⚡ VS ⚡</div>
-  <article class="arena-player-card"><h2 id="playerBName">You</h2><div id="playerBRank" class="gas-rank-badge">Gas Trainee</div><p class="small" id="playerBCreature">Creature: Pending</p></article>
+  <article class="arena-player-card"><h2 id="playerBName">You</h2><div id="playerBRank" class="gas-rank-badge">Gas Trainee</div><div class="creature-slot" id="playerBCreatureVisual"></div><p class="small" id="playerBCreature">Creature: Pending</p></article>
 </div>
 </section>
 <section class="card chaotic-arena-panel"><h2 class="chaos-glow">Your Creature</h2><div class="row"><div><label>classKey</label><select id="b-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option></select></div><div><label>cosmeticSeed</label><input id="b-seed" type="number"/></div></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
 </main>
 <script type="module">
 import { acceptChallenge, getChallenge, getOrCreateGuestPlayer, getProfile, parsePath, randomSeed, setProfileBar, creatureFromDom, updateTopNav, getGasRankTitle } from '/app.js';
+import { renderCreatureIdle } from '/creatureIdle.js';
 const err = document.getElementById('error');
 document.getElementById('b-seed').value = String(randomSeed());
 const token = parsePath()[1];
@@ -20,6 +21,7 @@ const playerId = await getOrCreateGuestPlayer();
 updateTopNav();
 const profile = await getProfile(playerId);
 setProfileBar(document.getElementById('profileBar'), profile.profile);
+renderCreatureIdle(document.getElementById('playerBCreatureVisual'), { classKey: document.getElementById('b-class').value, size: 88, alt: 'Your creature idle preview' });
 try {
   const c = await getChallenge(token, playerId);
   if (c.matchId && (c.playerAId === playerId || c.playerBId === playerId)) {
@@ -28,6 +30,7 @@ try {
   } else {
     document.getElementById('chalInfo').textContent = `Opponent picked ${c.creatureA.classKey} (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
     document.getElementById('playerACreature').textContent = `Creature: ${c.creatureA.classKey}`;
+    renderCreatureIdle(document.getElementById('playerACreatureVisual'), { classKey: c.creatureA.classKey, size: 88, alt: 'Opponent creature idle sprite' });
     if (c.playerAId) {
       document.getElementById('playerAName').textContent = c.playerAId;
       const hostProfile = await getProfile(c.playerAId);
@@ -48,9 +51,15 @@ try {
   document.getElementById('chalInfo').innerHTML = `Could not load challenge. <a href='/?new=1'>Go home</a>`;
   err.textContent = e.message;
 }
+document.getElementById('b-class').addEventListener('change', (event) => {
+  const selectedClassKey = event.target.value;
+  renderCreatureIdle(document.getElementById('playerBCreatureVisual'), { classKey: selectedClassKey, size: 88, alt: 'Your creature idle preview' });
+});
 document.getElementById('acceptBtn').onclick = async () => {
   err.textContent = '';
-  document.getElementById('playerBCreature').textContent = `Creature: ${document.getElementById('b-class').value}`;
+  const selectedClassKey = document.getElementById('b-class').value;
+  document.getElementById('playerBCreature').textContent = `Creature: ${selectedClassKey}`;
+  renderCreatureIdle(document.getElementById('playerBCreatureVisual'), { classKey: selectedClassKey, size: 88, alt: 'Your selected creature idle sprite' });
   try {
     const r = await acceptChallenge(token, playerId, creatureFromDom('b'));
     location.href = `/m/${r.matchId}?side=B`;

@@ -1,0 +1,1 @@
+PLACEHOLDER: Replace this with skeleton.webp or skeleton.gif animated idle sprite.
