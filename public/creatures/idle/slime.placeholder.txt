@@ -1,0 +1,1 @@
+PLACEHOLDER: Replace this with slime.webp or slime.gif animated idle sprite.
