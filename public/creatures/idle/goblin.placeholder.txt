@@ -1,1 +1,0 @@
-PLACEHOLDER: Replace this with goblin.webp or goblin.gif animated idle sprite.
