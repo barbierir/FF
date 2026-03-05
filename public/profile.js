@@ -100,7 +100,11 @@ function renderCreatureSelect(container, playerId, onContinue) {
 }
 
 export async function apiPlayerPublic(playerId) {
-  const data = await api(`/api/players/${encodeURIComponent(playerId)}/public`);
+  const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/public`);
+  if (!res.ok) {
+    throw new Error(`Profile fetch failed: ${res.status}`);
+  }
+  const data = await res.json();
   const rankTitle = getGasRankTitle(data.profile.wins ?? 0);
   const playerName = document.getElementById("player");
   if (playerName && !document.querySelector(".gas-rank-badge")) {
@@ -115,6 +119,51 @@ export async function apiPlayerPublic(playerId) {
   document.getElementById("rivals").innerHTML = data.rivalries
     .map((r) => `<li><a href="/rivalry/${encodeURIComponent(playerId)}-vs-${encodeURIComponent(r.opponentId)}">${r.opponentId}</a> · Matches ${r.totalMatches} · W${r.wins}/L${r.losses}</li>`)
     .join("");
+}
+
+function ensureProfileStatus() {
+  const profileContent = document.getElementById("profileContent");
+  let status = document.getElementById("profileStatus");
+  if (!status) {
+    status = document.createElement("p");
+    status.id = "profileStatus";
+    status.className = "small";
+    profileContent.insertAdjacentElement("beforebegin", status);
+  }
+  return status;
+}
+
+async function loadPlayerProfile(playerId, { onRetry } = {}) {
+  const status = ensureProfileStatus();
+  status.textContent = "Loading profile…";
+  status.classList.remove("error");
+  status.replaceChildren(document.createTextNode("Loading profile…"));
+  console.debug(`[profile-page] load start playerId=${playerId}`);
+  try {
+    await apiPlayerPublic(playerId);
+    status.textContent = "";
+    console.debug(`[profile-page] load success playerId=${playerId}`);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.debug(`[profile-page] load fail playerId=${playerId}`, error);
+    status.classList.add("error");
+    status.replaceChildren();
+    const text = document.createElement("span");
+    text.textContent = `Failed to load profile (${message}).`;
+    const retryBtn = document.createElement("button");
+    retryBtn.type = "button";
+    retryBtn.className = "secondary";
+    retryBtn.textContent = "Retry";
+    retryBtn.style.marginLeft = "8px";
+    retryBtn.onclick = () => {
+      onRetry?.();
+    };
+    status.append(text, retryBtn);
+    return false;
+  } finally {
+    console.debug(`[profile-page] load finalize playerId=${playerId} loading=false`);
+  }
 }
 
 function showSelectedCreatureLine(playerId, creatureId) {
@@ -141,7 +190,7 @@ export async function initPlayerProfilePage(playerId) {
       showSelectedCreatureLine(playerId, creatureId);
       flow.replaceChildren();
       profileContent.hidden = false;
-      await apiPlayerPublic(playerId);
+      await loadPlayerProfile(playerId, { onRetry: () => void initPlayerProfilePage(playerId) });
     });
     return;
   }
@@ -149,7 +198,7 @@ export async function initPlayerProfilePage(playerId) {
   showSelectedCreatureLine(playerId, selected);
   flow.replaceChildren();
   profileContent.hidden = false;
-  await apiPlayerPublic(playerId);
+  await loadPlayerProfile(playerId, { onRetry: () => void initPlayerProfilePage(playerId) });
 }
 
 export async function apiLeaderboardGlobal() {

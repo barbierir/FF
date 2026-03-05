@@ -50,7 +50,7 @@
     <section class="card"><h2>Your Profile</h2><pre id="profileJson"></pre></section>
   </main>
 <script type="module">
-import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, getProfile, randomSeed, setProfileBar, shouldSkipAutoResume, updateTopNav } from '/app.js';
+import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, loadViewerProfileBar, randomSeed, shouldSkipAutoResume, updateTopNav } from '/app.js';
 import { getPlayerCreatureId } from '/playerCreature.js';
 const err = document.getElementById('error');
 const forceNewMode = shouldSkipAutoResume();
@@ -62,9 +62,13 @@ if (forceNewMode) {
 document.getElementById('a-seed').value = String(randomSeed());
 const playerId = await getOrCreateGuestPlayer();
 updateTopNav();
-const profileData = await getProfile(playerId);
-setProfileBar(document.getElementById('profileBar'), profileData.profile);
-document.getElementById('profileJson').textContent = JSON.stringify(profileData.profile, null, 2);
+void loadViewerProfileBar({
+  profileBarEl: document.getElementById('profileBar'),
+  playerId,
+  onLoaded: (profileData) => {
+    document.getElementById('profileJson').textContent = JSON.stringify(profileData.profile, null, 2);
+  },
+});
 let continuePoll = null;
 
 async function checkAndContinue(token) {

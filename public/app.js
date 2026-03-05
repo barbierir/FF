@@ -113,6 +113,59 @@ export async function getProfile(playerId) {
   return api(`/api/players/${encodeURIComponent(playerId)}`);
 }
 
+async function getProfileWithTimeout(playerId, timeoutMs = 10000) {
+  return Promise.race([
+    getProfile(playerId),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`Profile fetch timed out after ${timeoutMs}ms`)), timeoutMs);
+    }),
+  ]);
+}
+
+export async function loadViewerProfileBar({ profileBarEl, playerId, onLoaded } = {}) {
+  if (!profileBarEl) return;
+  if (!playerId) {
+    profileBarEl.textContent = "Profile unavailable";
+    return;
+  }
+
+  const renderLoadError = (errorMessage) => {
+    profileBarEl.replaceChildren();
+    const text = document.createElement("span");
+    text.textContent = "Failed to load profile.";
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "secondary";
+    retry.textContent = "Retry";
+    retry.style.marginLeft = "8px";
+    retry.onclick = () => {
+      void attemptLoad();
+    };
+    profileBarEl.append(text, retry);
+    console.debug(`[profile] render load error playerId=${playerId} reason=${errorMessage}`);
+  };
+
+  const attemptLoad = async () => {
+    profileBarEl.textContent = "Loading profile…";
+    console.debug(`[profile] load start playerId=${playerId}`);
+    try {
+      const profileData = await getProfileWithTimeout(playerId);
+      setProfileBar(profileBarEl, profileData.profile);
+      onLoaded?.(profileData);
+      console.debug(`[profile] load success playerId=${playerId}`);
+      return profileData;
+    } catch (error) {
+      console.debug(`[profile] load fail playerId=${playerId}`, error);
+      renderLoadError(error instanceof Error ? error.message : String(error));
+      return null;
+    } finally {
+      console.debug(`[profile] load finalize playerId=${playerId} loading=false`);
+    }
+  };
+
+  return attemptLoad();
+}
+
 export async function createChallenge(playerId, creatureA, creatureId = null) {
   return api("/api/challenges", {
     method: "POST",
