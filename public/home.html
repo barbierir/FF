@@ -42,7 +42,7 @@
     </section>
   </main>
   <script type="module">
-    import { fetchOpenChallenges, getOrCreateGuestPlayer, getProfile, setProfileBar, shouldSkipAutoResume, updateTopNav } from '/app.js';
+    import { fetchOpenChallenges, getOrCreateGuestPlayer, loadViewerProfileBar, shouldSkipAutoResume, updateTopNav } from '/app.js';
 
     if (shouldSkipAutoResume()) {
       const note = document.getElementById('homeNewModeNote');
@@ -51,8 +51,7 @@
 
     const playerId = await getOrCreateGuestPlayer();
     updateTopNav();
-    const profileData = await getProfile(playerId);
-    setProfileBar(document.getElementById('profileBar'), profileData.profile);
+    void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId });
     document.getElementById('profileBtn').href = `/p/${encodeURIComponent(playerId)}`;
 
     const publicData = await fetch(`/api/players/${encodeURIComponent(playerId)}/public`).then((r) => r.json());
