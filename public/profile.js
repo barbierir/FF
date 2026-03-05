@@ -1,8 +1,8 @@
-import { clearPlayerCreatureId, getGasRankTitle, getPlayerCreatureId, setPlayerCreatureId } from "/app.js";
+import { clearPlayerCreatureId, createChallenge, getGasRankTitle, getMatch, getPlayerCreatureId, randomSeed, setPlayerCreatureId } from "/app.js";
 import { CREATURES, getCreatureById } from "/creatures.js";
 
-async function api(path) {
-  const res = await fetch(path);
+async function api(path, opts = {}) {
+  const res = await fetch(path, opts);
   const json = await res.json();
   if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
   return json;
@@ -104,87 +104,176 @@ function renderCreatureSelect(container, playerId, onContinue) {
   container.replaceChildren(section);
 }
 
-export async function apiPlayerPublic(playerId) {
-  const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/public`);
-  if (!res.ok) {
-    throw new Error(`Profile fetch failed: ${res.status}`);
-  }
-  const data = await res.json();
-  const rankTitle = getGasRankTitle(data.profile.wins ?? 0);
-  const playerName = document.getElementById("player");
-  if (playerName && !document.querySelector(".gas-rank-badge")) {
-    playerName.insertAdjacentHTML("afterend", `<div class="gas-rank-badge${rankTitle.includes("👑") ? " top-tier" : ""}">${rankTitle}</div>`);
-  }
-  const stats = Object.entries(data.profile).map(([k, v]) => `<div><strong>${k}</strong><div>${v}</div></div>`).join("");
-  document.getElementById("profile").innerHTML = `<div class="grid">${stats}</div>`;
-  document.getElementById("maxHit").textContent = String(data.profile.maxHitEver);
-  document.getElementById("recent").innerHTML = data.recentMatches
-    .map((m) => `<li><a href="/replay/${m.publicId}">${m.publicId}</a> · Winner ${m.winner} · MaxHit ${m.maxHit}</li>`)
-    .join("");
-  document.getElementById("rivals").innerHTML = data.rivalries
-    .map((r) => `<li><a href="/rivalry/${encodeURIComponent(playerId)}-vs-${encodeURIComponent(r.opponentId)}">${r.opponentId}</a> · Matches ${r.totalMatches} · W${r.wins}/L${r.losses}</li>`)
-    .join("");
-}
-
-function ensureProfileStatus() {
-  const profileContent = document.getElementById("profileContent");
-  let status = document.getElementById("profileStatus");
-  if (!status) {
-    status = document.createElement("p");
-    status.id = "profileStatus";
-    status.className = "small";
-    profileContent.insertAdjacentElement("beforebegin", status);
-  }
-  return status;
-}
-
-async function loadPlayerProfile(playerId, { onRetry } = {}) {
-  const status = ensureProfileStatus();
-  status.textContent = "Loading profile…";
-  status.classList.remove("error");
-  status.replaceChildren(document.createTextNode("Loading profile…"));
-  console.debug(`[profile-page] load start playerId=${playerId}`);
-  try {
-    await apiPlayerPublic(playerId);
-    status.textContent = "";
-    console.debug(`[profile-page] load success playerId=${playerId}`);
-    return true;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.debug(`[profile-page] load fail playerId=${playerId}`, error);
-    status.classList.add("error");
-    status.replaceChildren();
-    const text = document.createElement("span");
-    text.textContent = `Failed to load profile (${message}).`;
-    const retryBtn = document.createElement("button");
-    retryBtn.type = "button";
-    retryBtn.className = "secondary";
-    retryBtn.textContent = "Retry";
-    retryBtn.style.marginLeft = "8px";
-    retryBtn.onclick = () => {
-      onRetry?.();
-    };
-    status.append(text, retryBtn);
-    return false;
-  } finally {
-    console.debug(`[profile-page] load finalize playerId=${playerId} loading=false`);
-  }
+function hideRedundantNav() {
+  const newChallengeNav = document.getElementById("navNewChallenge");
+  if (newChallengeNav) newChallengeNav.hidden = true;
 }
 
 function showSelectedCreatureLine(playerId, creatureId) {
   const line = document.getElementById("selectedCreatureLine");
   const creature = creatureId ? getCreatureById(creatureId) : null;
-  line.textContent = creature ? `Creature: ${creature.name}` : `Creature: not selected`;
+  line.textContent = creature ? `Creature: ${creature.name}` : "Creature: not selected";
 
   const button = document.getElementById("changeCreatureBtn");
-  button.onclick = () => {
+  button.onclick = (event) => {
+    event.preventDefault();
     clearPlayerCreatureId(playerId);
     document.getElementById("profileContent").hidden = true;
     initPlayerProfilePage(playerId);
   };
 }
 
+function toRecentMatchRows(recentMatches) {
+  if (!recentMatches?.length) {
+    return '<li>No finished matches yet.</li>';
+  }
+  return recentMatches
+    .map((m) => `<li><a href="/replay/${m.publicId}">${m.publicId}</a> · Winner ${m.winner} · MaxHit ${m.maxHit}</li>`)
+    .join("");
+}
+
+function firstItem(items) {
+  return Array.isArray(items) && items.length ? items[0] : null;
+}
+
+function createDefaultCreatureSpec(creatureId) {
+  const classKey = creatureId ?? "goblin";
+  return { classKey, cosmeticSeed: randomSeed() };
+}
+
+async function resolveHomeState(playerId, creatureId) {
+  const [publicData, mineOpen, mineAccepted, incoming] = await Promise.all([
+    api(`/api/players/${encodeURIComponent(playerId)}/public`),
+    api(`/api/challenges/mine?playerId=${encodeURIComponent(playerId)}&status=open&limit=20`),
+    api(`/api/challenges/mine?playerId=${encodeURIComponent(playerId)}&status=accepted&limit=20`),
+    api(`/api/challenges/open?excludePlayerId=${encodeURIComponent(playerId)}&limit=20`),
+  ]);
+
+  const myOpenChallenge = (mineOpen.items ?? []).find((item) => item.playerAId === playerId) ?? null;
+  if (myOpenChallenge) {
+    return {
+      kind: "waiting",
+      ctaLabel: "New challenge",
+      statusText: "Waiting for opponent…",
+      shareUrl: `${location.origin}/c/${myOpenChallenge.token}`,
+      onClick: async () => {
+        await createChallenge(playerId, createDefaultCreatureSpec(creatureId), creatureId);
+        await refreshPlayerHome(playerId, creatureId);
+      },
+      recentMatches: publicData.recentMatches,
+      wins: publicData.profile?.wins ?? 0,
+    };
+  }
+
+  const incomingChallenge = firstItem(incoming.items);
+  if (incomingChallenge) {
+    return {
+      kind: "incoming",
+      ctaLabel: "Accept challenge",
+      statusText: `Incoming challenge from ${incomingChallenge.playerAId ?? "another player"}.`,
+      shareUrl: null,
+      onClick: () => {
+        location.href = `/c/${incomingChallenge.token}`;
+      },
+      recentMatches: publicData.recentMatches,
+      wins: publicData.profile?.wins ?? 0,
+    };
+  }
+
+  const acceptedChallenge = firstItem(mineAccepted.items);
+  if (acceptedChallenge?.token) {
+    const details = await api(`/api/challenges/${encodeURIComponent(acceptedChallenge.token)}?viewerId=${encodeURIComponent(playerId)}`);
+    if (details.matchId) {
+      const match = await getMatch(details.matchId);
+      if (match.status === "collecting_moves") {
+        const side = details.playerAId === playerId ? "A" : "B";
+        return {
+          kind: "active",
+          ctaLabel: "Submit moves",
+          statusText: "Match in progress.",
+          shareUrl: null,
+          onClick: () => {
+            location.href = `/m/${encodeURIComponent(details.matchId)}?side=${side}`;
+          },
+          recentMatches: publicData.recentMatches,
+          wins: publicData.profile?.wins ?? 0,
+        };
+      }
+      if (match.status === "finished") {
+        const publicId = details.publicId || match.publicId;
+        if (publicId) {
+          return {
+          kind: "finished",
+          ctaLabel: "Rematch",
+          statusText: "Last match finished.",
+          shareUrl: null,
+          onClick: () => {
+            location.href = `/replay/${encodeURIComponent(publicId)}`;
+          },
+          recentMatches: publicData.recentMatches,
+          wins: publicData.profile?.wins ?? 0,
+        };
+        }
+      }
+    }
+  }
+
+  return {
+    kind: "idle",
+    ctaLabel: "New challenge",
+    statusText: "Ready to start a new match.",
+    shareUrl: null,
+    onClick: async () => {
+      await createChallenge(playerId, createDefaultCreatureSpec(creatureId), creatureId);
+      await refreshPlayerHome(playerId, creatureId);
+    },
+    recentMatches: publicData.recentMatches,
+    wins: publicData.profile?.wins ?? 0,
+  };
+}
+
+async function refreshPlayerHome(playerId, creatureId) {
+  const statusEl = document.getElementById("homeStatus");
+  const errorEl = document.getElementById("homeError");
+  const primaryBtn = document.getElementById("primaryActionBtn");
+  const shareLink = document.getElementById("shareChallengeLink");
+
+  statusEl.textContent = "Loading profile…";
+  errorEl.textContent = "";
+  primaryBtn.disabled = true;
+
+  try {
+    const state = await resolveHomeState(playerId, creatureId);
+    const rankTitle = getGasRankTitle(state.wins);
+    const playerName = document.getElementById("player");
+    playerName.textContent = playerId;
+
+    const rank = document.querySelector(".gas-rank-badge");
+    if (rank) rank.remove();
+    playerName.insertAdjacentHTML("afterend", `<div class="gas-rank-badge${rankTitle.includes("👑") ? " top-tier" : ""}">${rankTitle}</div>`);
+
+    primaryBtn.textContent = state.ctaLabel;
+    primaryBtn.disabled = false;
+    primaryBtn.onclick = () => void state.onClick();
+
+    statusEl.textContent = state.statusText;
+    shareLink.hidden = !state.shareUrl;
+    if (state.shareUrl) {
+      shareLink.href = state.shareUrl;
+      shareLink.textContent = "Share link";
+    }
+
+    document.getElementById("recent").innerHTML = toRecentMatchRows(state.recentMatches);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    statusEl.textContent = "Could not load home state.";
+    errorEl.textContent = message;
+    primaryBtn.disabled = true;
+  }
+}
+
 export async function initPlayerProfilePage(playerId) {
+  hideRedundantNav();
   const flow = document.getElementById("creatureFlow");
   const profileContent = document.getElementById("profileContent");
   const selected = getPlayerCreatureId(playerId);
@@ -195,7 +284,7 @@ export async function initPlayerProfilePage(playerId) {
       showSelectedCreatureLine(playerId, creatureId);
       flow.replaceChildren();
       profileContent.hidden = false;
-      await loadPlayerProfile(playerId, { onRetry: () => void initPlayerProfilePage(playerId) });
+      await refreshPlayerHome(playerId, creatureId);
     });
     return;
   }
@@ -203,7 +292,7 @@ export async function initPlayerProfilePage(playerId) {
   showSelectedCreatureLine(playerId, selected);
   flow.replaceChildren();
   profileContent.hidden = false;
-  await loadPlayerProfile(playerId, { onRetry: () => void initPlayerProfilePage(playerId) });
+  await refreshPlayerHome(playerId, selected);
 }
 
 export async function apiLeaderboardGlobal() {
