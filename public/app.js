@@ -113,10 +113,10 @@ export async function getProfile(playerId) {
   return api(`/api/players/${encodeURIComponent(playerId)}`);
 }
 
-export async function createChallenge(playerId, creatureA) {
+export async function createChallenge(playerId, creatureA, creatureId = null) {
   return api("/api/challenges", {
     method: "POST",
-    body: JSON.stringify({ playerAId: playerId, creatureA }),
+    body: JSON.stringify({ playerAId: playerId, creatureA, creatureId }),
   });
 }
 
@@ -127,10 +127,10 @@ export async function getChallenge(token, viewerId) {
   return api(`/api/challenges/${encodeURIComponent(token)}${query ? `?${query}` : ""}`);
 }
 
-export async function acceptChallenge(token, playerId, creatureB) {
+export async function acceptChallenge(token, playerId, creatureB, creatureId = null) {
   return api(`/api/challenges/${encodeURIComponent(token)}/accept`, {
     method: "POST",
-    body: JSON.stringify({ playerBId: playerId, creatureB }),
+    body: JSON.stringify({ playerBId: playerId, creatureB, creatureId }),
   });
 }
 

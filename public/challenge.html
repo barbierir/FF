@@ -14,6 +14,7 @@
 <script type="module">
 import { acceptChallenge, getChallenge, getOrCreateGuestPlayer, getProfile, parsePath, randomSeed, setProfileBar, creatureFromDom, updateTopNav, getGasRankTitle } from '/app.js';
 import { renderCreatureIdle } from '/app.js';
+import { getPlayerCreatureId } from '/playerCreature.js';
 const err = document.getElementById('error');
 document.getElementById('b-seed').value = String(randomSeed());
 const token = parsePath()[1];
@@ -61,7 +62,7 @@ document.getElementById('acceptBtn').onclick = async () => {
   document.getElementById('playerBCreature').textContent = `Creature: ${selectedClassKey}`;
   renderCreatureIdle(document.getElementById('playerBCreatureVisual'), { classKey: selectedClassKey, size: 88, alt: 'Your selected creature idle sprite' });
   try {
-    const r = await acceptChallenge(token, playerId, creatureFromDom('b'));
+    const r = await acceptChallenge(token, playerId, creatureFromDom('b'), getPlayerCreatureId(playerId));
     location.href = `/m/${r.matchId}?side=B`;
   } catch (e) { err.textContent = e.message; }
 };

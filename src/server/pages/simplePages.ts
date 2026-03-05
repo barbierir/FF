@@ -27,10 +27,10 @@ export function renderProfileShell(playerId: string): string {
     `Fart And Furious — ${playerId}`,
     `Player ${playerId}`,
     `Track ${playerId}'s stats, recent matches, and rivalries.`,
-    `<section class="card"><h1 id="player">${escapeHtml(playerId)}</h1><div id="profile"></div><h2>Most Explosive Hit Ever</h2><p id="maxHit"></p><h2>Recent Matches</h2><ul id="recent"></ul><h2>Rivalries</h2><ul id="rivals"></ul></section>
+    `<section class="card"><h1 id="player">${escapeHtml(playerId)}</h1><div id="creatureFlow"></div><div id="profileContent" hidden><p id="selectedCreatureLine"></p><button id="changeCreatureBtn" class="secondary" type="button">Change creature</button><div id="profile"></div><h2>Most Explosive Hit Ever</h2><p id="maxHit"></p><h2>Recent Matches</h2><ul id="recent"></ul><h2>Rivalries</h2><ul id="rivals"></ul></div></section>
 <script type="module">
-import { apiPlayerPublic } from '/profile.js';
-apiPlayerPublic(${JSON.stringify(playerId)});
+import { initPlayerProfilePage } from '/profile.js';
+initPlayerProfilePage(${JSON.stringify(playerId)});
 </script>`,
   );
 }

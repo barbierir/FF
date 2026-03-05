@@ -1,4 +1,6 @@
 import { getGasRankTitle } from "/app.js";
+import { CREATURES, getCreatureById } from "/creatures.js";
+import { clearPlayerCreatureId, getPlayerCreatureId, setPlayerCreatureId } from "/playerCreature.js";
 
 async function api(path) {
   const res = await fetch(path);
@@ -7,11 +9,101 @@ async function api(path) {
   return json;
 }
 
+function createCreatureSelectTile(creature, selectedId, onSelect) {
+  const tile = document.createElement("article");
+  tile.className = `creature-select-tile${selectedId === creature.id ? " selected" : ""}`;
+  tile.setAttribute("role", "button");
+  tile.setAttribute("tabindex", "0");
+  tile.setAttribute("aria-label", `Select ${creature.name}`);
+
+  const imageWrap = document.createElement("div");
+  imageWrap.className = "creature-select-image";
+
+  const img = document.createElement("img");
+  img.src = `/creatures/idle/${creature.id}.gif`;
+  img.alt = `${creature.name} idle`;
+  img.width = 220;
+  img.height = 220;
+  img.loading = "lazy";
+  img.onerror = () => {
+    imageWrap.innerHTML = `<div class="missing-gif" aria-label="Missing GIF">Missing GIF</div>`;
+  };
+  imageWrap.appendChild(img);
+
+  const title = document.createElement("h3");
+  title.textContent = creature.name;
+
+  const blurb = document.createElement("p");
+  blurb.className = "small";
+  blurb.textContent = creature.blurb;
+
+  const overlay = document.createElement("div");
+  overlay.className = "creature-select-overlay";
+  overlay.innerHTML = `<strong>Special: ${creature.specialAbilityName}</strong><p>${creature.specialAbilityDescription}</p>`;
+
+  const badge = document.createElement("span");
+  badge.className = "selected-badge";
+  badge.textContent = "Selected";
+  badge.hidden = selectedId !== creature.id;
+
+  const activate = () => onSelect(creature.id);
+  tile.onclick = activate;
+  tile.onkeydown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      activate();
+    }
+  };
+
+  tile.append(imageWrap, title, blurb, overlay, badge);
+  return tile;
+}
+
+function renderCreatureSelect(container, playerId, onContinue) {
+  let selectedId = getPlayerCreatureId(playerId);
+
+  const section = document.createElement("section");
+  section.className = "card creature-select-card";
+
+  const header = document.createElement("h2");
+  header.textContent = "Creature Select";
+
+  const grid = document.createElement("div");
+  grid.className = "creature-select-grid";
+
+  const continueBtn = document.createElement("button");
+  continueBtn.textContent = "Continue";
+  continueBtn.disabled = !selectedId;
+
+  const rerender = () => {
+    grid.innerHTML = "";
+    for (const creature of CREATURES) {
+      grid.appendChild(
+        createCreatureSelectTile(creature, selectedId, (nextId) => {
+          selectedId = nextId;
+          continueBtn.disabled = false;
+          rerender();
+        }),
+      );
+    }
+  };
+
+  continueBtn.onclick = () => {
+    if (!selectedId) return;
+    setPlayerCreatureId(playerId, selectedId);
+    onContinue(selectedId);
+  };
+
+  rerender();
+  section.append(header, grid, continueBtn);
+  container.replaceChildren(section);
+}
+
 export async function apiPlayerPublic(playerId) {
   const data = await api(`/api/players/${encodeURIComponent(playerId)}/public`);
   const rankTitle = getGasRankTitle(data.profile.wins ?? 0);
   const playerName = document.getElementById("player");
-  if (playerName) {
+  if (playerName && !document.querySelector(".gas-rank-badge")) {
     playerName.insertAdjacentHTML("afterend", `<div class="gas-rank-badge${rankTitle.includes("👑") ? " top-tier" : ""}">${rankTitle}</div>`);
   }
   const stats = Object.entries(data.profile).map(([k, v]) => `<div><strong>${k}</strong><div>${v}</div></div>`).join("");
@@ -23,6 +115,41 @@ export async function apiPlayerPublic(playerId) {
   document.getElementById("rivals").innerHTML = data.rivalries
     .map((r) => `<li><a href="/rivalry/${encodeURIComponent(playerId)}-vs-${encodeURIComponent(r.opponentId)}">${r.opponentId}</a> · Matches ${r.totalMatches} · W${r.wins}/L${r.losses}</li>`)
     .join("");
+}
+
+function showSelectedCreatureLine(playerId, creatureId) {
+  const line = document.getElementById("selectedCreatureLine");
+  const creature = creatureId ? getCreatureById(creatureId) : null;
+  line.textContent = creature ? `Creature: ${creature.name}` : `Creature: not selected`;
+
+  const button = document.getElementById("changeCreatureBtn");
+  button.onclick = () => {
+    clearPlayerCreatureId(playerId);
+    document.getElementById("profileContent").hidden = true;
+    initPlayerProfilePage(playerId);
+  };
+}
+
+export async function initPlayerProfilePage(playerId) {
+  const flow = document.getElementById("creatureFlow");
+  const profileContent = document.getElementById("profileContent");
+  const selected = getPlayerCreatureId(playerId);
+
+  if (!selected) {
+    profileContent.hidden = true;
+    renderCreatureSelect(flow, playerId, async (creatureId) => {
+      showSelectedCreatureLine(playerId, creatureId);
+      flow.replaceChildren();
+      profileContent.hidden = false;
+      await apiPlayerPublic(playerId);
+    });
+    return;
+  }
+
+  showSelectedCreatureLine(playerId, selected);
+  flow.replaceChildren();
+  profileContent.hidden = false;
+  await apiPlayerPublic(playerId);
 }
 
 export async function apiLeaderboardGlobal() {
