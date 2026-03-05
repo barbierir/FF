@@ -51,6 +51,7 @@
   </main>
 <script type="module">
 import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, getProfile, randomSeed, setProfileBar, shouldSkipAutoResume, updateTopNav } from '/app.js';
+import { getPlayerCreatureId } from '/playerCreature.js';
 const err = document.getElementById('error');
 const forceNewMode = shouldSkipAutoResume();
 if (forceNewMode) {
@@ -91,7 +92,7 @@ function startContinuePolling(token) {
 document.getElementById('createBtn').onclick = async () => {
   err.textContent = '';
   try {
-    const challenge = await createChallenge(playerId, creatureFromDom('a'));
+    const challenge = await createChallenge(playerId, creatureFromDom('a'), getPlayerCreatureId(playerId));
     const url = `${location.origin}/c/${challenge.token}`;
     localStorage.setItem('lastChallengeToken', challenge.token);
     document.getElementById('link').value = url;
