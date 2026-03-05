@@ -1,6 +1,6 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><div class="topbar"><strong>Replay</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="profileBar">Loading…</span></div><main><p class="small"><a class="small-link" href="/home">Back to home</a></p>
-<section class="card"><h1 id="title">Battle Replay</h1><p id="winner" class="victory-highlight"></p><p id="stats"></p><div class="replay-creature-row"><div class="creature-slot" id="replayCreatureA"></div><div class="arena-vs">VS</div><div class="creature-slot" id="replayCreatureB"></div></div><p class="small" id="replayCreatureNames"></p><div class="button-row"><a class="button-link" href="/?new=1">New Challenge</a><button class="secondary" id="rematchBtn" disabled>REMATCH ME, COWARD</button><a class="button-link" href="/home">Home</a><a class="button-link" id="profileBtn" href="/">My Profile</a></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p>MatchHash: <code id="hash"></code> <button class="secondary" id="copyHash">Copy</button></p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p><div id="rematchResult"></div></section>
+<body><div class="topbar"><strong>Replay</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav><span id="profileBar">Loading…</span></div><main>
+<section class="card"><h1 id="title">Battle Replay</h1><p id="winner" class="victory-highlight"></p><p id="stats"></p><div class="replay-creature-row"><div class="creature-slot" id="replayCreatureA"></div><div class="arena-vs">VS</div><div class="creature-slot" id="replayCreatureB"></div></div><p class="small" id="replayCreatureNames"></p><div class="button-row primary-cta-group"><a class="button-link primary-cta" href="/?new=1">New Challenge</a><button class="primary-cta" id="rematchBtn" disabled>Rematch me, coward</button></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p><div id="rematchResult"></div></section>
 <section class="card"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><button class="secondary" id="skip">Skip</button> <button class="secondary" id="replay">Replay</button><div class="log" id="log"></div></section>
 </main>
 <div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
@@ -109,21 +109,20 @@ try {
   if (storedSide === 'A' || storedSide === 'B') pickedSide = storedSide;
   updateTopNav();
   void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId: viewerPlayerId });
-  document.getElementById('profileBtn').href = `/p/${encodeURIComponent(viewerPlayerId)}`;
-
   document.getElementById('winner').textContent = `Winner: ${data.summary.winner}`;
   document.getElementById('stats').textContent = `Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;
   renderCreatureIdle(document.getElementById('replayCreatureA'), { classKey: data.summary.a.classKey, size: 92, alt: 'Replay creature A idle sprite' });
   renderCreatureIdle(document.getElementById('replayCreatureB'), { classKey: data.summary.b.classKey, size: 92, alt: 'Replay creature B idle sprite' });
   document.getElementById('replayCreatureNames').textContent = `A: ${data.summary.a.classKey} · B: ${data.summary.b.classKey}`;
-  document.getElementById('hash').textContent = data.matchHash;
+  if (window.location.hostname === 'localhost') {
+    console.debug('Replay match hash', data.matchHash);
+  }
   document.getElementById('sharePage').href = `/r/${publicId}`;
   rematchBtn.disabled = false;
 } catch (error) {
   shareMsg.textContent = error.message;
 }
 
-document.getElementById('copyHash').onclick = () => data && copyText(data.matchHash);
 document.getElementById('copyShareText').onclick = async () => {
   try {
     const shareText = await fetch(`/api/replay/${encodeURIComponent(publicId)}/share-text`).then((r) => r.json());
