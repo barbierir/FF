@@ -6,7 +6,7 @@
 <div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
 <script type="module">
 import { copyText, createRematch, fetchReplay, getViewerPlayerId, getProfile, parsePath, rememberLastReplayPublicId, setProfileBar, shareReplay, updateTopNav } from '/app.js';
-import { renderCreatureIdle } from '/creatureIdle.js';
+import { renderCreatureIdle } from '/app.js';
 
 const publicId = parsePath()[1];
 const sideStorageKey = `faf_rematch_side_${publicId}`;

@@ -13,7 +13,7 @@
 </main>
 <script type="module">
 import { acceptChallenge, getChallenge, getOrCreateGuestPlayer, getProfile, parsePath, randomSeed, setProfileBar, creatureFromDom, updateTopNav, getGasRankTitle } from '/app.js';
-import { renderCreatureIdle } from '/creatureIdle.js';
+import { renderCreatureIdle } from '/app.js';
 const err = document.getElementById('error');
 document.getElementById('b-seed').value = String(randomSeed());
 const token = parsePath()[1];
