@@ -29,7 +29,7 @@ export const CREATURES: Creature[] = [
   {
     id: "skunk",
     name: "Skunk",
-    idleSrc: "/creatures/idle/skunk.gif",
+    idleSrc: "/creatures/idle/slime.gif",
     blurb: "Risk-control attacker.",
     specialAbilityName: "SKUNK_SAFE_USED",
     specialAbilityDescription: "One ATTACK can consume safe=true to prevent BACKFIRE once per match.",
@@ -37,7 +37,7 @@ export const CREATURES: Creature[] = [
   {
     id: "troll",
     name: "Troll",
-    idleSrc: "/creatures/idle/troll.gif",
+    idleSrc: "/creatures/idle/skeleton.gif",
     blurb: "Retaliation-focused defender.",
     specialAbilityName: "TROLL_RETAL",
     specialAbilityDescription: "When troll takes non-zero attack damage, the attacker takes 1 retaliation damage.",
@@ -45,7 +45,7 @@ export const CREATURES: Creature[] = [
   {
     id: "fairy",
     name: "Fairy",
-    idleSrc: "/creatures/idle/fairy.gif",
+    idleSrc: "/creatures/idle/wizard.gif",
     blurb: "Sustain and recovery specialist.",
     specialAbilityName: "HEAL",
     specialAbilityDescription: "Only fairy can use HEAL when PG >= 1; HEAL restores PR (2, or 3 when PR <= 7).",

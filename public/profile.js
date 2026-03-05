@@ -19,12 +19,18 @@ function createCreatureSelectTile(creature, selectedId, onSelect) {
   imageWrap.className = "creature-select-image";
 
   const img = document.createElement("img");
-  img.src = `/creatures/idle/${creature.id}.gif`;
+  img.src = creature.idleSrc;
   img.alt = `${creature.name} idle`;
   img.width = 220;
   img.height = 220;
   img.loading = "lazy";
   img.onerror = () => {
+    if (["localhost", "127.0.0.1"].includes(window.location.hostname)) {
+      console.warn("[profile] failed to load idle image", {
+        creatureId: creature.id,
+        attemptedSrc: img.currentSrc || img.src,
+      });
+    }
     imageWrap.innerHTML = `<div class="missing-gif" aria-label="Missing GIF">Missing GIF</div>`;
   };
   imageWrap.appendChild(img);
