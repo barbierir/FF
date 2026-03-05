@@ -371,3 +371,35 @@ a { color: var(--accent); }
   border-radius: 12px;
   color: var(--muted);
 }
+
+.player-home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.small-link {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+.player-home-links {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.player-home-links a {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+#primaryActionBtn {
+  margin-top: 8px;
+  margin-bottom: 4px;
+}

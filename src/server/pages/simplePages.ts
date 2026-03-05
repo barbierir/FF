@@ -27,7 +27,7 @@ export function renderProfileShell(playerId: string): string {
     `Fart And Furious — ${playerId}`,
     `Player ${playerId}`,
     `Track ${playerId}'s stats, recent matches, and rivalries.`,
-    `<section class="card"><h1 id="player">${escapeHtml(playerId)}</h1><div id="creatureFlow"></div><div id="profileContent" hidden><p id="selectedCreatureLine"></p><button id="changeCreatureBtn" class="secondary" type="button">Change creature</button><div id="profile"></div><h2>Most Explosive Hit Ever</h2><p id="maxHit"></p><h2>Recent Matches</h2><ul id="recent"></ul><h2>Rivalries</h2><ul id="rivals"></ul></div></section>
+    `<section class="card"><h1 id="player">${escapeHtml(playerId)}</h1><div id="creatureFlow"></div><div id="profileContent" hidden><div class="player-home-header"><p id="selectedCreatureLine"></p><a id="changeCreatureBtn" class="small-link" href="#">Change creature</a></div><button id="primaryActionBtn" type="button">New challenge</button><p id="homeStatus" class="small"></p><p id="homeError" class="error"></p><div class="player-home-links"><a href="/leaderboard">Leaderboard</a><a href="#matchHistory">Match history</a><a id="shareChallengeLink" href="#" hidden>Share link</a></div><h2 id="matchHistory">Match history</h2><ul id="recent"></ul></div></section>
 <script type="module">
 import { initPlayerProfilePage } from '/profile.js';
 initPlayerProfilePage(${JSON.stringify(playerId)});
