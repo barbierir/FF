@@ -4,6 +4,7 @@ const IDLE_ASSET_BY_CLASS = {
   skunk: "slime",
   troll: "skeleton",
   fairy: "wizard",
+  demon: "demon",
 };
 
 const isDev = ["localhost", "127.0.0.1"].includes(window.location.hostname);

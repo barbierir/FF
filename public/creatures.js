@@ -39,6 +39,14 @@ export const CREATURES = [
     specialAbilityName: 'HEAL',
     specialAbilityDescription: 'Only fairy can use HEAL when PG >= 1; HEAL restores PR (2, or 3 when PR <= 7).',
   },
+  {
+    id: 'demon',
+    name: 'Demon',
+    idleSrc: '/creatures/idle/demon.gif',
+    blurb: 'Volatile all-rounder.',
+    specialAbilityName: 'BASE KIT',
+    specialAbilityDescription: 'Demon uses the baseline move kit without class-specific modifiers.',
+  },
 ];
 
 export function getCreatureById(creatureId) {

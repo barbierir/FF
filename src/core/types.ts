@@ -2,7 +2,7 @@ export const RULESET_VERSION = "1.0.0" as const;
 
 export type RulesetVersion = typeof RULESET_VERSION;
 
-export type ClassKey = "goblin" | "dragon" | "skunk" | "troll" | "fairy";
+export type ClassKey = "goblin" | "dragon" | "skunk" | "troll" | "fairy" | "demon";
 
 export type Move =
   | { type: "ATTACK"; gas: 1 | 2 | 3 | 4; safe?: boolean }

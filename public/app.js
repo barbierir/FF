@@ -1,4 +1,4 @@
-const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy"];
+const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy", "demon"];
 export const CREATURES = [
   {
     id: "goblin",
@@ -34,6 +34,13 @@ export const CREATURES = [
     idleSrc: "/creatures/idle/wizard.gif",
     specialAbilityName: "HEAL",
     specialAbilityDescription: "Only fairy can use HEAL when PG >= 1; HEAL restores PR (2, or 3 when PR <= 7).",
+  },
+  {
+    id: "demon",
+    name: "Demon",
+    idleSrc: "/creatures/idle/demon.gif",
+    specialAbilityName: "BASE KIT",
+    specialAbilityDescription: "Demon uses the baseline move kit without class-specific modifiers.",
   },
 ];
 const PLAYER_ID_KEY = "faf_playerId";
@@ -366,6 +373,7 @@ const IDLE_ASSET_BY_CLASS = {
   skunk: "slime",
   troll: "skeleton",
   fairy: "wizard",
+  demon: "demon",
 };
 
 const isDevHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
