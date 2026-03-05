@@ -1,29 +1,93 @@
 const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy"];
+export const CREATURES = [
+  {
+    id: "goblin",
+    name: "Goblin",
+    idleSrc: "/creatures/idle/goblin.gif",
+    specialAbilityName: "RECHARGE_EXTRA bonus",
+    specialAbilityDescription: "RECHARGE_EXTRA restores 3 PG for goblin instead of the default 2.",
+  },
+  {
+    id: "dragon",
+    name: "Dragon",
+    idleSrc: "/creatures/idle/dragon.gif",
+    specialAbilityName: "DRAGON_PLUS1",
+    specialAbilityDescription: "Dragon ATTACK actions apply +1 extra damage compared to base ATTACK damage.",
+  },
+  {
+    id: "skunk",
+    name: "Skunk",
+    idleSrc: "/creatures/idle/slime.gif",
+    specialAbilityName: "SKUNK_SAFE_USED",
+    specialAbilityDescription: "One ATTACK can consume safe=true to prevent BACKFIRE once per match.",
+  },
+  {
+    id: "troll",
+    name: "Troll",
+    idleSrc: "/creatures/idle/skeleton.gif",
+    specialAbilityName: "TROLL_RETAL",
+    specialAbilityDescription: "When troll takes non-zero attack damage, the attacker takes 1 retaliation damage.",
+  },
+  {
+    id: "fairy",
+    name: "Fairy",
+    idleSrc: "/creatures/idle/wizard.gif",
+    specialAbilityName: "HEAL",
+    specialAbilityDescription: "Only fairy can use HEAL when PG >= 1; HEAL restores PR (2, or 3 when PR <= 7).",
+  },
+];
 const PLAYER_ID_KEY = "faf_playerId";
 const LEGACY_PLAYER_ID_KEY = "faf_player_id";
 const LAST_REPLAY_PUBLIC_ID_KEY = "faf_lastReplayPublicId";
 const FORCE_NEW_QUERY_KEY = "new";
 const FORCE_NEW_QUERY_VALUE = "1";
 
-const PLAYER_CREATURE_PREFIX = "faf_playerCreature_";
+const PLAYER_CREATURE_PREFIX = "ff:player:";
+const PLAYER_CREATURE_SUFFIX = ":creatureId";
+const LEGACY_PLAYER_CREATURE_PREFIX = "faf_playerCreature_";
+const PENDING_CREATURE_KEY = "ff:pendingCreatureId";
 
 function playerCreatureStorageKey(playerId) {
-  return `${PLAYER_CREATURE_PREFIX}${playerId}`;
+  return `${PLAYER_CREATURE_PREFIX}${playerId}${PLAYER_CREATURE_SUFFIX}`;
+}
+
+function legacyPlayerCreatureStorageKey(playerId) {
+  return `${LEGACY_PLAYER_CREATURE_PREFIX}${playerId}`;
 }
 
 export function getPlayerCreatureId(playerId) {
   if (!playerId) return null;
-  return localStorage.getItem(playerCreatureStorageKey(playerId));
+  return localStorage.getItem(playerCreatureStorageKey(playerId)) ?? localStorage.getItem(legacyPlayerCreatureStorageKey(playerId));
 }
 
 export function setPlayerCreatureId(playerId, creatureId) {
   if (!playerId || !creatureId) return;
   localStorage.setItem(playerCreatureStorageKey(playerId), creatureId);
+  localStorage.removeItem(legacyPlayerCreatureStorageKey(playerId));
 }
 
 export function clearPlayerCreatureId(playerId) {
   if (!playerId) return;
   localStorage.removeItem(playerCreatureStorageKey(playerId));
+  localStorage.removeItem(legacyPlayerCreatureStorageKey(playerId));
+}
+
+export function getPendingCreatureId() {
+  return localStorage.getItem(PENDING_CREATURE_KEY);
+}
+
+export function setPendingCreatureId(creatureId) {
+  if (!creatureId) return;
+  localStorage.setItem(PENDING_CREATURE_KEY, creatureId);
+}
+
+export function flushPendingCreatureIdToPlayer(playerId) {
+  if (!playerId) return null;
+  const pendingCreatureId = getPendingCreatureId();
+  if (!pendingCreatureId) return null;
+  setPlayerCreatureId(playerId, pendingCreatureId);
+  localStorage.removeItem(PENDING_CREATURE_KEY);
+  return pendingCreatureId;
 }
 
 const STICKY_RESUME_KEYS = [
@@ -261,10 +325,10 @@ export function q(name) {
 }
 
 export function creatureFromDom(prefix) {
-  const classKey = document.getElementById(`${prefix}-class`).value;
-  const cosmeticSeed = Number.parseInt(document.getElementById(`${prefix}-seed`).value, 10);
+  const classNode = document.getElementById(`${prefix}-class`);
+  const classKey = classNode?.value;
   if (!CLASS_KEYS.includes(classKey)) throw new Error("Invalid class key");
-  return { classKey, cosmeticSeed };
+  return { classKey, cosmeticSeed: randomSeed() };
 }
 
 export async function copyText(text) {

@@ -23,21 +23,12 @@
       <h1>Fart And Furious</h1>
       <p>Create a challenge link and send it to a friend.</p>
       <p id="newModeNote" class="small" style="display:none">New Challenge mode: cleared previous replay state.</p>
-      <p><a class="button-link" href="/home">Go to Home</a></p>
-    </section>
+          </section>
 
     <section class="card">
-      <h2>Your Creature</h2>
-      <div class="row">
-        <div>
-          <label>classKey</label>
-          <select id="a-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option></select>
-        </div>
-        <div>
-          <label>cosmeticSeed</label>
-          <input id="a-seed" type="number" min="0" max="2147483647"/>
-        </div>
-      </div>
+      <h2>Choose your creature</h2>
+      <input id="a-class" type="hidden" value="goblin" aria-label="Selected creature"/>
+      <div id="creatureGrid" class="creature-select-grid" role="list"></div>
       <div style="margin-top:10px"><button id="createBtn">Create Challenge</button></div>
       <p id="error" class="error"></p>
       <div id="linkWrap" style="display:none">
@@ -47,10 +38,9 @@
       <div id="continueWrap" style="display:none;margin-top:12px"><h3>Continue</h3><p id="continueMsg" class="small"></p></div>
     </section>
 
-    <section class="card"><h2>Your Profile</h2><pre id="profileJson"></pre></section>
-  </main>
+      </main>
 <script type="module">
-import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, getPlayerCreatureId, loadViewerProfileBar, randomSeed, shouldSkipAutoResume, updateTopNav } from '/app.js';
+import { CREATURES, copyText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, getChallenge, getOrCreateGuestPlayer, getPendingCreatureId, getPlayerCreatureId, loadViewerProfileBar, setPendingCreatureId, setPlayerCreatureId, shouldSkipAutoResume, updateTopNav } from '/app.js';
 const err = document.getElementById('error');
 const forceNewMode = shouldSkipAutoResume();
 if (forceNewMode) {
@@ -58,17 +48,71 @@ if (forceNewMode) {
   if (note) note.style.display = 'block';
   history.replaceState({}, '', '/');
 }
-document.getElementById('a-seed').value = String(randomSeed());
 const playerId = await getOrCreateGuestPlayer();
 updateTopNav();
 void loadViewerProfileBar({
   profileBarEl: document.getElementById('profileBar'),
   playerId,
-  onLoaded: (profileData) => {
-    document.getElementById('profileJson').textContent = JSON.stringify(profileData.profile, null, 2);
-  },
 });
 let continuePoll = null;
+
+flushPendingCreatureIdToPlayer(playerId);
+
+const classInput = document.getElementById('a-class');
+const grid = document.getElementById('creatureGrid');
+const savedCreatureId = getPlayerCreatureId(playerId) || getPendingCreatureId() || 'goblin';
+classInput.value = savedCreatureId;
+
+for (const creature of CREATURES) {
+  const tile = document.createElement('article');
+  tile.className = `creature-select-tile${savedCreatureId === creature.id ? ' selected' : ''}`;
+  tile.setAttribute('role', 'button');
+  tile.setAttribute('tabindex', '0');
+  tile.setAttribute('aria-label', `Select ${creature.name}`);
+
+  const imageWrap = document.createElement('div');
+  imageWrap.className = 'creature-select-image';
+  const img = document.createElement('img');
+  img.src = creature.idleSrc;
+  img.alt = `${creature.name} idle`;
+  img.loading = 'lazy';
+  imageWrap.appendChild(img);
+
+  const name = document.createElement('h3');
+  name.textContent = creature.name;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'creature-select-overlay';
+  overlay.innerHTML = `<strong>Special: ${creature.specialAbilityName}</strong><p>${creature.specialAbilityDescription}</p>`;
+
+  const badge = document.createElement('span');
+  badge.className = 'selected-badge';
+  badge.textContent = 'Selected';
+  if (savedCreatureId !== creature.id) badge.hidden = true;
+
+  const selectCreature = () => {
+    classInput.value = creature.id;
+    setPendingCreatureId(creature.id);
+    setPlayerCreatureId(playerId, creature.id);
+    for (const node of grid.querySelectorAll('.creature-select-tile')) {
+      const selected = node === tile;
+      node.classList.toggle('selected', selected);
+      const nodeBadge = node.querySelector('.selected-badge');
+      if (nodeBadge) nodeBadge.hidden = !selected;
+    }
+  };
+
+  tile.onclick = selectCreature;
+  tile.onkeydown = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectCreature();
+    }
+  };
+
+  tile.append(imageWrap, name, overlay, badge);
+  grid.appendChild(tile);
+}
 
 async function checkAndContinue(token) {
   const status = await getChallenge(token);
