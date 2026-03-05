@@ -12,9 +12,8 @@
 <section class="card chaotic-arena-panel"><h2 class="chaos-glow">Your Creature</h2><div class="row"><div><label>classKey</label><select id="b-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option></select></div><div><label>cosmeticSeed</label><input id="b-seed" type="number"/></div></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
 </main>
 <script type="module">
-import { acceptChallenge, getChallenge, getOrCreateGuestPlayer, getProfile, loadViewerProfileBar, parsePath, randomSeed, creatureFromDom, updateTopNav, getGasRankTitle } from '/app.js';
+import { acceptChallenge, getChallenge, getOrCreateGuestPlayer, getPlayerCreatureId, getProfile, loadViewerProfileBar, parsePath, randomSeed, creatureFromDom, updateTopNav, getGasRankTitle } from '/app.js';
 import { renderCreatureIdle } from '/app.js';
-import { getPlayerCreatureId } from '/playerCreature.js';
 const err = document.getElementById('error');
 document.getElementById('b-seed').value = String(randomSeed());
 const token = parsePath()[1];

@@ -1,6 +1,5 @@
-import { getGasRankTitle } from "/app.js";
+import { clearPlayerCreatureId, getGasRankTitle, getPlayerCreatureId, setPlayerCreatureId } from "/app.js";
 import { CREATURES, getCreatureById } from "/creatures.js";
-import { clearPlayerCreatureId, getPlayerCreatureId, setPlayerCreatureId } from "/playerCreature.js";
 
 async function api(path) {
   const res = await fetch(path);
