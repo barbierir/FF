@@ -1,4 +1,4 @@
-export type CreatureId = "goblin" | "dragon" | "skunk" | "troll" | "fairy";
+export type CreatureId = "goblin" | "dragon" | "skunk" | "troll" | "fairy" | "demon";
 
 export type Creature = {
   id: CreatureId;
@@ -49,5 +49,13 @@ export const CREATURES: Creature[] = [
     blurb: "Sustain and recovery specialist.",
     specialAbilityName: "HEAL",
     specialAbilityDescription: "Only fairy can use HEAL when PG >= 1; HEAL restores PR (2, or 3 when PR <= 7).",
+  },
+  {
+    id: "demon",
+    name: "Demon",
+    idleSrc: "/creatures/idle/demon.gif",
+    blurb: "Volatile all-rounder.",
+    specialAbilityName: "BASE KIT",
+    specialAbilityDescription: "Demon uses the baseline move kit without class-specific modifiers.",
   },
 ];

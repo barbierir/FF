@@ -8,7 +8,7 @@ export function getPlayerCreatureId(playerId: string): CreatureId | null {
   if (typeof window === "undefined") return null;
   const value = window.localStorage.getItem(keyFor(playerId));
   if (!value) return null;
-  if (value === "goblin" || value === "dragon" || value === "skunk" || value === "troll" || value === "fairy") {
+  if (value === "goblin" || value === "dragon" || value === "skunk" || value === "troll" || value === "fairy" || value === "demon") {
     return value;
   }
   return null;

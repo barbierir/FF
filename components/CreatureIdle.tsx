@@ -15,6 +15,7 @@ const IDLE_ASSET_BY_CLASS: Record<string, string> = {
   skunk: "slime",
   troll: "skeleton",
   fairy: "wizard",
+  demon: "demon",
 };
 
 export default function CreatureIdle({ classKey, size = 72, alt }: CreatureIdleProps) {

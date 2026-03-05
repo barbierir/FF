@@ -1,7 +1,7 @@
 import type { ClassKey, CreatureSpec, Move } from "../core/types.ts";
 import { HttpError } from "./errors.ts";
 
-const CLASS_KEYS: ClassKey[] = ["goblin", "dragon", "skunk", "troll", "fairy"];
+const CLASS_KEYS: ClassKey[] = ["goblin", "dragon", "skunk", "troll", "fairy", "demon"];
 const ID_RE = /^[A-Za-z0-9_-]+$/;
 const MAX_TURNS = 30;
 
