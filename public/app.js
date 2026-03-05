@@ -296,9 +296,20 @@ export function getGasRankTitle(wins) {
   return "Supreme Gas Lord 👑";
 }
 
+const IDLE_ASSET_BY_CLASS = {
+  goblin: "goblin",
+  dragon: "dragon",
+  skunk: "slime",
+  troll: "skeleton",
+  fairy: "wizard",
+};
+
+const isDevHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
 export function renderCreatureIdle(container, { classKey, size = 72, alt } = {}) {
   if (!container) return;
   const label = classKey || "unknown";
+  const assetKey = IDLE_ASSET_BY_CLASS[label] || label;
 
   const img = document.createElement("img");
   img.width = size;
@@ -326,16 +337,22 @@ export function renderCreatureIdle(container, { classKey, size = 72, alt } = {})
 
   let triedGif = false;
   img.onerror = () => {
+    if (isDevHost) {
+      console.warn("[renderCreatureIdle] failed to load idle image", {
+        creatureId: label,
+        attemptedSrc: img.currentSrc || img.src,
+      });
+    }
     if (!triedGif) {
       triedGif = true;
-      img.src = `/creatures/idle/${encodeURIComponent(label)}.gif`;
+      img.src = `/creatures/idle/${encodeURIComponent(assetKey)}.gif`;
       return;
     }
     showFallback();
   };
 
   img.alt = alt || `${label} idle creature`;
-  img.src = `/creatures/idle/${encodeURIComponent(label)}.webp`;
+  img.src = `/creatures/idle/${encodeURIComponent(assetKey)}.webp`;
   container.innerHTML = "";
   container.appendChild(img);
 }

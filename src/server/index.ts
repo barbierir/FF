@@ -28,6 +28,8 @@ const STATIC_MIME: Record<string, string> = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml; charset=utf-8",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
 };
 
 function sendJson(res: import("node:http").ServerResponse, status: number, body: unknown): void {
@@ -148,6 +150,12 @@ export function createApiServer(): import("node:http").Server {
 
       if (req.method === "GET" && path === "/app.js") {
         await sendStaticFile(res, "app.js");
+        return;
+      }
+
+      const staticAssetPath = path.match(/^\/(creatures\/idle\/[a-z0-9_-]+\.(?:gif|webp))$/i);
+      if (req.method === "GET" && staticAssetPath) {
+        await sendStaticFile(res, staticAssetPath[1]);
         return;
       }
 

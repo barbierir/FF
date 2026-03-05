@@ -1,3 +1,13 @@
+const IDLE_ASSET_BY_CLASS = {
+  goblin: "goblin",
+  dragon: "dragon",
+  skunk: "slime",
+  troll: "skeleton",
+  fairy: "wizard",
+};
+
+const isDev = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
 function createFallback(classKey, size, alt) {
   const fallback = document.createElement('div');
   fallback.className = 'creature-fallback';
@@ -20,6 +30,7 @@ function createFallback(classKey, size, alt) {
 export function renderCreatureIdle(container, { classKey, size = 72, alt } = {}) {
   if (!container) return;
   const safeClassKey = typeof classKey === 'string' && classKey.trim() ? classKey.trim() : 'unknown';
+  const assetKey = IDLE_ASSET_BY_CLASS[safeClassKey] ?? safeClassKey;
   container.innerHTML = '';
 
   const shell = document.createElement('div');
@@ -37,17 +48,23 @@ export function renderCreatureIdle(container, { classKey, size = 72, alt } = {})
   let state = 'webp';
   const setSrc = () => {
     if (state === 'webp') {
-      img.src = `/creatures/idle/${safeClassKey}.webp`;
+      img.src = `/creatures/idle/${assetKey}.webp`;
       return;
     }
     if (state === 'gif') {
-      img.src = `/creatures/idle/${safeClassKey}.gif`;
+      img.src = `/creatures/idle/${assetKey}.gif`;
       return;
     }
     shell.replaceChildren(createFallback(safeClassKey, size, alt));
   };
 
   img.onerror = () => {
+    if (isDev) {
+      console.warn("[renderCreatureIdle] failed to load idle image", {
+        creatureId: safeClassKey,
+        attemptedSrc: img.currentSrc || img.src,
+      });
+    }
     if (state === 'webp') {
       state = 'gif';
       setSrc();
