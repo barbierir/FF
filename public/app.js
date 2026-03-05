@@ -221,3 +221,47 @@ export function getGasRankTitle(wins) {
   if (wins <= 9) return "Fume Overlord";
   return "Supreme Gas Lord 👑";
 }
+
+export function renderCreatureIdle(container, { classKey, size = 72, alt } = {}) {
+  if (!container) return;
+  const label = classKey || "unknown";
+
+  const img = document.createElement("img");
+  img.width = size;
+  img.height = size;
+  img.className = "creature-idle";
+
+  const showFallback = () => {
+    container.innerHTML = "";
+    const fallback = document.createElement("div");
+    fallback.className = "creature-fallback";
+    fallback.style.width = `${size}px`;
+    fallback.style.height = `${size}px`;
+    fallback.setAttribute("aria-label", alt || `${label} idle fallback`);
+
+    const icon = document.createElement("span");
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "💨";
+
+    const text = document.createElement("span");
+    text.textContent = label;
+
+    fallback.append(icon, text);
+    container.appendChild(fallback);
+  };
+
+  let triedGif = false;
+  img.onerror = () => {
+    if (!triedGif) {
+      triedGif = true;
+      img.src = `/creatures/idle/${encodeURIComponent(label)}.gif`;
+      return;
+    }
+    showFallback();
+  };
+
+  img.alt = alt || `${label} idle creature`;
+  img.src = `/creatures/idle/${encodeURIComponent(label)}.webp`;
+  container.innerHTML = "";
+  container.appendChild(img);
+}

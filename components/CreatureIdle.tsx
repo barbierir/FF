@@ -8,7 +8,7 @@ type CreatureIdleProps = {
 
 type IdleMode = "webp" | "gif" | "fallback";
 
-export function CreatureIdle({ classKey, size = 72, alt }: CreatureIdleProps) {
+export default function CreatureIdle({ classKey, size = 72, alt }: CreatureIdleProps) {
   const [mode, setMode] = useState<IdleMode>("webp");
   const label = useMemo(() => classKey || "unknown", [classKey]);
 
