@@ -50,8 +50,7 @@
     <section class="card"><h2>Your Profile</h2><pre id="profileJson"></pre></section>
   </main>
 <script type="module">
-import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, loadViewerProfileBar, randomSeed, shouldSkipAutoResume, updateTopNav } from '/app.js';
-import { getPlayerCreatureId } from '/playerCreature.js';
+import { copyText, createChallenge, creatureFromDom, getChallenge, getOrCreateGuestPlayer, getPlayerCreatureId, loadViewerProfileBar, randomSeed, shouldSkipAutoResume, updateTopNav } from '/app.js';
 const err = document.getElementById('error');
 const forceNewMode = shouldSkipAutoResume();
 if (forceNewMode) {

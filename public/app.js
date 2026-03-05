@@ -5,6 +5,27 @@ const LAST_REPLAY_PUBLIC_ID_KEY = "faf_lastReplayPublicId";
 const FORCE_NEW_QUERY_KEY = "new";
 const FORCE_NEW_QUERY_VALUE = "1";
 
+const PLAYER_CREATURE_PREFIX = "faf_playerCreature_";
+
+function playerCreatureStorageKey(playerId) {
+  return `${PLAYER_CREATURE_PREFIX}${playerId}`;
+}
+
+export function getPlayerCreatureId(playerId) {
+  if (!playerId) return null;
+  return localStorage.getItem(playerCreatureStorageKey(playerId));
+}
+
+export function setPlayerCreatureId(playerId, creatureId) {
+  if (!playerId || !creatureId) return;
+  localStorage.setItem(playerCreatureStorageKey(playerId), creatureId);
+}
+
+export function clearPlayerCreatureId(playerId) {
+  if (!playerId) return;
+  localStorage.removeItem(playerCreatureStorageKey(playerId));
+}
+
 const STICKY_RESUME_KEYS = [
   "faf_lastMatchId",
   "faf_lastReplayPublicId",
