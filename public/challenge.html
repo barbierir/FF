@@ -4,15 +4,16 @@
 <section class="card chaotic-arena-panel">
 <h1 class="chaos-glow">Challenge Found</h1><p id="chalInfo"></p>
 <div class="arena-faceoff">
-  <article class="arena-player-card"><h2 id="playerAName">Player A</h2><div id="playerARank" class="gas-rank-badge">Gas Trainee</div><div class="creature-slot" id="playerACreatureVisual"></div><p class="small" id="playerACreature">Creature: ???</p><p class="small" id="playerANickname"></p></article>
+  <article class="arena-player-card"><div id="playerAIdentity"></div><div id="playerARank" class="gas-rank-badge">Gas Trainee</div></article>
   <div class="arena-vs chaos-glow">⚡ VS ⚡</div>
-  <article class="arena-player-card"><h2 id="playerBName">You</h2><div id="playerBRank" class="gas-rank-badge">Gas Trainee</div><div class="creature-slot" id="playerBCreatureVisual"></div><p class="small" id="playerBCreature">Creature: Pending</p><p class="small" id="playerBNickname"></p></article>
+  <article class="arena-player-card"><div id="playerBIdentity"></div><div id="playerBRank" class="gas-rank-badge">Gas Trainee</div></article>
 </div>
 </section>
 <section class="card chaotic-arena-panel"><h2 class="chaos-glow">Choose your creature</h2><input id="b-class" type="hidden" value="goblin"/><div id="challengeCreatureGrid" class="creature-select-grid" role="list"></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
 </main>
 <script type="module">
-import { acceptChallenge, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getProfile, loadViewerProfileBar, parsePath, randomSeed, renderCreatureIdle, renderCreaturePickerGrid, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, updateTopNav, getGasRankTitle } from '/app.js';
+import { acceptChallenge, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getProfile, loadViewerProfileBar, parsePath, randomSeed, renderCreaturePickerGrid, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, updateTopNav, getGasRankTitle } from '/app.js';
+import { renderPlayerIdentity } from '/playerIdentity.js';
 
 const err = document.getElementById('error');
 const token = parsePath()[1];
@@ -29,9 +30,12 @@ let selectedNickname = getPlayerCreatureNickname(playerId) || pendingSelection?.
 
 function renderSelectedPreview() {
   classInput.value = selectedCreatureId;
-  document.getElementById('playerBCreature').textContent = `Creature: ${selectedCreatureId}`;
-  document.getElementById('playerBNickname').textContent = `Nickname: ${selectedNickname}`;
-  renderCreatureIdle(document.getElementById('playerBCreatureVisual'), { classKey: selectedCreatureId, size: 88, alt: 'Your creature idle preview' });
+  renderPlayerIdentity(document.getElementById('playerBIdentity'), {
+    playerId,
+    creatureId: selectedCreatureId,
+    creatureNickname: selectedNickname,
+    variant: 'default',
+  });
 }
 
 function selectCreature(nextCreatureId) {
@@ -56,19 +60,27 @@ try {
     const side = c.playerAId === playerId ? 'A' : 'B';
     location.replace(`/m/${c.matchId}?side=${side}`);
   } else {
-    document.getElementById('chalInfo').textContent = `Opponent picked ${c.creatureA.classKey} (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
-    document.getElementById('playerACreature').textContent = `Creature: ${c.creatureA.classKey}`;
-    renderCreatureIdle(document.getElementById('playerACreatureVisual'), { classKey: c.creatureA.classKey, size: 88, alt: 'Opponent creature idle sprite' });
+    document.getElementById('chalInfo').textContent = `Opponent creature locked in (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
     if (c.playerAId) {
-      document.getElementById('playerAName').textContent = c.playerAId;
       const hostProfile = await getProfile(c.playerAId);
       const hostTitle = getGasRankTitle(hostProfile.profile.wins ?? 0);
       document.getElementById('playerARank').textContent = hostTitle;
       document.getElementById('playerARank').classList.toggle('top-tier', hostTitle.includes('👑'));
       const hostNickname = getPlayerCreatureNickname(c.playerAId);
-      if (hostNickname) document.getElementById('playerANickname').textContent = `Nickname: ${hostNickname}`;
+      renderPlayerIdentity(document.getElementById('playerAIdentity'), {
+        playerId: c.playerAId,
+        creatureId: c.creatureA.classKey,
+        creatureNickname: hostNickname,
+        variant: 'default',
+      });
+    } else {
+      renderPlayerIdentity(document.getElementById('playerAIdentity'), {
+        playerId: 'Unknown',
+        creatureId: c.creatureA.classKey,
+        variant: 'default',
+        showNickname: false,
+      });
     }
-    document.getElementById('playerBName').textContent = playerId;
     const guestTitle = getGasRankTitle(profile.profile.wins ?? 0);
     document.getElementById('playerBRank').textContent = guestTitle;
     document.getElementById('playerBRank').classList.toggle('top-tier', guestTitle.includes('👑'));
