@@ -5,8 +5,7 @@
 <section class="card" id="finishedPanel" style="display:none"><h2>This match is finished</h2><p><a class="button-link" id="viewReplayLink" href="#">View Replay</a></p><p><a class="button-link" href="/?new=1">New Challenge</a></p></section>
 </main>
 <script type="module">
-import { getMatch, getOrCreateGuestPlayer, getPlayerCreatureNickname, parsePath, q, submitMoves, updateTopNav, getProfile, getGasRankTitle } from '/app.js';
-import { renderPlayerIdentity } from '/playerIdentity.js';
+import { getGasRankTitle, getMatch, getOrCreateGuestPlayer, getPlayerCreatureNickname, getProfile, parsePath, q, renderPlayerIdentity, submitMoves, updateTopNav } from '/app.js';
 const matchId = parsePath()[1];
 const side = q('side') === 'A' ? 'A' : 'B';
 const state = { classKey: 'goblin', safeUsed: false, polling: null, introPlaying: false };

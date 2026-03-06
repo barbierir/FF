@@ -12,8 +12,7 @@
 <section class="card chaotic-arena-panel"><h2 class="chaos-glow">Choose your creature</h2><input id="b-class" type="hidden" value="goblin"/><div id="challengeCreatureGrid" class="creature-select-grid" role="list"></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
 </main>
 <script type="module">
-import { acceptChallenge, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getProfile, loadViewerProfileBar, parsePath, randomSeed, renderCreaturePickerGrid, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, updateTopNav, getGasRankTitle } from '/app.js';
-import { renderPlayerIdentity } from '/playerIdentity.js';
+import { acceptChallenge, generateCreatureNickname, getChallenge, getGasRankTitle, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getProfile, loadViewerProfileBar, parsePath, randomSeed, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, updateTopNav } from '/app.js';
 
 const err = document.getElementById('error');
 const token = parsePath()[1];

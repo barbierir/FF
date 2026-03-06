@@ -43,37 +43,36 @@
     </section>
   </main>
   <script type="module">
-    import { fetchOpenChallenges, getOrCreateGuestPlayer, getPlayerCreatureId, getPlayerCreatureNickname, loadViewerProfileBar, shouldSkipAutoResume, updateTopNav } from '/app.js';
-    import { renderPlayerIdentity } from '/playerIdentity.js';
+    import { fetchOpenChallenges, getOrCreateGuestPlayer, getPlayerCreatureId, getPlayerCreatureNickname, loadViewerProfileBar, renderPlayerIdentity, shouldSkipAutoResume, updateTopNav } from '/app.js';
 
     if (shouldSkipAutoResume()) {
       const note = document.getElementById('homeNewModeNote');
       if (note) note.style.display = 'block';
     }
 
-    const playerId = await getOrCreateGuestPlayer();
-    updateTopNav();
-    void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId });
-    document.getElementById('profileBtn').href = `/p/${encodeURIComponent(playerId)}`;
-    renderPlayerIdentity(document.getElementById('homePlayerIdentity'), {
-      playerId,
-      creatureId: getPlayerCreatureId(playerId),
-      creatureNickname: getPlayerCreatureNickname(playerId),
-      variant: 'default',
-    });
-
-    const publicData = await fetch(`/api/players/${encodeURIComponent(playerId)}/public`).then((r) => r.json());
-    const recent = document.getElementById('recent');
-    if (!publicData.recentMatches?.length) {
-      recent.innerHTML = '<li>No finished matches yet.</li>';
-    } else {
-      recent.innerHTML = publicData.recentMatches
-        .map((m) => `<li><a href="/replay/${m.publicId}">${m.publicId}</a> · Winner ${m.winner} · MaxHit ${m.maxHit}</li>`)
-        .join('');
-    }
-
-    const openChallenges = document.getElementById('openChallenges');
     try {
+      const playerId = await getOrCreateGuestPlayer();
+      updateTopNav();
+      void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId });
+      document.getElementById('profileBtn').href = `/p/${encodeURIComponent(playerId)}`;
+      renderPlayerIdentity(document.getElementById('homePlayerIdentity'), {
+        playerId,
+        creatureId: getPlayerCreatureId(playerId),
+        creatureNickname: getPlayerCreatureNickname(playerId),
+        variant: 'default',
+      });
+
+      const publicData = await fetch(`/api/players/${encodeURIComponent(playerId)}/public`).then((r) => r.json());
+      const recent = document.getElementById('recent');
+      if (!publicData.recentMatches?.length) {
+        recent.innerHTML = '<li>No finished matches yet.</li>';
+      } else {
+        recent.innerHTML = publicData.recentMatches
+          .map((m) => `<li><a href="/replay/${m.publicId}">${m.publicId}</a> · Winner ${m.winner} · MaxHit ${m.maxHit}</li>`)
+          .join('');
+      }
+
+      const openChallenges = document.getElementById('openChallenges');
       const inbox = await fetchOpenChallenges(playerId);
       if (!inbox.items?.length) {
         openChallenges.innerHTML = '<li>No open challenges right now.</li>';
@@ -93,7 +92,13 @@
         });
       }
     } catch (error) {
-      openChallenges.innerHTML = `<li class="error">Could not load open challenges: ${error.message}</li>`;
+      const message = error instanceof Error ? error.message : String(error);
+      const profileBar = document.getElementById('profileBar');
+      if (profileBar) profileBar.textContent = 'Could not load page.';
+      const openChallenges = document.getElementById('openChallenges');
+      if (openChallenges) {
+        openChallenges.innerHTML = `<li class="error">Could not load open challenges: ${message}</li>`;
+      }
     }
   </script>
 </body>
