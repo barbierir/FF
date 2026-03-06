@@ -16,16 +16,27 @@ import { acceptChallenge, generateCreatureNickname, getChallenge, getGasRankTitl
 
 const err = document.getElementById('error');
 const token = parsePath()[1];
-const playerId = await getOrCreateGuestPlayer();
-const profile = await getProfile(playerId);
-updateTopNav();
-void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId });
+let playerId = null;
+let profile = null;
+
+try {
+  playerId = await getOrCreateGuestPlayer();
+  profile = await getProfile(playerId);
+  updateTopNav();
+  void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId });
+} catch (e) {
+  const message = e instanceof Error ? e.message : String(e);
+  document.getElementById('chalInfo').innerHTML = `Could not load challenge. <a href='/?new=1'>Back to Home</a>`;
+  err.textContent = message;
+  const acceptBtn = document.getElementById('acceptBtn');
+  if (acceptBtn) acceptBtn.style.display = 'none';
+}
 
 const classInput = document.getElementById('b-class');
 const grid = document.getElementById('challengeCreatureGrid');
 const pendingSelection = getPendingCreatureSelection();
-let selectedCreatureId = getPlayerCreatureId(playerId) || pendingSelection?.creatureId || 'goblin';
-let selectedNickname = getPlayerCreatureNickname(playerId) || pendingSelection?.nickname || generateCreatureNickname(selectedCreatureId);
+let selectedCreatureId = (playerId && getPlayerCreatureId(playerId)) || pendingSelection?.creatureId || 'goblin';
+let selectedNickname = (playerId && getPlayerCreatureNickname(playerId)) || pendingSelection?.nickname || generateCreatureNickname(selectedCreatureId);
 
 function renderSelectedPreview() {
   classInput.value = selectedCreatureId;
@@ -53,6 +64,7 @@ function selectCreature(nextCreatureId) {
 renderCreaturePickerGrid({ container: grid, selectedId: selectedCreatureId, onSelect: selectCreature });
 renderSelectedPreview();
 
+if (playerId) {
 try {
   const c = await getChallenge(token, playerId);
   if (c.matchId && (c.playerAId === playerId || c.playerBId === playerId)) {
@@ -80,7 +92,7 @@ try {
         showNickname: false,
       });
     }
-    const guestTitle = getGasRankTitle(profile.profile.wins ?? 0);
+    const guestTitle = getGasRankTitle(profile?.profile?.wins ?? 0);
     document.getElementById('playerBRank').textContent = guestTitle;
     document.getElementById('playerBRank').classList.toggle('top-tier', guestTitle.includes('👑'));
     if (c.status !== 'open') {
@@ -90,10 +102,11 @@ try {
   }
 } catch (e) {
   document.getElementById('chalInfo').innerHTML = `Could not load challenge. <a href='/?new=1'>Back to Home</a>`;
-  err.textContent = e.message;
+  err.textContent = e instanceof Error ? e.message : String(e);
 }
 
 document.getElementById('acceptBtn').onclick = async () => {
+  if (!playerId) return;
   err.textContent = '';
   try {
     setPendingCreatureSelection({ creatureId: selectedCreatureId, nickname: selectedNickname });
@@ -101,6 +114,7 @@ document.getElementById('acceptBtn').onclick = async () => {
     setPlayerCreatureNickname(playerId, selectedNickname);
     const r = await acceptChallenge(token, playerId, { classKey: selectedCreatureId, cosmeticSeed: randomSeed() }, getPlayerCreatureId(playerId));
     location.href = `/m/${r.matchId}?side=B`;
-  } catch (e) { err.textContent = e.message; }
+  } catch (e) { err.textContent = e instanceof Error ? e.message : String(e); }
 };
+}
 </script></body></html>

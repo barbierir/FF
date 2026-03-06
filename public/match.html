@@ -20,7 +20,7 @@ function row(i){
 }
 for(let i=0;i<10;i++) document.getElementById('moves').appendChild(row(i));
 
-function setPlayerCard(identityId, idRank, playerId, wins, classKey) {
+function setPlayerCard(identityId, idRank, playerId, wins, classKey, creatureNickname = null) {
   const title = getGasRankTitle(wins ?? 0);
   const rankNode = document.getElementById(idRank);
   rankNode.textContent = title;
@@ -28,7 +28,7 @@ function setPlayerCard(identityId, idRank, playerId, wins, classKey) {
   renderPlayerIdentity(document.getElementById(identityId), {
     playerId: playerId ?? 'Unknown',
     creatureId: classKey ?? null,
-    creatureNickname: playerId ? getPlayerCreatureNickname(playerId) : null,
+    creatureNickname: creatureNickname || (playerId ? getPlayerCreatureNickname(playerId) : null),
     variant: 'default',
   });
 }
@@ -57,11 +57,16 @@ function revealFinished(publicId) {
   });
 }
 
+try {
 const m = await getMatch(matchId);
-const aWins = m.playerAId ? (await getProfile(m.playerAId)).profile.wins : 0;
-const bWins = m.playerBId ? (await getProfile(m.playerBId)).profile.wins : 0;
-setPlayerCard('leftIdentity', 'leftRank', m.playerAId, aWins, m.creatureA?.classKey);
-setPlayerCard('rightIdentity', 'rightRank', m.playerBId, bWins, m.creatureB?.classKey);
+const [aProfile, bProfile] = await Promise.all([
+  m.playerAId ? getProfile(m.playerAId).catch(() => null) : Promise.resolve(null),
+  m.playerBId ? getProfile(m.playerBId).catch(() => null) : Promise.resolve(null),
+]);
+const aWins = aProfile?.profile?.wins ?? 0;
+const bWins = bProfile?.profile?.wins ?? 0;
+setPlayerCard('leftIdentity', 'leftRank', m.playerAId, aWins, m.playerACreatureId || m.creatureA?.classKey, m.playerANickname);
+setPlayerCard('rightIdentity', 'rightRank', m.playerBId, bWins, m.playerBCreatureId || m.creatureB?.classKey, m.playerBNickname);
 if (m.status === 'finished') {
   if (m.publicId) {
     revealFinished(m.publicId);
@@ -70,10 +75,15 @@ if (m.status === 'finished') {
   document.getElementById('finishedPanel').style.display = 'block';
   document.getElementById('viewReplayLink').href = m.publicId ? `/replay/${m.publicId}` : '/home';
 } else {
-  if (side==='A' && m.creatureA) state.classKey = m.creatureA.classKey;
-  if (side==='B' && m.creatureB) state.classKey = m.creatureB.classKey;
+  if (side==='A' && (m.playerACreatureId || m.creatureA)) state.classKey = m.playerACreatureId || m.creatureA.classKey;
+  if (side==='B' && (m.playerBCreatureId || m.creatureB)) state.classKey = m.playerBCreatureId || m.creatureB.classKey;
   document.getElementById('meta').textContent = `Side ${side}`;
   document.getElementById('tips').textContent = state.classKey==='fairy' ? 'Fairy can HEAL.' : 'HEAL may be auto-sanitized if class cannot use it.';
+}
+} catch (e) {
+  const message = e instanceof Error ? e.message : String(e);
+  document.getElementById('error').textContent = `Could not load match: ${message}`;
+  document.getElementById('submitBtn').disabled = true;
 }
 
 function collectMoves(){
@@ -96,7 +106,7 @@ function collectMoves(){
 
 async function poll(){
   const latest = await getMatch(matchId);
-  if(latest.status==='finished') revealFinished(latest.publicId);
+  if(latest.status==='finished' && latest.publicId) revealFinished(latest.publicId);
 }
 
 document.getElementById('refreshBtn').onclick = poll;
@@ -109,6 +119,6 @@ document.getElementById('submitBtn').onclick = async()=>{
     document.getElementById('wait').textContent='🧍 Opponent calibrating intestines…';
     document.getElementById('refreshBtn').style.display='block';
     state.polling=setInterval(poll,2000);
-  }catch(e){ err.textContent=e.message.includes('already')?'Moves already submitted. 🧍 Opponent calibrating intestines…':e.message; }
+  }catch(e){ const message = e instanceof Error ? e.message : String(e); err.textContent=message.includes('already')?'Moves already submitted. 🧍 Opponent calibrating intestines…':message; }
 };
 </script></body></html>

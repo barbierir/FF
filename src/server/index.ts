@@ -527,11 +527,19 @@ export function createApiServer(): import("node:http").Server {
 
         const challenge = await store.getChallengeById(match.challengeId);
         const payload = await store.getFinalizedPayload(matchId);
+        const playerAProfile = challenge?.playerAId ? await store.getOrCreatePlayer(challenge.playerAId) : undefined;
+        const playerBProfile = challenge?.playerBId ? await store.getOrCreatePlayer(challenge.playerBId) : undefined;
         sendJson(res, 200, {
           id: match.id,
           publicId: match.publicId,
           status: match.status,
           challengeId: match.challengeId,
+          playerAId: challenge?.playerAId,
+          playerBId: challenge?.playerBId,
+          playerACreatureId: playerAProfile?.creatureId,
+          playerANickname: playerAProfile?.creatureNickname,
+          playerBCreatureId: playerBProfile?.creatureId,
+          playerBNickname: playerBProfile?.creatureNickname,
           creatureA: challenge?.creatureA,
           creatureB: challenge?.creatureB,
           seedHex: match.seed_hex,

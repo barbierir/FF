@@ -1,4 +1,5 @@
 const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy", "demon"];
+const VALID_CREATURE_IDS = new Set(CLASS_KEYS);
 export const CREATURES = [
   {
     id: "goblin",
@@ -225,11 +226,13 @@ function playerCreatureNicknameStorageKey(playerId) {
 
 export function getPlayerCreatureId(playerId) {
   if (!playerId) return null;
-  return localStorage.getItem(playerCreatureStorageKey(playerId)) ?? localStorage.getItem(legacyPlayerCreatureStorageKey(playerId));
+  const stored = localStorage.getItem(playerCreatureStorageKey(playerId)) ?? localStorage.getItem(legacyPlayerCreatureStorageKey(playerId));
+  return VALID_CREATURE_IDS.has(stored) ? stored : null;
 }
 
 export function setPlayerCreatureId(playerId, creatureId) {
   if (!playerId || !creatureId) return;
+  if (!VALID_CREATURE_IDS.has(creatureId)) return;
   localStorage.setItem(playerCreatureStorageKey(playerId), creatureId);
   localStorage.removeItem(legacyPlayerCreatureStorageKey(playerId));
 }
@@ -256,11 +259,13 @@ export function clearPlayerCreatureNickname(playerId) {
 }
 
 export function getPendingCreatureId() {
-  return localStorage.getItem(PENDING_CREATURE_KEY);
+  const stored = localStorage.getItem(PENDING_CREATURE_KEY);
+  return VALID_CREATURE_IDS.has(stored) ? stored : null;
 }
 
 export function setPendingCreatureId(creatureId) {
   if (!creatureId) return;
+  if (!VALID_CREATURE_IDS.has(creatureId)) return;
   localStorage.setItem(PENDING_CREATURE_KEY, creatureId);
 }
 
@@ -543,15 +548,8 @@ export async function shareReplay(publicId, playerId) {
   });
 }
 
-let routeDebugLogged = false;
-
 export function parsePath() {
-  const parts = location.pathname.split("/").filter(Boolean);
-  if (!routeDebugLogged) {
-    routeDebugLogged = true;
-    console.log(`[app] route path=${location.pathname} parts=${parts.join("/") || "(root)"}`);
-  }
-  return parts;
+  return location.pathname.split("/").filter(Boolean);
 }
 
 export function q(name) {
