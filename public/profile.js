@@ -106,7 +106,7 @@ async function resolveHomeState(playerId, creatureId) {
   if (myOpenChallenge) {
     return {
       kind: "waiting",
-      ctaLabel: "New challenge",
+      ctaLabel: "New Challenge",
       statusText: "Waiting for opponent…",
       shareUrl: `${location.origin}/c/${myOpenChallenge.token}`,
       shareLabel: `${getPlayerCreatureNickname(playerId) || getCreaturePresentation(playerId, creatureId, null).creatureName} challenges a rival`,
@@ -123,7 +123,7 @@ async function resolveHomeState(playerId, creatureId) {
   if (incomingChallenge) {
     return {
       kind: "incoming",
-      ctaLabel: "Accept challenge",
+      ctaLabel: "Accept Challenge",
       statusText: "Incoming challenge ready.",
       shareUrl: null,
       onClick: () => {
@@ -143,7 +143,7 @@ async function resolveHomeState(playerId, creatureId) {
         const side = details.playerAId === playerId ? "A" : "B";
         return {
           kind: "active",
-          ctaLabel: "Submit moves",
+          ctaLabel: "Submit Moves",
           statusText: "Match in progress.",
           shareUrl: null,
           onClick: () => {
@@ -174,7 +174,7 @@ async function resolveHomeState(playerId, creatureId) {
 
   return {
     kind: "idle",
-    ctaLabel: "New challenge",
+    ctaLabel: "New Challenge",
     statusText: "Ready to start a new match.",
     shareUrl: null,
     onClick: async () => {
@@ -192,7 +192,7 @@ async function refreshPlayerHome(playerId, creatureId) {
   const primaryBtn = document.getElementById("primaryActionBtn");
   const shareLink = document.getElementById("shareChallengeLink");
 
-  statusEl.textContent = "Loading profile…";
+  statusEl.textContent = "Loading...";
   errorEl.textContent = "";
   primaryBtn.disabled = true;
 
@@ -223,7 +223,7 @@ async function refreshPlayerHome(playerId, creatureId) {
     shareLink.hidden = !state.shareUrl;
     if (state.shareUrl) {
       shareLink.href = state.shareUrl;
-      shareLink.textContent = state.shareLabel || "Share link";
+      shareLink.textContent = state.shareLabel || "Share Link";
     }
 
     document.getElementById("recent").innerHTML = toRecentMatchRows(state.recentMatches, playerId);

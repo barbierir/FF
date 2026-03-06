@@ -412,7 +412,7 @@ export async function loadViewerProfileBar({ profileBarEl, playerId, onLoaded } 
   };
 
   const attemptLoad = async () => {
-    profileBarEl.textContent = "Loading profile…";
+    profileBarEl.textContent = "Loading...";
     console.debug(`[profile] load start playerId=${playerId}`);
     try {
       const profileData = await getProfileWithTimeout(playerId);
