@@ -50,6 +50,56 @@ export const CREATURES = [
   },
 ];
 
+const AVATAR_SIZES = {
+  sm: 44,
+  md: 72,
+  lg: 132,
+};
+
+const PLAYER_IDENTITY_VARIANT_SIZE = {
+  compact: AVATAR_SIZES.sm,
+  default: AVATAR_SIZES.md,
+  hero: AVATAR_SIZES.lg,
+};
+
+const STATUS_BADGE_VARIANTS = new Set(["success", "danger", "neutral", "highlight", "rank", "daily"]);
+
+function resolveAvatarSize(size) {
+  if (typeof size === "number" && Number.isFinite(size) && size > 0) return size;
+  return AVATAR_SIZES[size] ?? AVATAR_SIZES.md;
+}
+
+function createCreatureFallback(size, alt) {
+  const fallback = document.createElement("div");
+  fallback.className = "creature-fallback";
+  fallback.style.width = `${size}px`;
+  fallback.style.height = `${size}px`;
+  fallback.setAttribute("role", "img");
+  fallback.setAttribute("aria-label", alt || "Missing GIF");
+  fallback.textContent = "Missing GIF";
+  return fallback;
+}
+
+export function createStatusBadge({ label, variant = "neutral", size = "md", extraClass = "" } = {}) {
+  const badge = document.createElement("span");
+  const safeVariant = STATUS_BADGE_VARIANTS.has(variant) ? variant : "neutral";
+  const safeSize = size === "sm" ? "sm" : "md";
+  badge.className = `status-badge status-badge--${safeVariant} status-badge--${safeSize}${extraClass ? ` ${extraClass}` : ""}`;
+  badge.textContent = label;
+  return badge;
+}
+
+export function renderStatusBadge(container, options) {
+  if (!container) return;
+  container.replaceChildren(createStatusBadge(options));
+}
+
+export function outcomeToBadgeVariant(outcome) {
+  if (outcome === "Victory") return "success";
+  if (outcome === "Defeat") return "danger";
+  return "neutral";
+}
+
 const CREATURE_NICKNAME_PARTS = {
   goblin: {
     first: ["Grime", "Snag", "Muck", "Rivet", "Sprocket", "Stink", "Scrap", "Bog"],
@@ -108,10 +158,10 @@ export function renderCreaturePickerGrid({
     img.src = creature.idleSrc;
     img.alt = `${creature.name} idle`;
     img.loading = "lazy";
-    img.width = 220;
-    img.height = 220;
+    img.width = 132;
+    img.height = 132;
     img.onerror = () => {
-      console.warn("Creature GIF failed", creature.id, creature.idleSrc);
+      imageWrap.replaceChildren(createCreatureFallback(132, `${creature.name} missing GIF`));
     };
     imageWrap.appendChild(img);
 
@@ -126,9 +176,12 @@ export function renderCreaturePickerGrid({
     overlay.className = "creature-select-overlay";
     overlay.innerHTML = `<strong>Special: ${creature.specialAbilityName}</strong><p>${creature.specialAbilityDescription}</p>`;
 
-    const badge = document.createElement("span");
-    badge.className = "selected-badge";
-    badge.textContent = "Selected";
+    const badge = createStatusBadge({
+      label: "Selected",
+      variant: "highlight",
+      size: "sm",
+      extraClass: "selected-badge",
+    });
     badge.hidden = selectedId !== creature.id;
 
     const select = () => onSelect(creature.id);
@@ -552,33 +605,20 @@ const IDLE_ASSET_BY_CLASS = {
 
 const isDevHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
-export function renderCreatureIdle(container, { classKey, size = 72, alt } = {}) {
+export function renderCreatureIdle(container, { classKey, size = "md", alt } = {}) {
   if (!container) return;
   const label = classKey || "unknown";
   const assetKey = IDLE_ASSET_BY_CLASS[label] || label;
+  const resolvedSize = resolveAvatarSize(size);
 
   const img = document.createElement("img");
-  img.width = size;
-  img.height = size;
+  img.width = resolvedSize;
+  img.height = resolvedSize;
   img.className = "creature-idle";
 
   const showFallback = () => {
     container.innerHTML = "";
-    const fallback = document.createElement("div");
-    fallback.className = "creature-fallback";
-    fallback.style.width = `${size}px`;
-    fallback.style.height = `${size}px`;
-    fallback.setAttribute("aria-label", alt || `${label} idle fallback`);
-
-    const icon = document.createElement("span");
-    icon.setAttribute("aria-hidden", "true");
-    icon.textContent = "💨";
-
-    const text = document.createElement("span");
-    text.textContent = label;
-
-    fallback.append(icon, text);
-    container.appendChild(fallback);
+    container.appendChild(createCreatureFallback(resolvedSize, alt || `${label} missing GIF`));
   };
 
   let triedGif = false;
@@ -602,12 +642,6 @@ export function renderCreatureIdle(container, { classKey, size = 72, alt } = {})
   container.innerHTML = "";
   container.appendChild(img);
 }
-
-const PLAYER_IDENTITY_VARIANT_SIZE = {
-  compact: 44,
-  default: 72,
-  hero: 132,
-};
 
 function findCreature(creatureId) {
   if (!creatureId) return null;

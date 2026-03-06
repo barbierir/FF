@@ -22,8 +22,16 @@ export function renderCreaturePickerGrid({
     img.src = creature.idleSrc;
     img.alt = `${creature.name} idle`;
     img.loading = "lazy";
-    img.width = 220;
-    img.height = 220;
+    img.width = 132;
+    img.height = 132;
+    img.onerror = () => {
+      const fallback = document.createElement("div");
+      fallback.className = "creature-fallback";
+      fallback.style.width = "132px";
+      fallback.style.height = "132px";
+      fallback.textContent = "Missing GIF";
+      imageWrap.replaceChildren(fallback);
+    };
     imageWrap.appendChild(img);
 
     const name = document.createElement("h3");
@@ -38,7 +46,7 @@ export function renderCreaturePickerGrid({
     overlay.innerHTML = `<strong>Special: ${creature.specialAbilityName}</strong><p>${creature.specialAbilityDescription}</p>`;
 
     const badge = document.createElement("span");
-    badge.className = "selected-badge";
+    badge.className = "status-badge status-badge--highlight status-badge--sm selected-badge";
     badge.textContent = "Selected";
     badge.hidden = selectedId !== creature.id;
 
