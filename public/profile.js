@@ -1,4 +1,6 @@
-import { CREATURES, clearPlayerCreatureId, createChallenge, getGasRankTitle, getMatch, getPlayerCreatureId, randomSeed, setPlayerCreatureId } from "/app.js";
+import { CREATURES, clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, getGasRankTitle, getMatch, getPlayerCreatureId, getPlayerCreatureNickname, getPlayerIdOrNull, randomSeed, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
+import { renderCreaturePickerGrid } from "/creaturePicker.js";
+import { generateCreatureNickname } from "/creatureNames.js";
 
 async function api(path, opts = {}) {
   const res = await fetch(path, opts);
@@ -7,64 +9,9 @@ async function api(path, opts = {}) {
   return json;
 }
 
-function createCreatureSelectTile(creature, selectedId, onSelect) {
-  const tile = document.createElement("article");
-  tile.className = `creature-select-tile${selectedId === creature.id ? " selected" : ""}`;
-  tile.setAttribute("role", "button");
-  tile.setAttribute("tabindex", "0");
-  tile.setAttribute("aria-label", `Select ${creature.name}`);
-
-  const imageWrap = document.createElement("div");
-  imageWrap.className = "creature-select-image";
-
-  const img = document.createElement("img");
-  img.src = creature.idleSrc;
-  img.alt = `${creature.name} idle`;
-  img.width = 220;
-  img.height = 220;
-  img.loading = "lazy";
-  img.onerror = () => {
-    if (["localhost", "127.0.0.1"].includes(window.location.hostname)) {
-      console.warn("[profile] failed to load idle image", {
-        creatureId: creature.id,
-        attemptedSrc: img.currentSrc || img.src,
-      });
-    }
-    imageWrap.innerHTML = `<div class="missing-gif" aria-label="Missing GIF">Missing GIF</div>`;
-  };
-  imageWrap.appendChild(img);
-
-  const title = document.createElement("h3");
-  title.textContent = creature.name;
-
-  const blurb = document.createElement("p");
-  blurb.className = "small";
-  blurb.textContent = creature.blurb;
-
-  const overlay = document.createElement("div");
-  overlay.className = "creature-select-overlay";
-  overlay.innerHTML = `<strong>Special: ${creature.specialAbilityName}</strong><p>${creature.specialAbilityDescription}</p>`;
-
-  const badge = document.createElement("span");
-  badge.className = "selected-badge";
-  badge.textContent = "Selected";
-  badge.hidden = selectedId !== creature.id;
-
-  const activate = () => onSelect(creature.id);
-  tile.onclick = activate;
-  tile.onkeydown = (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      activate();
-    }
-  };
-
-  tile.append(imageWrap, title, blurb, overlay, badge);
-  return tile;
-}
-
 function renderCreatureSelect(container, playerId, onContinue) {
-  let selectedId = getPlayerCreatureId(playerId);
+  let selectedId = getPlayerCreatureId(playerId) || "goblin";
+  let selectedNickname = getPlayerCreatureNickname(playerId) || generateCreatureNickname(selectedId);
 
   const section = document.createElement("section");
   section.className = "card creature-select-card";
@@ -75,31 +22,33 @@ function renderCreatureSelect(container, playerId, onContinue) {
   const grid = document.createElement("div");
   grid.className = "creature-select-grid";
 
+  const nicknameLine = document.createElement("p");
+  nicknameLine.className = "small";
+
   const continueBtn = document.createElement("button");
   continueBtn.textContent = "Continue";
-  continueBtn.disabled = !selectedId;
 
-  const rerender = () => {
-    grid.innerHTML = "";
-    for (const creature of CREATURES) {
-      grid.appendChild(
-        createCreatureSelectTile(creature, selectedId, (nextId) => {
-          selectedId = nextId;
-          continueBtn.disabled = false;
-          rerender();
-        }),
-      );
+  function syncSelection(nextId) {
+    const shouldKeepNickname = nextId === selectedId && selectedNickname;
+    selectedId = nextId;
+    if (!shouldKeepNickname) {
+      selectedNickname = generateCreatureNickname(nextId);
     }
-  };
+    nicknameLine.textContent = `Nickname: ${selectedNickname}`;
+    setPlayerCreatureId(playerId, selectedId);
+    setPlayerCreatureNickname(playerId, selectedNickname);
+    setPendingCreatureSelection({ creatureId: selectedId, nickname: selectedNickname });
+    renderCreaturePickerGrid({ container: grid, selectedId, onSelect: syncSelection });
+  }
 
   continueBtn.onclick = () => {
-    if (!selectedId) return;
     setPlayerCreatureId(playerId, selectedId);
+    setPlayerCreatureNickname(playerId, selectedNickname);
     onContinue(selectedId);
   };
 
-  rerender();
-  section.append(header, grid, continueBtn);
+  syncSelection(selectedId);
+  section.append(header, grid, nicknameLine, continueBtn);
   container.replaceChildren(section);
 }
 
@@ -111,7 +60,8 @@ function hideRedundantNav() {
 function showSelectedCreatureLine(playerId, creatureId) {
   const line = document.getElementById("selectedCreatureLine");
   const creature = creatureId ? CREATURES.find((item) => item.id === creatureId) ?? null : null;
-  line.textContent = creature ? `Creature: ${creature.name}` : "Creature: not selected";
+  const nickname = getPlayerCreatureNickname(playerId);
+  line.textContent = creature ? `Creature: ${creature.name}${nickname ? ` · Nickname: ${nickname}` : ""}` : "Creature: not selected";
 
   const visual = document.getElementById("profileCreatureVisual");
   visual.innerHTML = "";
@@ -131,6 +81,7 @@ function showSelectedCreatureLine(playerId, creatureId) {
   button.onclick = (event) => {
     event.preventDefault();
     clearPlayerCreatureId(playerId);
+    clearPlayerCreatureNickname(playerId);
     document.getElementById("profileContent").hidden = true;
     initPlayerProfilePage(playerId);
   };
@@ -330,7 +281,10 @@ export async function apiLeaderboardGlobal() {
     .map((r) => {
       const rankTitle = getGasRankTitle(r.wins ?? 0);
       const badgeClass = rankTitle.includes("👑") ? "gas-rank-badge top-tier" : "gas-rank-badge";
-      return `<tr><td>${r.rank}</td><td><a href="/p/${encodeURIComponent(r.playerId)}">${r.playerId}</a><div class="${badgeClass}">${rankTitle}</div></td><td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td>${r.played}</td></tr>`;
+      const myPlayerId = getPlayerIdOrNull();
+      const nickname = myPlayerId === r.playerId ? getPlayerCreatureNickname(r.playerId) : null;
+      const nicknameLine = nickname ? `<div class="small">${nickname}</div>` : "";
+      return `<tr><td>${r.rank}</td><td><a href="/p/${encodeURIComponent(r.playerId)}">${r.playerId}</a>${nicknameLine}<div class="${badgeClass}">${rankTitle}</div></td><td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td>${r.played}</td></tr>`;
     })
     .join("");
 }

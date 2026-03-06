@@ -29,6 +29,7 @@
       <h2>Choose your creature</h2>
       <input id="a-class" type="hidden" value="goblin" aria-label="Selected creature"/>
       <div id="creatureGrid" class="creature-select-grid" role="list"></div>
+      <p id="selectedNickname" class="small"></p>
       <div style="margin-top:10px"><button id="createBtn">Create Challenge</button></div>
       <p id="error" class="error"></p>
       <div id="linkWrap" style="display:none">
@@ -40,7 +41,9 @@
 
       </main>
 <script type="module">
-import { CREATURES, copyText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, getChallenge, getOrCreateGuestPlayer, getPendingCreatureId, getPlayerCreatureId, loadViewerProfileBar, setPendingCreatureId, setPlayerCreatureId, shouldSkipAutoResume, updateTopNav } from '/app.js';
+import { copyText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, loadViewerProfileBar, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, shouldSkipAutoResume, updateTopNav } from '/app.js';
+import { generateCreatureNickname } from '/creatureNames.js';
+import { renderCreaturePickerGrid } from '/creaturePicker.js';
 const err = document.getElementById('error');
 const forceNewMode = shouldSkipAutoResume();
 if (forceNewMode) {
@@ -60,59 +63,46 @@ flushPendingCreatureIdToPlayer(playerId);
 
 const classInput = document.getElementById('a-class');
 const grid = document.getElementById('creatureGrid');
-const savedCreatureId = getPlayerCreatureId(playerId) || getPendingCreatureId() || 'goblin';
-classInput.value = savedCreatureId;
+const nicknameLine = document.getElementById('selectedNickname');
+const pendingSelection = getPendingCreatureSelection();
+let selectedCreatureId = getPlayerCreatureId(playerId) || pendingSelection?.creatureId || 'goblin';
+let selectedNickname = getPlayerCreatureNickname(playerId) || pendingSelection?.nickname || generateCreatureNickname(selectedCreatureId);
 
-for (const creature of CREATURES) {
-  const tile = document.createElement('article');
-  tile.className = `creature-select-tile${savedCreatureId === creature.id ? ' selected' : ''}`;
-  tile.setAttribute('role', 'button');
-  tile.setAttribute('tabindex', '0');
-  tile.setAttribute('aria-label', `Select ${creature.name}`);
+classInput.value = selectedCreatureId;
+setPendingCreatureSelection({ creatureId: selectedCreatureId, nickname: selectedNickname });
+setPlayerCreatureId(playerId, selectedCreatureId);
+setPlayerCreatureNickname(playerId, selectedNickname);
 
-  const imageWrap = document.createElement('div');
-  imageWrap.className = 'creature-select-image';
-  const img = document.createElement('img');
-  img.src = creature.idleSrc;
-  img.alt = `${creature.name} idle`;
-  img.loading = 'lazy';
-  imageWrap.appendChild(img);
-
-  const name = document.createElement('h3');
-  name.textContent = creature.name;
-
-  const overlay = document.createElement('div');
-  overlay.className = 'creature-select-overlay';
-  overlay.innerHTML = `<strong>Special: ${creature.specialAbilityName}</strong><p>${creature.specialAbilityDescription}</p>`;
-
-  const badge = document.createElement('span');
-  badge.className = 'selected-badge';
-  badge.textContent = 'Selected';
-  if (savedCreatureId !== creature.id) badge.hidden = true;
-
-  const selectCreature = () => {
-    classInput.value = creature.id;
-    setPendingCreatureId(creature.id);
-    setPlayerCreatureId(playerId, creature.id);
-    for (const node of grid.querySelectorAll('.creature-select-tile')) {
-      const selected = node === tile;
-      node.classList.toggle('selected', selected);
-      const nodeBadge = node.querySelector('.selected-badge');
-      if (nodeBadge) nodeBadge.hidden = !selected;
-    }
-  };
-
-  tile.onclick = selectCreature;
-  tile.onkeydown = (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      selectCreature();
-    }
-  };
-
-  tile.append(imageWrap, name, overlay, badge);
-  grid.appendChild(tile);
+function renderNicknameLine() {
+  nicknameLine.textContent = `Nickname: ${selectedNickname}`;
 }
+
+function selectCreature(nextCreatureId) {
+  const shouldKeepNickname = nextCreatureId === selectedCreatureId && selectedNickname;
+  selectedCreatureId = nextCreatureId;
+  if (!shouldKeepNickname) {
+    selectedNickname = generateCreatureNickname(nextCreatureId);
+  }
+
+  classInput.value = selectedCreatureId;
+  setPendingCreatureSelection({ creatureId: selectedCreatureId, nickname: selectedNickname });
+  setPlayerCreatureId(playerId, selectedCreatureId);
+  setPlayerCreatureNickname(playerId, selectedNickname);
+
+  renderCreaturePickerGrid({
+    container: grid,
+    selectedId: selectedCreatureId,
+    onSelect: selectCreature,
+  });
+  renderNicknameLine();
+}
+
+renderCreaturePickerGrid({
+  container: grid,
+  selectedId: selectedCreatureId,
+  onSelect: selectCreature,
+});
+renderNicknameLine();
 
 async function checkAndContinue(token) {
   const status = await getChallenge(token);
