@@ -497,6 +497,88 @@ export async function createChallenge(playerId, creatureA, creatureId = null) {
   });
 }
 
+export async function listMyChallenges(playerId, status = "open", limit = 20) {
+  const params = new URLSearchParams({
+    playerId,
+    status,
+    limit: String(limit),
+  });
+  return api(`/api/challenges/mine?${params.toString()}`);
+}
+
+export function getShareableChallengeUrl(challengeOrMatch) {
+  if (!challengeOrMatch || typeof challengeOrMatch !== "object") return null;
+  if (typeof challengeOrMatch.shareUrl === "string" && challengeOrMatch.shareUrl) {
+    return challengeOrMatch.shareUrl;
+  }
+  const token = challengeOrMatch.token || challengeOrMatch.challengeToken;
+  if (typeof token === "string" && token) {
+    return `${location.origin}/c/${token}`;
+  }
+  const relativeUrl = challengeOrMatch.url;
+  if (typeof relativeUrl === "string" && relativeUrl.startsWith("/c/")) {
+    return `${location.origin}${relativeUrl}`;
+  }
+  return null;
+}
+
+export function buildChallengeShareText({ challengerLabel, opponentLabel } = {}) {
+  const challenger = (challengerLabel || "A Challenger").trim();
+  const opponent = (opponentLabel || "").trim();
+  if (opponent) {
+    return `${challenger} challenges ${opponent} in Fart and Furious!`;
+  }
+  return `${challenger} is looking for a challenger in Fart and Furious!`;
+}
+
+export function renderChallengeShareActions(container, { url, message, onCopyStateChange } = {}) {
+  if (!container) return;
+  container.replaceChildren();
+  if (!url) {
+    container.hidden = true;
+    return;
+  }
+
+  const text = [message, url].filter(Boolean).join(" ");
+  const heading = document.createElement("h3");
+  heading.textContent = "Share Your Challenge";
+  heading.className = "challenge-share-title";
+
+  const actions = document.createElement("div");
+  actions.className = "challenge-share-actions";
+
+  const whatsapp = document.createElement("a");
+  whatsapp.className = "button-link secondary";
+  whatsapp.textContent = "WhatsApp";
+  whatsapp.href = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  whatsapp.target = "_blank";
+  whatsapp.rel = "noopener noreferrer";
+
+  const facebook = document.createElement("a");
+  facebook.className = "button-link secondary";
+  facebook.textContent = "Facebook";
+  facebook.href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+  facebook.target = "_blank";
+  facebook.rel = "noopener noreferrer";
+
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "secondary";
+  copy.textContent = "Copy";
+  copy.onclick = async () => {
+    try {
+      await copyText(url);
+      onCopyStateChange?.("Link copied", false);
+    } catch {
+      onCopyStateChange?.("Could not copy link", true);
+    }
+  };
+
+  actions.append(whatsapp, facebook, copy);
+  container.append(heading, actions);
+  container.hidden = false;
+}
+
 export async function getChallenge(token, viewerId) {
   const params = new URLSearchParams();
   if (viewerId) params.set("viewerId", viewerId);

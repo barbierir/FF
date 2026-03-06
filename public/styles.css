@@ -721,3 +721,28 @@ a { color: var(--accent); }
   display: inline-flex;
   vertical-align: middle;
 }
+
+
+.challenge-share {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.challenge-share-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.challenge-share-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.challenge-share-actions > a,
+.challenge-share-actions > button {
+  min-width: 96px;
+}

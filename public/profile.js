@@ -1,4 +1,4 @@
-import { clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, createStatusBadge, generateCreatureNickname, getCreaturePresentation, getGasRankTitle, getMatch, getMatchOpponentSummary, getMatchOutcomeLabel, getPlayerCreatureId, getPlayerCreatureNickname, getPlayerCreatureSummary, outcomeToBadgeVariant, randomSeed, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
+import { buildChallengeShareText, clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, createStatusBadge, generateCreatureNickname, getCreaturePresentation, getGasRankTitle, getMatch, getMatchOpponentSummary, getMatchOutcomeLabel, getPlayerCreatureId, getPlayerCreatureNickname, getPlayerCreatureSummary, getShareableChallengeUrl, listMyChallenges, outcomeToBadgeVariant, randomSeed, renderChallengeShareActions, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
 
 async function api(path, opts = {}) {
   const res = await fetch(path, opts);
@@ -128,8 +128,10 @@ async function resolveHomeState(playerId, creatureId) {
       kind: "waiting",
       ctaLabel: "New Challenge",
       statusText: "Waiting for opponent…",
-      shareUrl: `${location.origin}/c/${myOpenChallenge.token}`,
-      shareLabel: `${getPlayerCreatureNickname(playerId) || getCreaturePresentation(playerId, creatureId, null).creatureName} challenges a rival`,
+      shareUrl: getShareableChallengeUrl(myOpenChallenge),
+      shareMessage: buildChallengeShareText({
+        challengerLabel: getPlayerCreatureNickname(playerId) || getCreaturePresentation(playerId, creatureId, null).creatureName,
+      }),
       onClick: async () => {
         await createChallenge(playerId, createDefaultCreatureSpec(creatureId), creatureId);
         await refreshPlayerHome(playerId, creatureId);
@@ -206,11 +208,18 @@ async function resolveHomeState(playerId, creatureId) {
   };
 }
 
+
+async function resolveShareableOutgoingChallenge(playerId) {
+  const mineOpen = await listMyChallenges(playerId, "open", 20);
+  return (mineOpen.items ?? []).find((item) => item.playerAId === playerId) ?? null;
+}
+
 async function refreshPlayerHome(playerId, creatureId) {
   const statusEl = document.getElementById("homeStatus");
   const errorEl = document.getElementById("homeError");
   const primaryBtn = document.getElementById("primaryActionBtn");
-  const shareLink = document.getElementById("shareChallengeLink");
+  const shareActions = document.getElementById("shareChallengeActions");
+  const shareFeedback = document.getElementById("shareFeedback");
 
   statusEl.textContent = "Loading...";
   errorEl.textContent = "";
@@ -218,6 +227,12 @@ async function refreshPlayerHome(playerId, creatureId) {
 
   try {
     const state = await resolveHomeState(playerId, creatureId);
+    const outgoingChallenge = await resolveShareableOutgoingChallenge(playerId);
+    const shareUrl = getShareableChallengeUrl(outgoingChallenge) || state.shareUrl || null;
+    const challengerLabel = getPlayerCreatureNickname(playerId) || getCreaturePresentation(playerId, creatureId, null).creatureName;
+    const shareMessage = shareUrl
+      ? buildChallengeShareText({ challengerLabel, opponentLabel: outgoingChallenge?.opponentLabel || null })
+      : null;
     const wins = state.profile?.wins ?? 0;
     const losses = state.profile?.losses ?? 0;
     const draws = state.profile?.draws ?? 0;
@@ -240,10 +255,18 @@ async function refreshPlayerHome(playerId, creatureId) {
     document.getElementById("profileLosses").textContent = String(losses);
     document.getElementById("profileDraws").textContent = String(draws);
     document.getElementById("profileRank").textContent = rankPosition ? `#${rankPosition}` : "—";
-    shareLink.hidden = !state.shareUrl;
-    if (state.shareUrl) {
-      shareLink.href = state.shareUrl;
-      shareLink.textContent = state.shareLabel || "Share Link";
+    renderChallengeShareActions(shareActions, {
+      url: shareUrl,
+      message: shareMessage || state.shareMessage,
+      onCopyStateChange: (message, isError) => {
+        if (!shareFeedback) return;
+        shareFeedback.textContent = message;
+        shareFeedback.className = isError ? "error" : "small";
+      },
+    });
+    if (shareFeedback) {
+      shareFeedback.textContent = "";
+      shareFeedback.className = "small";
     }
 
     document.getElementById("recent").innerHTML = toRecentMatchRows(state.recentMatches, playerId);
