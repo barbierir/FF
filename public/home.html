@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Player Home</title>
+  <title>Home</title>
   <link rel="stylesheet" href="/styles.css"/>
 </head>
 <body>
   <div class="topbar">
-    <strong>Player Home</strong>
-    <nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a>
-    <span id="profileBar">Loading…</span>
+    <strong>Home</strong>
+    <nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a>
+    <span id="profileBar">Loading...</span>
   </div>
   <main>
     <section class="card">
@@ -21,13 +21,13 @@
     </section>
 
     <section class="card">
-      <h2>Open challenges</h2>
+      <h2>Open Challenges</h2>
       <p class="small">If your friend sent you a Rematch link, open it. Otherwise pick one below.</p>
       <ul id="openChallenges"></ul>
     </section>
 
     <section class="card">
-      <h2>Recent matches</h2>
+      <h2>Recent Matches</h2>
       <ul id="recent"></ul>
     </section>
   </main>
@@ -70,7 +70,7 @@
         openChallenges.innerHTML = '<li>No open challenges right now.</li>';
       } else {
         openChallenges.innerHTML = inbox.items
-          .map((item) => `<li><span class="challenge-row-identity" data-player-id="${item.playerAId ?? 'unknown'}" data-creature-id="${item.creatureA.classKey}"></span> · <a class="button-link" href="/c/${item.token}">Accept</a></li>`)
+          .map((item) => `<li><span class="challenge-row-identity" data-player-id="${item.playerAId ?? 'unknown'}" data-creature-id="${item.creatureA.classKey}"></span> · <a class="button-link" href="/c/${item.token}">Accept Challenge</a></li>`)
           .join('');
         openChallenges.querySelectorAll('.challenge-row-identity').forEach((el) => {
           const id = el.getAttribute('data-player-id') || 'unknown';

@@ -21,7 +21,7 @@ export function renderReplayPage(params: ReplayPageParams): string {
   const { publicId, replayData, baseUrl, matchupLabel } = params;
   const { summary, matchHash } = replayData;
   const matchup = matchupLabel || `${summary.a.classKey} vs ${summary.b.classKey}`;
-  const winner = summary.winner === "DRAW" ? "DRAW" : `${summary.winner} (${summary.winner === "A" ? summary.a.classKey : summary.b.classKey})`;
+  const winner = summary.winner === "DRAW" ? "Draw" : summary.winner === "A" ? `${summary.a.classKey} Victory` : `${summary.b.classKey} Victory`;
   const hashPrefix = matchHash.slice(0, 10);
   const shareText = buildShareText(summary, publicId, baseUrl);
   const description = `${shareText.split("\n")[0]} • Hash ${hashPrefix}`;
@@ -57,7 +57,7 @@ export function renderReplayPage(params: ReplayPageParams): string {
 <body>
   <main>
     <h1>${escapeHtml(matchup)}</h1>
-    <p class="row"><strong>Winner:</strong> ${escapeHtml(winner)}</p>
+    <p class="row"><strong>Match Result:</strong> ${escapeHtml(winner)}</p>
     <p class="row"><strong>Turns:</strong> ${summary.turns}</p>
     <p class="row"><strong>Max Hit:</strong> ${summary.highlights.maxHitValue} by ${summary.highlights.maxHitBy}</p>
     <p class="row"><strong>Cataclysms:</strong> A ${summary.highlights.cataclysms.A} / B ${summary.highlights.cataclysms.B}</p>

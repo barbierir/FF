@@ -1,6 +1,6 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><div class="topbar"><strong>Replay</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="profileBar">Loading…</span></div><main>
-<section class="card"><h1 id="title">Battle Replay</h1><p id="winner" class="victory-highlight"></p><p id="stats"></p><div class="replay-creature-row"><div id="replayIdentityA"></div><div class="arena-vs">VS</div><div id="replayIdentityB"></div></div><div class="button-row primary-cta-group"><a class="button-link primary-cta" href="/?new=1">New Challenge</a><button class="primary-cta" id="rematchBtn" disabled>Rematch me, coward</button></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p><div id="rematchResult"></div></section>
+<body><div class="topbar"><strong>Replay</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="profileBar">Loading...</span></div><main>
+<section class="card"><h1 id="title">Battle Replay</h1><p id="winner" class="victory-highlight"></p><p id="stats"></p><div class="replay-creature-row"><div id="replayIdentityA"></div><div class="arena-vs">VS</div><div id="replayIdentityB"></div></div><div class="button-row primary-cta-group"><a class="button-link primary-cta" href="/?new=1">New Challenge</a><button class="primary-cta" id="rematchBtn" disabled>Rematch</button></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p><a id="sharePage" href="#">Share Page</a></p><button class="secondary" id="copyShareText">Copy Share Text</button> <button id="shareBtn">I shared this</button><p id="shareMsg"></p><div id="rematchResult"></div></section>
 <section class="card"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><button class="secondary" id="skip">Skip</button> <button class="secondary" id="replay">Replay</button><div class="log" id="log"></div></section>
 </main>
 <div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
@@ -52,7 +52,7 @@ function renderRematchResult(payload) {
       <div class="button-row">
         <button class="secondary" id="copyRematchLink">Copy Link</button>
         <button class="secondary" id="copyRematchText">Copy Meme Text</button>
-        <a class="button-link" id="openAcceptPage" href="${payload.url}">Open Accept Page</a>
+        <a class="button-link" id="openAcceptPage" href="${payload.url}">Open Challenge Page</a>
         <a class="button-link" href="/?new=1">New Challenge</a>
       </div>
     </div>
@@ -108,7 +108,13 @@ try {
   if (storedSide === 'A' || storedSide === 'B') pickedSide = storedSide;
   updateTopNav();
   void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId: viewerPlayerId });
-  document.getElementById('winner').textContent = `Winner: ${data.summary.winner}`;
+  const resolvedSide = getResolvedSide();
+  const resultLabel = data.summary.winner === 'DRAW'
+    ? 'Draw'
+    : resolvedSide
+      ? (data.summary.winner === resolvedSide ? 'Victory' : 'Defeat')
+      : 'Match Complete';
+  document.getElementById('winner').textContent = `Match Result: ${resultLabel}`;
   document.getElementById('stats').textContent = `Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;
   renderPlayerIdentity(document.getElementById('replayIdentityA'), {
     playerId: data.match?.playerAId ?? 'Player A',

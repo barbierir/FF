@@ -13,7 +13,7 @@ function layout(title: string, ogTitle: string, ogDescription: string, body: str
 <meta property="og:type" content="website" />
 <link rel="stylesheet" href="/styles.css" />
 </head><body>
-<div class="topbar"><strong>Fart And Furious</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a></div>
+<div class="topbar"><strong>Fart And Furious</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a></div>
 <main>${body}</main>
 <script type="module">
 import { updateTopNav } from '/app.js';
@@ -24,10 +24,10 @@ updateTopNav();
 
 export function renderProfileShell(playerId: string): string {
   return layout(
-    "Fart And Furious — Profile",
-    "Player Profile",
+    "Fart And Furious — My Profile",
+    "My Profile",
     "Track player stats, recent matches, and rivalries.",
-    `<section class="card"><h1>My Farting Champion</h1><div id="creatureFlow"></div><div id="profileContent" hidden><div class="player-home-header"><div id="profileIdentity"></div><a id="changeCreatureBtn" class="small-link" href="#">Change creature</a></div><div class="profile-stats-row"><span>Wins: <strong id="profileWins">0</strong></span><span>Losses: <strong id="profileLosses">0</strong></span><span>Draws: <strong id="profileDraws">0</strong></span><span>Rank: <strong id="profileRank">—</strong></span></div><button id="primaryActionBtn" type="button">New challenge</button><p id="homeStatus" class="small"></p><p id="homeError" class="error"></p><div class="player-home-links"><a href="#matchHistory">Recent matches</a><a id="shareChallengeLink" href="#" hidden>Share link</a></div><h2 id="matchHistory">Match history</h2><ul id="recent"></ul></div></section>
+    `<section class="card"><h1>My Farting Champion</h1><div id="creatureFlow"></div><div id="profileContent" hidden><div class="player-home-header"><div id="profileIdentity"></div><a id="changeCreatureBtn" class="small-link" href="#">Change Creature</a></div><div class="profile-stats-row"><span>Wins: <strong id="profileWins">0</strong></span><span>Losses: <strong id="profileLosses">0</strong></span><span>Draws: <strong id="profileDraws">0</strong></span><span>Rank: <strong id="profileRank">—</strong></span></div><button id="primaryActionBtn" type="button">New Challenge</button><p id="homeStatus" class="small"></p><p id="homeError" class="error"></p><div class="player-home-links"><a href="#matchHistory">Recent Matches</a><a id="shareChallengeLink" href="#" hidden>Share Link</a></div><h2 id="matchHistory">Recent Matches</h2><ul id="recent"></ul></div></section>
 <script type="module">
 import { initPlayerProfilePage } from '/profile.js';
 initPlayerProfilePage(${JSON.stringify(playerId)});
@@ -40,7 +40,7 @@ export function renderLeaderboardShell(): string {
     "Fart And Furious — Leaderboard",
     "Top Fart And Furious Players",
     "Global top 50 by StinkFame.",
-    `<section class="card"><h1 class="chaos-glow">🏆 GLOBAL STENCH RANKING</h1><p id="leaderboardEmpty" class="small" hidden>No completed matches yet.</p><table><thead><tr><th>#</th><th>Identity</th><th>Creature</th><th>Wins</th><th>Losses</th><th>Draws</th><th>Played</th></tr></thead><tbody id="rows"></tbody></table></section>
+    `<section class="card"><h1 class="chaos-glow">🏆 Leaderboard</h1><p id="leaderboardEmpty" class="small" hidden>No completed matches yet.</p><table><thead><tr><th>#</th><th>Identity</th><th>Creature</th><th>Wins</th><th>Losses</th><th>Draws</th><th>Played</th></tr></thead><tbody id="rows"></tbody></table></section>
 <script type="module">
 import { apiLeaderboardGlobal } from '/profile.js';
 apiLeaderboardGlobal();
@@ -63,10 +63,10 @@ apiRivalry(${JSON.stringify(playerA)}, ${JSON.stringify(playerB)});
 
 export function renderDailyShell(): string {
   return layout(
-    "Fart And Furious — Daily Highlight",
-    "Today's Most Explosive Creature",
-    "Daily viral highlight from today's finished matches.",
-    `<section class="card"><h1>Today's Most Explosive Creature</h1><p id="daily"></p></section>
+    "Fart And Furious — Daily Challenge",
+    "Daily Challenge",
+    "Daily challenge highlight from today's finished matches.",
+    `<section class="card"><h1>Daily Challenge</h1><p id="daily"></p></section>
 <script type="module">
 import { apiDaily } from '/profile.js';
 apiDaily();
