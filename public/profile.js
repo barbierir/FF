@@ -156,42 +156,25 @@ async function resolveHomeState(playerId, creatureId) {
     };
   }
 
-  const acceptedChallenge = firstItem(mineAccepted.items);
-  if (acceptedChallenge?.token) {
+  const acceptedChallenges = Array.isArray(mineAccepted.items) ? mineAccepted.items : [];
+  for (const acceptedChallenge of acceptedChallenges) {
+    if (!acceptedChallenge?.token) continue;
     const details = await api(`/api/challenges/${encodeURIComponent(acceptedChallenge.token)}?viewerId=${encodeURIComponent(playerId)}`);
-    if (details.matchId) {
-      const match = await getMatch(details.matchId);
-      if (match.status === "collecting_moves") {
-        const side = details.playerAId === playerId ? "A" : "B";
-        return {
-          kind: "active",
-          ctaLabel: "Submit Moves",
-          statusText: "Match in progress.",
-          shareUrl: null,
-          onClick: () => {
-            location.href = `/m/${encodeURIComponent(details.matchId)}?side=${side}`;
-          },
-          recentMatches: publicData.recentMatches,
-          profile: publicData.profile ?? null,
-        };
-      }
-      if (match.status === "finished") {
-        const publicId = details.publicId || match.publicId;
-        if (publicId) {
-          return {
-          kind: "finished",
-          ctaLabel: "Rematch",
-          statusText: "Last match finished.",
-          shareUrl: null,
-          onClick: () => {
-            location.href = `/replay/${encodeURIComponent(publicId)}`;
-          },
-          recentMatches: publicData.recentMatches,
-          profile: publicData.profile ?? null,
-        };
-        }
-      }
-    }
+    if (!details.matchId) continue;
+    const match = await getMatch(details.matchId);
+    if (match.status !== "collecting_moves") continue;
+    const side = details.playerAId === playerId ? "A" : "B";
+    return {
+      kind: "active",
+      ctaLabel: "Submit Moves",
+      statusText: "Match in progress.",
+      shareUrl: null,
+      onClick: () => {
+        location.href = `/m/${encodeURIComponent(details.matchId)}?side=${side}`;
+      },
+      recentMatches: publicData.recentMatches,
+      profile: publicData.profile ?? null,
+    };
   }
 
   return {
