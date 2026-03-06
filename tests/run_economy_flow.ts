@@ -82,20 +82,9 @@ async function main(): Promise<void> {
     "match rewards must be idempotent"
   );
 
-  const replay2 = await createFinishedMatch(store, a.id, b.id);
-  const replay3 = await createFinishedMatch(store, a.id, b.id);
-  const replay4 = await createFinishedMatch(store, a.id, b.id);
-
-  const s1 = await store.recordShare(a.id, match.publicId);
-  const s2 = await store.recordShare(a.id, match.publicId);
-  const s3 = await store.recordShare(a.id, replay2.publicId);
-  const s4 = await store.recordShare(a.id, replay3.publicId);
-  const s5 = await store.recordShare(a.id, replay4.publicId);
-
-  assert(s1.awarded && s1.stinkFameGained === 2, "first share should award");
-  assert(!s2.awarded && s2.stinkFameGained === 0, "duplicate share should be idempotent");
-  assert(s3.awarded && s4.awarded, "second/third daily shares should award");
-  assert(!s5.awarded, "daily share limit should block fourth share");
+  await createFinishedMatch(store, a.id, b.id);
+  await createFinishedMatch(store, a.id, b.id);
+  await createFinishedMatch(store, a.id, b.id);
 
   const fixedDate = "2026-01-15T12:00:00.000Z";
   const m1 = getDailyMission(fixedDate, a.id);

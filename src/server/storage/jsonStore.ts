@@ -454,6 +454,13 @@ export class JsonStore implements Store {
     match.status = "finished";
     match.finalizedAtISO = nowIso();
 
+    const playerAProfile = challenge.playerAId ? this.state.players.find((player) => player.id === challenge.playerAId) : undefined;
+    const playerBProfile = challenge.playerBId ? this.state.players.find((player) => player.id === challenge.playerBId) : undefined;
+    match.playerACreatureIdSnapshot = playerAProfile?.creatureId ?? challenge.creatureA.classKey;
+    match.playerBCreatureIdSnapshot = playerBProfile?.creatureId ?? challenge.creatureB.classKey;
+    match.playerACreatureNicknameSnapshot = playerAProfile?.creatureNickname;
+    match.playerBCreatureNicknameSnapshot = playerBProfile?.creatureNickname;
+
     // Rewards are deterministic because they derive only from SummaryV1 and are idempotent via event IDs.
     await this.applyMatchRewards(matchId);
     await this.recordRivalry(match);
@@ -593,41 +600,6 @@ export class JsonStore implements Store {
     await this.flush();
   }
 
-  async recordShare(playerId: string, matchPublicId: string): Promise<{ awarded: boolean; stinkFameGained: number }> {
-    await this.ready;
-    const profile = this.findPlayer(playerId);
-    const match = this.state.matches.find((item) => item.publicId === matchPublicId);
-    if (!match || match.status !== "finished") {
-      throw new HttpError(404, "replay_not_found", "Replay not found for share");
-    }
-    const day = toDayKey(nowIso());
-    const eventId = `share:${playerId}:${matchPublicId}:${day}`;
-    if (this.hasEvent(eventId)) {
-      return { awarded: false, stinkFameGained: 0 };
-    }
-
-    const usedToday = profile.lastShareDay === day ? profile.lastShareCountDay ?? 0 : 0;
-    if (usedToday >= 3) {
-      this.pushEvent({ id: eventId, type: "share_no_award", playerId, createdAtISO: nowIso(), payload: { matchPublicId, day } });
-      await this.flush();
-      return { awarded: false, stinkFameGained: 0 };
-    }
-
-    profile.stinkFame += 2;
-    profile.lastShareDay = day;
-    profile.lastShareCountDay = usedToday + 1;
-    this.pushEvent({
-      id: eventId,
-      type: "share_award",
-      playerId,
-      createdAtISO: nowIso(),
-      payload: { matchPublicId, day, sf: 2 },
-    });
-
-    await this.flush();
-    return { awarded: true, stinkFameGained: 2 };
-  }
-
   async recordChallengeAccepted(challengeId: string): Promise<void> {
     await this.ready;
     const eventId = `challenge_accept:${challengeId}`;
@@ -757,11 +729,12 @@ export class JsonStore implements Store {
         const summary = JSON.parse(match.summary_json) as SummaryV1;
         const isA = challenge?.playerAId === playerId;
         const opponentPlayerId = isA ? challenge?.playerBId : challenge?.playerAId;
-        const opponentProfile = opponentPlayerId ? playerById.get(opponentPlayerId) : undefined;
         const won = (summary.winner === "A" && isA) || (summary.winner === "B" && !isA);
         const resultLabel = summary.winner === "DRAW" ? "Draw" : won ? "Victory" : "Defeat";
-        const playerAProfile = challenge?.playerAId ? playerById.get(challenge.playerAId) : undefined;
-        const playerBProfile = challenge?.playerBId ? playerById.get(challenge.playerBId) : undefined;
+        const playerACreatureId = match.playerACreatureIdSnapshot ?? summary.a.classKey;
+        const playerBCreatureId = match.playerBCreatureIdSnapshot ?? summary.b.classKey;
+        const playerANickname = match.playerACreatureNicknameSnapshot;
+        const playerBNickname = match.playerBCreatureNicknameSnapshot;
         return {
           publicId: match.publicId,
           winner: summary.winner,
@@ -769,13 +742,13 @@ export class JsonStore implements Store {
           createdAtISO: match.finalizedAtISO,
           playerAId: challenge?.playerAId ?? undefined,
           playerBId: challenge?.playerBId ?? undefined,
-          playerACreatureId: playerAProfile?.creatureId,
-          playerBCreatureId: playerBProfile?.creatureId,
-          playerANickname: playerAProfile?.creatureNickname,
-          playerBNickname: playerBProfile?.creatureNickname,
+          playerACreatureId,
+          playerBCreatureId,
+          playerANickname,
+          playerBNickname,
           opponentPlayerId: opponentPlayerId ?? undefined,
-          opponentCreatureId: opponentProfile?.creatureId,
-          opponentCreatureNickname: opponentProfile?.creatureNickname,
+          opponentCreatureId: isA ? playerBCreatureId : playerACreatureId,
+          opponentCreatureNickname: isA ? playerBNickname : playerANickname,
           resultLabel,
         };
       });
@@ -890,6 +863,12 @@ export class JsonStore implements Store {
     let mostCataclysms: DailyHighlight | undefined;
     let mostHumiliating: DailyHighlight | undefined;
 
+    const highlightLabels: Record<DailyHighlight["highlightType"], { title: string; valueLabel: string }> = {
+      highest_max_hit: { title: "Biggest Hit", valueLabel: "Damage" },
+      most_cataclysms: { title: "Most Cataclysms", valueLabel: "Cataclysms" },
+      most_humiliating_win: { title: "Most Humiliating Win", valueLabel: "Humiliation Score" },
+    };
+
     for (const match of todayMatches) {
       const challenge = challengeById.get(match.challengeId);
       if (!challenge) continue;
@@ -899,9 +878,13 @@ export class JsonStore implements Store {
       if (maxHitPlayer) {
         const candidate: DailyHighlight = {
           highlightType: "highest_max_hit",
+          highlightLabel: highlightLabels.highest_max_hit.title,
+          valueLabel: highlightLabels.highest_max_hit.valueLabel,
           publicId: match.publicId,
           playerId: maxHitPlayer,
           value: summary.highlights.maxHitValue,
+          playerCreatureId: summary.highlights.maxHitBy === "A" ? match.playerACreatureIdSnapshot ?? summary.a.classKey : match.playerBCreatureIdSnapshot ?? summary.b.classKey,
+          playerCreatureNickname: summary.highlights.maxHitBy === "A" ? match.playerACreatureNicknameSnapshot : match.playerBCreatureNicknameSnapshot,
         };
         if (!highestMaxHit || candidate.value > highestMaxHit.value) highestMaxHit = candidate;
       }
@@ -912,9 +895,13 @@ export class JsonStore implements Store {
       if (maxCat.p) {
         const candidate: DailyHighlight = {
           highlightType: "most_cataclysms",
+          highlightLabel: highlightLabels.most_cataclysms.title,
+          valueLabel: highlightLabels.most_cataclysms.valueLabel,
           publicId: match.publicId,
           playerId: maxCat.p,
           value: maxCat.v,
+          playerCreatureId: catA >= catB ? match.playerACreatureIdSnapshot ?? summary.a.classKey : match.playerBCreatureIdSnapshot ?? summary.b.classKey,
+          playerCreatureNickname: catA >= catB ? match.playerACreatureNicknameSnapshot : match.playerBCreatureNicknameSnapshot,
         };
         if (!mostCataclysms || candidate.value > mostCataclysms.value) mostCataclysms = candidate;
       }
@@ -925,9 +912,13 @@ export class JsonStore implements Store {
         if (humPlayer) {
           const candidate: DailyHighlight = {
             highlightType: "most_humiliating_win",
+            highlightLabel: highlightLabels.most_humiliating_win.title,
+            valueLabel: highlightLabels.most_humiliating_win.valueLabel,
             publicId: match.publicId,
             playerId: humPlayer,
             value: Math.max(0, 20 - loserPr),
+            playerCreatureId: summary.winner === "A" ? match.playerACreatureIdSnapshot ?? summary.a.classKey : match.playerBCreatureIdSnapshot ?? summary.b.classKey,
+            playerCreatureNickname: summary.winner === "A" ? match.playerACreatureNicknameSnapshot : match.playerBCreatureNicknameSnapshot,
           };
           if (!mostHumiliating || candidate.value > mostHumiliating.value) mostHumiliating = candidate;
         }

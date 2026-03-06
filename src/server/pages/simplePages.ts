@@ -66,7 +66,7 @@ export function renderDailyShell(): string {
     "Fart And Furious — Daily Challenge",
     "Daily Challenge",
     "Daily challenge highlight from today's finished matches.",
-    `<section class="card module-primary"><h1>Daily Challenge</h1><p id="daily"></p></section>
+    `<section class="card module-primary"><h1>Daily Challenge</h1><p class="small">Face today's challenger and try to beat the daily record.</p><p id="daily">Loading today's challenge…</p></section>
 <script type="module">
 import { apiDaily } from '/profile.js';
 apiDaily();

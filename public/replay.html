@@ -1,11 +1,11 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
 <body><div class="topbar"><strong>Replay</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="profileBar">Loading...</span></div><main class="page-stack">
-<section class="card module-primary"><h1 id="title">Battle Replay</h1><p id="winner" class="victory-highlight"></p><p id="stats"></p><div class="replay-creature-row"><div id="replayIdentityA"></div><div class="arena-vs">VS</div><div id="replayIdentityB"></div></div><div class="button-row primary-cta-group"><a class="button-link primary-cta" href="/?new=1">New Challenge</a><button class="primary-cta" id="rematchBtn" disabled>Rematch</button></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p><a id="sharePage" href="#">Share Page</a></p><div class="inline-actions"><button class="secondary" id="copyShareText">Copy Share Text</button><button id="shareBtn">I shared this</button></div><p id="shareMsg"></p><div id="rematchResult"></div></section>
+<section class="card module-primary"><h1 id="title">Battle Replay</h1><p id="winner" class="victory-highlight"></p><p id="stats"></p><div class="replay-creature-row"><div id="replayIdentityA"></div><div class="arena-vs">VS</div><div id="replayIdentityB"></div></div><div class="button-row primary-cta-group"><a class="button-link primary-cta" href="/?new=1">New Challenge</a><button class="primary-cta" id="rematchBtn" disabled>Rematch</button></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p><a id="sharePage" href="#">Share Page</a></p><div class="inline-actions"><button class="secondary" id="copyShareText">Copy Share Text</button></div><p id="shareMsg"></p><div id="rematchResult"></div></section>
 <section class="card module-secondary"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><div class="inline-actions"><button class="secondary" id="skip">Skip</button><button class="secondary" id="replay">Replay</button></div><div class="log" id="log"></div></section>
 </main>
 <div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row inline-actions"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
 <script type="module">
-import { copyText, createRematch, createStatusBadge, fetchReplay, getViewerPlayerId, loadViewerProfileBar, outcomeToBadgeVariant, parsePath, rememberLastReplayPublicId, renderPlayerIdentity, shareReplay, updateTopNav } from '/app.js';
+import { copyText, createRematch, createStatusBadge, fetchReplay, getViewerPlayerId, loadViewerProfileBar, outcomeToBadgeVariant, parsePath, rememberLastReplayPublicId, renderPlayerIdentity, updateTopNav } from '/app.js';
 
 const publicId = parsePath()[1];
 const sideStorageKey = `faf_rematch_side_${publicId}`;
@@ -149,15 +149,6 @@ document.getElementById('copyShareText').onclick = async () => {
     shareMsg.textContent = 'Could not generate share text';
   }
 };
-document.getElementById('shareBtn').onclick = async ()=>{
-  try {
-    const r = await shareReplay(publicId, viewerPlayerId);
-    shareMsg.textContent = r.awarded ? `Shared! +${r.stinkFameGained ?? 0} SF` : "Shared! (daily cap reached)";
-  } catch(e) {
-    shareMsg.textContent = e.message;
-  }
-};
-
 const icon = (ev)=>{
   if(ev.kind==='DEFEND') return '🛡️'; if(ev.kind==='HEAL') return '🧚✨'; if(ev.kind==='DOT') return '🔥';
   if(ev.kind==='ATTACK' && ev.outcome==='BACKFIRE') return '💥↩️';

@@ -35,7 +35,6 @@ export interface Store {
   getOrCreatePlayer(playerId?: string): Promise<PlayerProfile>;
   setPlayerCreatureSelection(playerId: string, creatureId?: string | null, creatureNickname?: string | null): Promise<void>;
   applyMatchRewards(matchId: string): Promise<void>;
-  recordShare(playerId: string, matchPublicId: string): Promise<{ awarded: boolean; stinkFameGained: number }>;
   recordChallengeAccepted(challengeId: string): Promise<void>;
   checkAndAwardDailyMission(playerId: string, dateISO: string): Promise<MissionStatus>;
   getLeaderboard(scope: LeaderboardScope, metric: LeaderboardMetric): Promise<LeaderboardRow[]>;

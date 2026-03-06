@@ -35,6 +35,10 @@ export type StoredMatch = {
   match_hash_hex?: string;
   createdAtISO: string;
   finalizedAtISO?: string;
+  playerACreatureIdSnapshot?: string;
+  playerBCreatureIdSnapshot?: string;
+  playerACreatureNicknameSnapshot?: string;
+  playerBCreatureNicknameSnapshot?: string;
 };
 
 export type StoredMoves = {
@@ -190,9 +194,13 @@ export type RivalryStats = {
 
 export type DailyHighlight = {
   highlightType: "highest_max_hit" | "most_cataclysms" | "most_humiliating_win";
+  highlightLabel: string;
+  valueLabel: string;
   publicId: string;
   playerId: string;
   value: number;
+  playerCreatureId?: string;
+  playerCreatureNickname?: string;
 };
 
 export type OpenChallengeItem = {
