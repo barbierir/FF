@@ -4,6 +4,7 @@ import { buildShareText } from "./shareText.ts";
 type ReplayPageParams = {
   publicId: string;
   replayData: { summary: SummaryV1; matchHash: string; seedHex: string };
+  matchupLabel?: string;
   baseUrl: string;
 };
 
@@ -17,9 +18,9 @@ function escapeHtml(value: string): string {
 }
 
 export function renderReplayPage(params: ReplayPageParams): string {
-  const { publicId, replayData, baseUrl } = params;
+  const { publicId, replayData, baseUrl, matchupLabel } = params;
   const { summary, matchHash } = replayData;
-  const matchup = `${summary.a.classKey} vs ${summary.b.classKey}`;
+  const matchup = matchupLabel || `${summary.a.classKey} vs ${summary.b.classKey}`;
   const winner = summary.winner === "DRAW" ? "DRAW" : `${summary.winner} (${summary.winner === "A" ? summary.a.classKey : summary.b.classKey})`;
   const hashPrefix = matchHash.slice(0, 10);
   const shareText = buildShareText(summary, publicId, baseUrl);

@@ -4,11 +4,12 @@ function sideLabel(summary: SummaryV1, side: "A" | "B"): string {
   return side === "A" ? summary.a.classKey : summary.b.classKey;
 }
 
-export function buildShareText(summary: SummaryV1, publicId: string, baseUrl: string): string {
+export function buildShareText(summary: SummaryV1, publicId: string, baseUrl: string, nicknames?: { a?: string; b?: string }): string {
   const winnerSide = summary.winner === "DRAW" ? summary.highlights.maxHitBy : summary.winner;
   const loserSide = winnerSide === "A" ? "B" : "A";
-  const winner = sideLabel(summary, winnerSide === "DRAW" ? "A" : winnerSide);
-  const loser = sideLabel(summary, loserSide);
+  const winnerResolvedSide = winnerSide === "DRAW" ? "A" : winnerSide;
+  const winner = winnerResolvedSide === "A" ? (nicknames?.a || sideLabel(summary, "A")) : (nicknames?.b || sideLabel(summary, "B"));
+  const loser = loserSide === "A" ? (nicknames?.a || sideLabel(summary, "A")) : (nicknames?.b || sideLabel(summary, "B"));
   return `My ${winner} destroyed a ${loser} with a ${summary.highlights.maxHitValue} DAMAGE Cataclysm 💨🔥\nCan you beat me?\n${baseUrl}/r/${publicId}`;
 }
 

@@ -1,4 +1,4 @@
-import { clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, generateCreatureNickname, getCreaturePresentation, getGasRankTitle, getMatch, getPlayerCreatureId, getPlayerCreatureNickname, randomSeed, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
+import { clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, generateCreatureNickname, getCreaturePresentation, getGasRankTitle, getMatch, getMatchOpponentSummary, getMatchOutcomeLabel, getPlayerCreatureId, getPlayerCreatureNickname, getPlayerCreatureSummary, randomSeed, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
 
 async function api(path, opts = {}) {
   const res = await fetch(path, opts);
@@ -76,12 +76,16 @@ function showSelectedCreatureLine(playerId, creatureId) {
   };
 }
 
-function toRecentMatchRows(recentMatches) {
+function toRecentMatchRows(recentMatches, currentPlayerId) {
   if (!recentMatches?.length) {
     return '<li>No finished matches yet.</li>';
   }
   return recentMatches
-    .map((m) => `<li><a href="/replay/${m.publicId}">${m.publicId}</a> · Winner ${m.winner} · MaxHit ${m.maxHit}</li>`)
+    .map((m) => {
+      const opponent = getMatchOpponentSummary(m, currentPlayerId);
+      const result = m.resultLabel || getMatchOutcomeLabel(m, currentPlayerId);
+      return `<li><a href="/replay/${m.publicId}">${opponent.opponentPrimaryLabel}</a> · ${result} · ${opponent.opponentCreatureName}</li>`;
+    })
     .join("");
 }
 
@@ -109,6 +113,7 @@ async function resolveHomeState(playerId, creatureId) {
       ctaLabel: "New challenge",
       statusText: "Waiting for opponent…",
       shareUrl: `${location.origin}/c/${myOpenChallenge.token}`,
+      shareLabel: `${getPlayerCreatureNickname(playerId) || getCreaturePresentation(playerId, creatureId, null).creatureName} challenges a rival`,
       onClick: async () => {
         await createChallenge(playerId, createDefaultCreatureSpec(creatureId), creatureId);
         await refreshPlayerHome(playerId, creatureId);
@@ -222,10 +227,10 @@ async function refreshPlayerHome(playerId, creatureId) {
     shareLink.hidden = !state.shareUrl;
     if (state.shareUrl) {
       shareLink.href = state.shareUrl;
-      shareLink.textContent = "Share link";
+      shareLink.textContent = state.shareLabel || "Share link";
     }
 
-    document.getElementById("recent").innerHTML = toRecentMatchRows(state.recentMatches);
+    document.getElementById("recent").innerHTML = toRecentMatchRows(state.recentMatches, playerId);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     statusEl.textContent = "Could not load home state.";
@@ -271,10 +276,8 @@ export async function apiLeaderboardGlobal() {
     .map((r) => {
       const rankTitle = getGasRankTitle(r.wins ?? 0);
       const badgeClass = rankTitle.includes("👑") ? "gas-rank-badge top-tier" : "gas-rank-badge";
-      const creatureId = getPlayerCreatureId(r.playerId);
-      const creatureNickname = getPlayerCreatureNickname(r.playerId);
-      const presentation = getCreaturePresentation(r.playerId, creatureId, creatureNickname);
-      return `<tr><td>${r.rank}</td><td><a href="/p/${encodeURIComponent(r.playerId)}" class="leaderboard-identity" data-player-id="${r.playerId}"></a><div class="${badgeClass}">${rankTitle}</div></td><td>${presentation.creatureName}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td>${r.played}</td></tr>`;
+      const summary = getPlayerCreatureSummary({ playerId: r.playerId, creatureId: r.creatureId, creatureNickname: r.creatureNickname });
+      return `<tr><td>${r.rank}</td><td><a href="/p/${encodeURIComponent(r.playerId)}" class="leaderboard-identity" data-player-id="${r.playerId}" data-creature-id="${summary.creatureId || ""}" data-creature-nickname="${summary.creatureNickname || ""}"></a><div class="${badgeClass}">${rankTitle}</div></td><td>${summary.creatureName}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td>${r.played}</td></tr>`;
     })
     .join("");
 
@@ -283,12 +286,12 @@ export async function apiLeaderboardGlobal() {
     if (!id) return;
     renderPlayerIdentity(node, {
       playerId: id,
-      creatureId: getPlayerCreatureId(id),
-      creatureNickname: getPlayerCreatureNickname(id),
+      creatureId: node.getAttribute("data-creature-id") || null,
+      creatureNickname: node.getAttribute("data-creature-nickname") || null,
       variant: "compact",
       showGif: true,
       showCreatureName: true,
-        showNickname: true,
+      showNickname: true,
     });
   });
 }

@@ -13,7 +13,7 @@ function layout(title: string, ogTitle: string, ogDescription: string, body: str
 <meta property="og:type" content="website" />
 <link rel="stylesheet" href="/styles.css" />
 </head><body>
-<div class="topbar"><strong>Fart And Furious</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav></div>
+<div class="topbar"><strong>Fart And Furious</strong><nav class="nav-links"><a href="/home">Home</a><a id="navNewChallenge" href="/?new=1">New Challenge</a><a href="/leaderboard">Leaderboard</a><a id="myProfileLink" href="/">My Profile</a><a id="navDaily" href="/daily">Daily</a><a id="navResumeReplay" href="/" hidden>Resume last replay</a></nav></div>
 <main>${body}</main>
 <script type="module">
 import { updateTopNav } from '/app.js';
@@ -27,7 +27,7 @@ export function renderProfileShell(playerId: string): string {
     "Fart And Furious — Profile",
     "Player Profile",
     "Track player stats, recent matches, and rivalries.",
-    `<section class="card"><div id="creatureFlow"></div><div id="profileContent" hidden><div class="player-home-header"><div id="profileIdentity"></div><a id="changeCreatureBtn" class="small-link" href="#">Change creature</a></div><div class="profile-stats-row"><span>Wins: <strong id="profileWins">0</strong></span><span>Losses: <strong id="profileLosses">0</strong></span><span>Draws: <strong id="profileDraws">0</strong></span><span>Rank: <strong id="profileRank">—</strong></span></div><button id="primaryActionBtn" type="button">New challenge</button><p id="homeStatus" class="small"></p><p id="homeError" class="error"></p><div class="player-home-links"><a href="/leaderboard">Leaderboard</a><a href="#matchHistory">Match history</a><a id="shareChallengeLink" href="#" hidden>Share link</a></div><h2 id="matchHistory">Match history</h2><ul id="recent"></ul></div></section>
+    `<section class="card"><h1>My Farting Champion</h1><div id="creatureFlow"></div><div id="profileContent" hidden><div class="player-home-header"><div id="profileIdentity"></div><a id="changeCreatureBtn" class="small-link" href="#">Change creature</a></div><div class="profile-stats-row"><span>Wins: <strong id="profileWins">0</strong></span><span>Losses: <strong id="profileLosses">0</strong></span><span>Draws: <strong id="profileDraws">0</strong></span><span>Rank: <strong id="profileRank">—</strong></span></div><button id="primaryActionBtn" type="button">New challenge</button><p id="homeStatus" class="small"></p><p id="homeError" class="error"></p><div class="player-home-links"><a href="#matchHistory">Recent matches</a><a id="shareChallengeLink" href="#" hidden>Share link</a></div><h2 id="matchHistory">Match history</h2><ul id="recent"></ul></div></section>
 <script type="module">
 import { initPlayerProfilePage } from '/profile.js';
 initPlayerProfilePage(${JSON.stringify(playerId)});

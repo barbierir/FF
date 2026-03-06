@@ -346,9 +346,18 @@ export function updateResumeReplayLink() {
 
 export function updateTopNav() {
   const profileLink = document.getElementById("myProfileLink");
-  if (!profileLink) return;
   const playerId = getPlayerIdOrNull();
-  profileLink.href = playerId ? `/p/${encodeURIComponent(playerId)}` : "/";
+  if (profileLink) {
+    profileLink.href = playerId ? `/p/${encodeURIComponent(playerId)}` : "/";
+  }
+  const navLinks = document.querySelector(".topbar .nav-links");
+  if (navLinks && !document.getElementById("navDaily")) {
+    const dailyLink = document.createElement("a");
+    dailyLink.id = "navDaily";
+    dailyLink.href = "/daily";
+    dailyLink.textContent = "Daily";
+    navLinks.appendChild(dailyLink);
+  }
   updateResumeReplayLink();
 }
 
@@ -412,7 +421,7 @@ export async function loadViewerProfileBar({ profileBarEl, playerId, onLoaded } 
 export async function createChallenge(playerId, creatureA, creatureId = null) {
   return api("/api/challenges", {
     method: "POST",
-    body: JSON.stringify({ playerAId: playerId, creatureA, creatureId }),
+    body: JSON.stringify({ playerAId: playerId, creatureA, creatureId, creatureNickname: getPlayerCreatureNickname(playerId) }),
   });
 }
 
@@ -426,7 +435,7 @@ export async function getChallenge(token, viewerId) {
 export async function acceptChallenge(token, playerId, creatureB, creatureId = null) {
   return api(`/api/challenges/${encodeURIComponent(token)}/accept`, {
     method: "POST",
-    body: JSON.stringify({ playerBId: playerId, creatureB, creatureId }),
+    body: JSON.stringify({ playerBId: playerId, creatureB, creatureId, creatureNickname: getPlayerCreatureNickname(playerId) }),
   });
 }
 
@@ -674,6 +683,53 @@ export function createPlayerIdentity({
 
   identity.appendChild(text);
   return identity;
+}
+
+
+
+export function getPlayerCreatureSummary({
+  playerId,
+  creatureId = null,
+  creatureNickname = null,
+} = {}) {
+  const resolvedCreatureId = creatureId || getPlayerCreatureId(playerId) || null;
+  const resolvedNickname = normalizeNickname(creatureNickname) || normalizeNickname(getPlayerCreatureNickname(playerId));
+  const presentation = getCreaturePresentation(playerId, resolvedCreatureId, resolvedNickname);
+  return {
+    playerId,
+    creatureId: resolvedCreatureId,
+    creatureNickname: resolvedNickname,
+    creature: presentation.creature,
+    creatureName: presentation.creatureName,
+    primaryLabel: presentation.primaryLabel,
+  };
+}
+
+export function getMatchOpponentSummary(match, currentPlayerId) {
+  const iAmA = match?.playerAId === currentPlayerId;
+  const opponentPlayerId = iAmA ? match?.playerBId : match?.playerAId;
+  const opponentCreatureId = iAmA ? match?.playerBCreatureId : match?.playerACreatureId;
+  const opponentCreatureNickname = iAmA ? match?.playerBNickname : match?.playerANickname;
+  const summary = getPlayerCreatureSummary({
+    playerId: opponentPlayerId,
+    creatureId: opponentCreatureId,
+    creatureNickname: opponentCreatureNickname,
+  });
+  return {
+    opponentPlayerId,
+    opponentCreatureId: summary.creatureId,
+    opponentCreatureNickname: summary.creatureNickname,
+    opponentCreatureName: summary.creatureName,
+    opponentPrimaryLabel: summary.primaryLabel,
+  };
+}
+
+export function getMatchOutcomeLabel(match, currentPlayerId) {
+  if (!match) return "Draw";
+  if (match.winner === "DRAW") return "Draw";
+  const iAmA = match.playerAId === currentPlayerId;
+  const won = (match.winner === "A" && iAmA) || (match.winner === "B" && !iAmA);
+  return won ? "Victory" : "Defeat";
 }
 
 export function renderPlayerIdentity(container, options) {
