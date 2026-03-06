@@ -32,7 +32,7 @@
     </section>
   </main>
   <script type="module">
-    import { fetchOpenChallenges, getOrCreateGuestPlayer, getPlayerCreatureId, getPlayerCreatureNickname, loadViewerProfileBar, renderPlayerIdentity, shouldSkipAutoResume, updateTopNav } from '/app.js';
+    import { createStatusBadge, fetchOpenChallenges, getOrCreateGuestPlayer, getPlayerCreatureId, getPlayerCreatureNickname, loadViewerProfileBar, outcomeToBadgeVariant, renderPlayerIdentity, shouldSkipAutoResume, updateTopNav } from '/app.js';
 
     if (shouldSkipAutoResume()) {
       const note = document.getElementById('homeNewModeNote');
@@ -50,6 +50,8 @@
         variant: 'default',
       });
 
+      const toResultBadge = (label) => createStatusBadge({ label, variant: outcomeToBadgeVariant(label), size: 'sm' }).outerHTML;
+
       const publicData = await fetch(`/api/players/${encodeURIComponent(playerId)}/public`).then((r) => r.json());
       const recent = document.getElementById('recent');
       if (!publicData.recentMatches?.length) {
@@ -59,7 +61,7 @@
           .map((m) => {
             const opponentLabel = m.opponentCreatureNickname || (m.opponentCreatureId ? m.opponentCreatureId[0].toUpperCase() + m.opponentCreatureId.slice(1) : 'Unknown Creature');
             const result = m.resultLabel || 'Draw';
-            return `<li><a href="/replay/${m.publicId}">${opponentLabel}</a> · ${result} · MaxHit ${m.maxHit}</li>`;
+            return `<li><a href="/replay/${m.publicId}">${opponentLabel}</a> · ${toResultBadge(result)} · MaxHit ${m.maxHit}</li>`;
           })
           .join('');
       }

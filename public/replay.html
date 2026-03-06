@@ -5,7 +5,7 @@
 </main>
 <div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row inline-actions"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
 <script type="module">
-import { copyText, createRematch, fetchReplay, getViewerPlayerId, loadViewerProfileBar, parsePath, rememberLastReplayPublicId, renderPlayerIdentity, shareReplay, updateTopNav } from '/app.js';
+import { copyText, createRematch, createStatusBadge, fetchReplay, getViewerPlayerId, loadViewerProfileBar, outcomeToBadgeVariant, parsePath, rememberLastReplayPublicId, renderPlayerIdentity, shareReplay, updateTopNav } from '/app.js';
 
 const publicId = parsePath()[1];
 const sideStorageKey = `faf_rematch_side_${publicId}`;
@@ -114,7 +114,10 @@ try {
     : resolvedSide
       ? (data.summary.winner === resolvedSide ? 'Victory' : 'Defeat')
       : 'Match Complete';
-  document.getElementById('winner').textContent = `Match Result: ${resultLabel}`;
+const winner = document.getElementById('winner');
+  winner.innerHTML = '';
+  winner.append('Match Result: ');
+  winner.appendChild(createStatusBadge({ label: resultLabel, variant: outcomeToBadgeVariant(resultLabel), size: 'md' }));
   document.getElementById('stats').textContent = `Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;
   renderPlayerIdentity(document.getElementById('replayIdentityA'), {
     playerId: data.match?.playerAId ?? 'Player A',

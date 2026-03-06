@@ -1,4 +1,4 @@
-import { clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, generateCreatureNickname, getCreaturePresentation, getGasRankTitle, getMatch, getMatchOpponentSummary, getMatchOutcomeLabel, getPlayerCreatureId, getPlayerCreatureNickname, getPlayerCreatureSummary, randomSeed, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
+import { clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, createStatusBadge, generateCreatureNickname, getCreaturePresentation, getGasRankTitle, getMatch, getMatchOpponentSummary, getMatchOutcomeLabel, getPlayerCreatureId, getPlayerCreatureNickname, getPlayerCreatureSummary, outcomeToBadgeVariant, randomSeed, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
 
 async function api(path, opts = {}) {
   const res = await fetch(path, opts);
@@ -72,6 +72,26 @@ function showSelectedCreatureLine(playerId, creatureId) {
   };
 }
 
+
+function createRankBadge(rankTitle) {
+  const isTopTier = rankTitle.includes("👑");
+  const badge = createStatusBadge({
+    label: rankTitle.replace(" 👑", ""),
+    variant: "rank",
+    size: "md",
+    extraClass: `gas-rank-badge${isTopTier ? " top-tier" : ""}`,
+  });
+  return badge;
+}
+
+function createResultBadge(label) {
+  return createStatusBadge({
+    label,
+    variant: outcomeToBadgeVariant(label),
+    size: "sm",
+  }).outerHTML;
+}
+
 function toRecentMatchRows(recentMatches, currentPlayerId) {
   if (!recentMatches?.length) {
     return '<li>No finished matches yet.</li>';
@@ -80,7 +100,7 @@ function toRecentMatchRows(recentMatches, currentPlayerId) {
     .map((m) => {
       const opponent = getMatchOpponentSummary(m, currentPlayerId);
       const result = m.resultLabel || getMatchOutcomeLabel(m, currentPlayerId);
-      return `<li><a href="/replay/${m.publicId}">${opponent.opponentPrimaryLabel}</a> · ${result} · ${opponent.opponentCreatureName}</li>`;
+      return `<li><a href="/replay/${m.publicId}">${opponent.opponentPrimaryLabel}</a> · ${createResultBadge(result)} · ${opponent.opponentCreatureName}</li>`;
     })
     .join("");
 }
@@ -208,7 +228,7 @@ async function refreshPlayerHome(playerId, creatureId) {
     if (rank) rank.remove();
     const identityRoot = document.getElementById("profileIdentity");
     if (identityRoot) {
-      identityRoot.insertAdjacentHTML("afterend", `<div class="gas-rank-badge${rankTitle.includes("👑") ? " top-tier" : ""}">${rankTitle}</div>`);
+      identityRoot.insertAdjacentElement("afterend", createRankBadge(rankTitle));
     }
 
     primaryBtn.textContent = state.ctaLabel;
@@ -269,10 +289,8 @@ export async function apiLeaderboardGlobal() {
   empty.hidden = true;
   document.getElementById("rows").innerHTML = rows
     .map((r) => {
-      const rankTitle = getGasRankTitle(r.wins ?? 0);
-      const badgeClass = rankTitle.includes("👑") ? "gas-rank-badge top-tier" : "gas-rank-badge";
       const summary = getPlayerCreatureSummary({ playerId: r.playerId, creatureId: r.creatureId, creatureNickname: r.creatureNickname });
-      return `<tr><td>${r.rank}</td><td><a href="/p/${encodeURIComponent(r.playerId)}" class="leaderboard-identity" data-player-id="${r.playerId}" data-creature-id="${summary.creatureId || ""}" data-creature-nickname="${summary.creatureNickname || ""}"></a><div class="${badgeClass}">${rankTitle}</div></td><td>${summary.creatureName}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td>${r.played}</td></tr>`;
+      return `<tr><td><span class="status-badge status-badge--rank status-badge--sm">#${r.rank}</span></td><td><a href="/p/${encodeURIComponent(r.playerId)}" class="leaderboard-identity" data-player-id="${r.playerId}" data-creature-id="${summary.creatureId || ""}" data-creature-nickname="${summary.creatureNickname || ""}"></a></td><td>${summary.creatureName}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td>${r.played}</td></tr>`;
     })
     .join("");
 
@@ -305,5 +323,6 @@ export async function apiDaily() {
   const creatureId = getPlayerCreatureId(data.playerId);
   const { creatureName } = getCreaturePresentation(data.playerId, creatureId, nickname);
   const label = nickname || creatureName;
-  document.getElementById("daily").innerHTML = `${data.highlightType} by <a href="/p/${encodeURIComponent(data.playerId)}">${label}</a> (value ${data.value}) · <a href="/replay/${data.publicId}">Watch replay</a>`;
+  const dailyBadge = createStatusBadge({ label: "Daily", variant: "daily", size: "sm" }).outerHTML;
+  document.getElementById("daily").innerHTML = `${dailyBadge} ${data.highlightType} by <a href="/p/${encodeURIComponent(data.playerId)}">${label}</a> (value ${data.value}) · <a href="/replay/${data.publicId}">Watch replay</a>`;
 }

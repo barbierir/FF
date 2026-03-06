@@ -17,14 +17,7 @@ function createFallback(classKey, size, alt) {
   fallback.setAttribute('role', 'img');
   fallback.setAttribute('aria-label', alt ?? `${classKey} idle fallback`);
 
-  const emoji = document.createElement('span');
-  emoji.setAttribute('aria-hidden', 'true');
-  emoji.textContent = '💨';
-
-  const label = document.createElement('span');
-  label.textContent = classKey;
-
-  fallback.append(emoji, label);
+  fallback.textContent = "Missing GIF";
   return fallback;
 }
 
