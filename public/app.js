@@ -49,6 +49,102 @@ export const CREATURES = [
     specialAbilityDescription: "Demon uses the baseline move kit without class-specific modifiers.",
   },
 ];
+
+const CREATURE_NICKNAME_PARTS = {
+  goblin: {
+    first: ["Grime", "Snag", "Muck", "Rivet", "Sprocket", "Stink", "Scrap", "Bog"],
+    second: ["snout", "tooth", "fizz", "belch", "burp", "whistle", "wrench", "spark"],
+  },
+  dragon: {
+    first: ["Ember", "Ash", "Blaze", "Scorch", "Cinder", "Inferno", "Pyre", "Flare"],
+    second: ["wing", "fang", "flare", "roar", "smoke", "ember", "burn", "scale"],
+  },
+  skunk: {
+    first: ["Whiff", "Puff", "Stink", "Misty", "Cloud", "Fume", "Scent", "Spritz"],
+    second: ["tail", "trail", "blast", "mist", "spray", "drift", "haze", "burst"],
+  },
+  troll: {
+    first: ["Boulder", "Grunt", "Stomp", "Rubble", "Crag", "Moss", "Thud", "Bash"],
+    second: ["hide", "club", "smash", "echo", "belch", "guard", "stone", "rumble"],
+  },
+  fairy: {
+    first: ["Twinkle", "Glow", "Sparkle", "Petal", "Moon", "Luna", "Wisp", "Dew"],
+    second: ["dust", "gleam", "flutter", "song", "bloom", "drift", "mist", "shine"],
+  },
+  demon: {
+    first: ["Hex", "Night", "Rift", "Vex", "Infer", "Shade", "Dread", "Soot"],
+    second: ["claw", "flame", "howl", "smoke", "horn", "ember", "fang", "gloom"],
+  },
+};
+
+function randomItem(items) {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+export function generateCreatureNickname(creatureId) {
+  const pool = CREATURE_NICKNAME_PARTS[creatureId] ?? CREATURE_NICKNAME_PARTS.goblin;
+  return `${randomItem(pool.first)} ${randomItem(pool.second)}`;
+}
+
+export function renderCreaturePickerGrid({
+  container,
+  selectedId,
+  onSelect,
+}) {
+  if (!container) return;
+  container.innerHTML = "";
+
+  for (const creature of CREATURES) {
+    const tile = document.createElement("article");
+    tile.className = `creature-select-tile${selectedId === creature.id ? " selected" : ""}`;
+    tile.setAttribute("role", "button");
+    tile.setAttribute("tabindex", "0");
+    tile.setAttribute("aria-label", `Select ${creature.name}`);
+
+    const imageWrap = document.createElement("div");
+    imageWrap.className = "creature-select-image";
+
+    const img = document.createElement("img");
+    img.src = creature.idleSrc;
+    img.alt = `${creature.name} idle`;
+    img.loading = "lazy";
+    img.width = 220;
+    img.height = 220;
+    img.onerror = () => {
+      console.warn("Creature GIF failed", creature.id, creature.idleSrc);
+    };
+    imageWrap.appendChild(img);
+
+    const name = document.createElement("h3");
+    name.textContent = creature.name;
+
+    const blurb = document.createElement("p");
+    blurb.className = "small";
+    blurb.textContent = creature.blurb;
+
+    const overlay = document.createElement("div");
+    overlay.className = "creature-select-overlay";
+    overlay.innerHTML = `<strong>Special: ${creature.specialAbilityName}</strong><p>${creature.specialAbilityDescription}</p>`;
+
+    const badge = document.createElement("span");
+    badge.className = "selected-badge";
+    badge.textContent = "Selected";
+    badge.hidden = selectedId !== creature.id;
+
+    const select = () => onSelect(creature.id);
+    tile.onclick = select;
+    tile.onkeydown = (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        select();
+      }
+    };
+
+    tile.append(imageWrap, name, blurb, overlay, badge);
+    container.appendChild(tile);
+  }
+}
+
 const PLAYER_ID_KEY = "faf_playerId";
 const LEGACY_PLAYER_ID_KEY = "faf_player_id";
 const LAST_REPLAY_PUBLIC_ID_KEY = "faf_lastReplayPublicId";
