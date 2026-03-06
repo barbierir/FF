@@ -146,8 +146,9 @@ export function renderCreaturePickerGrid({
   container.innerHTML = "";
 
   for (const creature of CREATURES) {
+    const isSelected = selectedId === creature.id;
     const tile = document.createElement("article");
-    tile.className = `creature-select-tile${selectedId === creature.id ? " selected" : ""}`;
+    tile.className = `creature-select-tile${isSelected ? " selected" : ""}`;
     tile.setAttribute("role", "button");
     tile.setAttribute("tabindex", "0");
     tile.setAttribute("aria-label", `Select ${creature.name}`);
@@ -177,13 +178,14 @@ export function renderCreaturePickerGrid({
     overlay.className = "creature-select-overlay";
     overlay.innerHTML = `<strong>Special: ${creature.specialAbilityName}</strong><p>${creature.specialAbilityDescription}</p>`;
 
-    const badge = createStatusBadge({
-      label: "Selected",
-      variant: "highlight",
-      size: "sm",
-      extraClass: "selected-badge",
-    });
-    badge.hidden = selectedId !== creature.id;
+    const badge = isSelected
+      ? createStatusBadge({
+          label: "Selected",
+          variant: "highlight",
+          size: "sm",
+          extraClass: "selected-badge",
+        })
+      : null;
 
     const select = () => onSelect(creature.id);
     tile.onclick = select;
@@ -194,7 +196,10 @@ export function renderCreaturePickerGrid({
       }
     };
 
-    tile.append(imageWrap, name, blurb, overlay, badge);
+    tile.append(imageWrap, name, blurb, overlay);
+    if (badge) {
+      tile.appendChild(badge);
+    }
     container.appendChild(tile);
   }
 }
