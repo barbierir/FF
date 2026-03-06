@@ -20,11 +20,25 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: var(--text);
   background:
-    radial-gradient(1200px 700px at 20% 20%, rgba(160, 32, 240, 0.28) 0%, transparent 60%),
-    radial-gradient(900px 500px at 80% 10%, rgba(57, 255, 20, 0.14) 0%, transparent 60%),
-    radial-gradient(1000px 800px at 50% 100%, #161b2e 0%, #090b10 62%);
+    linear-gradient(rgba(9, 11, 16, 0.18), rgba(9, 11, 16, 0.18)),
+    url('/arena-background.jpg') center / cover fixed no-repeat;
   min-height: 100vh;
+  position: relative;
   animation: chaos-fade-in 280ms ease-out;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 24, 0.36);
+  pointer-events: none;
+  z-index: -1;
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
 }
 .topbar {
   position: sticky;
@@ -55,7 +69,7 @@ main {
 }
 .arena-shell { position: relative; overflow: hidden; }
 .card {
-  background: linear-gradient(170deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  background: linear-gradient(170deg, rgba(8, 12, 24, 0.88), rgba(12, 16, 32, 0.82));
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
   padding: 16px;
