@@ -160,6 +160,11 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
+      if (req.method === "GET" && path === "/presentationAssets.js") {
+        await sendStaticFile(res, "presentationAssets.js");
+        return;
+      }
+
       const staticAssetPath = path.match(/^\/(creatures\/idle\/[a-z0-9_-]+\.(?:gif|webp))$/i);
       if (req.method === "GET" && staticAssetPath) {
         await sendStaticFile(res, staticAssetPath[1]);

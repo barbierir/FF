@@ -10,8 +10,18 @@ import {
   mapEventToPresentationAction,
 } from '/presentationAssets.js';
 
+function debugLog(...args) {
+  if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
+    console.debug(...args);
+  }
+}
+
 export function getPresentationActionType(event) {
-  return mapEventToPresentationAction(event);
+  try {
+    return mapEventToPresentationAction(event);
+  } catch {
+    return 'prepare';
+  }
 }
 
 function toBubbleText(event) {
@@ -24,7 +34,8 @@ export function getCreatureAnimation(creatureId, actionType) {
 
 export function buildMatchPresentationTimeline(events = [], summary = null) {
   const timeline = [];
-  const playableEvents = events.filter((event) => event?.actor === 'A' || event?.actor === 'B');
+  const safeEvents = Array.isArray(events) ? events : [];
+  const playableEvents = safeEvents.filter((event) => event && (event.actor === 'A' || event.actor === 'B'));
   const playbackDuration = ACTION_PHASE_END_MS - INTRO_DURATION_MS;
   const spacing = playableEvents.length > 0 ? playbackDuration / playableEvents.length : playbackDuration;
 
@@ -60,6 +71,8 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
     atMs: MATCH_PRESENTATION_DURATION_MS,
     phase: 'finished',
   });
+
+  debugLog('[presentation] timeline built length', timeline.length);
 
   return {
     durationMs: MATCH_PRESENTATION_DURATION_MS,
@@ -104,7 +117,9 @@ export class MatchPresentation {
   }
 
   playSound(actionType) {
+    if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
     const soundPath = getActionSound(actionType);
+    debugLog('[presentation] sound path', actionType, soundPath);
     if (!soundPath) return;
     try {
       const audio = new Audio(soundPath);
@@ -126,7 +141,8 @@ export class MatchPresentation {
     const slot = this.root.querySelector(`[data-creature="${side}"] img`);
     if (!slot) return;
     const creatureId = side === 'A' ? this.creatures.a : this.creatures.b;
-    const candidate = getCreatureAnimation(creatureId, actionType);
+    const candidate = getCreatureAnimation(creatureId, actionType) || getCreatureIdlePath(creatureId);
+    debugLog('[presentation] animation path', side, actionType, candidate);
     slot.src = candidate;
     slot.onerror = () => {
       slot.onerror = null;
@@ -151,14 +167,15 @@ export class MatchPresentation {
   }
 
   renderLogEvent(event) {
-    if (!this.eventLogRoot) return;
+    if (!this.eventLogRoot || !event) return;
     const line = document.createElement('div');
-    line.textContent = `T${event.t} ${event.actor} ${event.kind}${event.outcome ? ` ${event.outcome}` : ''} | HP A:${event.prA} B:${event.prB}`;
+    line.textContent = `T${event.t ?? '?'} ${event.actor ?? '?'} ${event.kind ?? 'UNKNOWN'}${event.outcome ? ` ${event.outcome}` : ''} | HP A:${event.prA ?? '?'} B:${event.prB ?? '?'}`;
     this.eventLogRoot.appendChild(line);
   }
 
   applyAction(step) {
     const event = step.event;
+    debugLog('[presentation] current action type', step.actionType);
     this.phase = 'playing';
     this.currentHp = {
       A: Number.isFinite(event.prA) ? event.prA : this.currentHp.A,
