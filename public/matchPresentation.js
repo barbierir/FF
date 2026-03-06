@@ -2,51 +2,24 @@ const MATCH_PRESENTATION_DURATION_MS = 40_000;
 const INTRO_DURATION_MS = 4_000;
 const ACTION_PHASE_END_MS = 34_000;
 
-const ACTION_TYPE_AUDIO = {
-  preparation: '/audio/prepare.mp3',
-  attack: '/audio/attack.mp3',
-  hit: '/audio/hit.mp3',
-  defense: '/audio/defend.mp3',
-  counter: '/audio/counter.mp3',
-  recovery: '/audio/recovery.mp3',
-  defeat: '/audio/defeat.mp3',
-  victory: '/audio/victory.mp3',
-  system: null,
-};
+import {
+  getActionSound,
+  getBubbleText,
+  getCreatureAnimationPath,
+  getCreatureIdlePath,
+  mapEventToPresentationAction,
+} from '/presentationAssets.js';
 
 export function getPresentationActionType(event) {
-  if (!event) return 'system';
-  if (event.kind === 'ATTACK' && event.outcome === 'BACKFIRE') return 'counter';
-  if (event.kind === 'ATTACK') return 'attack';
-  if (event.kind === 'DEFEND') return 'defense';
-  if (event.kind === 'HEAL' || event.kind === 'RECHARGE_EXTRA') return 'recovery';
-  if (event.kind === 'DOT') return 'hit';
-  if (event.kind === 'VENGEANCE') return 'counter';
-  if (event.kind === 'TURN_START' || event.kind === 'SYSTEM') return 'preparation';
-  return 'system';
+  return mapEventToPresentationAction(event);
 }
 
 function toBubbleText(event) {
-  if (event.kind === 'ATTACK' && event.outcome === 'CATACLYSM') return 'Cataclysm blast!';
-  if (event.kind === 'ATTACK' && event.outcome === 'TOXIC') return 'Toxic cloud!';
-  if (event.kind === 'ATTACK' && event.outcome === 'BACKFIRE') return 'Backfire!';
-  if (event.kind === 'ATTACK') return 'Gas blast!';
-  if (event.kind === 'DEFEND') return 'Blocked!';
-  if (event.kind === 'HEAL') return 'Recovering!';
-  if (event.kind === 'DOT') return 'Burning hit!';
-  if (event.kind === 'RECHARGE_EXTRA') return 'Charging up!';
-  if (event.kind === 'VENGEANCE') return 'Final vengeance!';
-  return event.kind || 'Action!';
-}
-
-export function getActionSound(actionType) {
-  return ACTION_TYPE_AUDIO[actionType] ?? null;
+  return getBubbleText(getPresentationActionType(event));
 }
 
 export function getCreatureAnimation(creatureId, actionType) {
-  const normalized = creatureId || 'goblin';
-  const base = `/animations/${normalized}`;
-  return `${base}/${actionType}.gif`;
+  return getCreatureAnimationPath(creatureId || 'goblin', actionType);
 }
 
 export function buildMatchPresentationTimeline(events = [], summary = null) {
@@ -157,7 +130,7 @@ export class MatchPresentation {
     slot.src = candidate;
     slot.onerror = () => {
       slot.onerror = null;
-      slot.src = getCreatureAnimation(creatureId, 'idle');
+      slot.src = getCreatureIdlePath(creatureId);
     };
   }
 
@@ -230,8 +203,8 @@ export class MatchPresentation {
       this.showBubble({ text: 'Down!', align: 'left' });
     } else {
       badge.textContent = 'Draw';
-      this.setCreatureAnimation('A', 'recovery');
-      this.setCreatureAnimation('B', 'recovery');
+      this.setCreatureAnimation('A', 'prepare');
+      this.setCreatureAnimation('B', 'prepare');
       this.showBubble({ text: 'Still standing!', align: 'center' });
     }
 
@@ -255,8 +228,12 @@ export class MatchPresentation {
     this.clearBubble();
     if (this.eventLogRoot) this.eventLogRoot.innerHTML = '';
 
-    this.setCreatureAnimation('A', 'idle');
-    this.setCreatureAnimation('B', 'idle');
+    const leftCreatureId = this.creatures.a;
+    const rightCreatureId = this.creatures.b;
+    const slotA = this.root.querySelector('[data-creature="A"] img');
+    const slotB = this.root.querySelector('[data-creature="B"] img');
+    if (slotA) slotA.src = getCreatureIdlePath(leftCreatureId);
+    if (slotB) slotB.src = getCreatureIdlePath(rightCreatureId);
 
     const resultBadge = this.root.querySelector('[data-result-badge]');
     resultBadge.dataset.state = 'hidden';
