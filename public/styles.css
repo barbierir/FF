@@ -440,3 +440,72 @@ a { color: var(--accent); }
   margin-top: 8px;
   margin-bottom: 4px;
 }
+
+.player-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-identity__avatar {
+  flex: 0 0 auto;
+}
+
+.player-identity__avatar .creature-idle,
+.player-identity__avatar .creature-fallback {
+  border-radius: 10px;
+}
+
+.player-identity__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.player-identity__primary {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.player-identity__secondary {
+  color: var(--muted);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.player-identity--compact {
+  gap: 10px;
+}
+
+.player-identity--compact .player-identity__primary {
+  font-size: 0.98rem;
+}
+
+.player-identity--compact .player-identity__secondary {
+  font-size: 0.82rem;
+}
+
+.player-identity--hero {
+  gap: 16px;
+}
+
+.player-identity--hero .player-identity__primary {
+  font-size: 1.35rem;
+}
+
+.player-identity--hero .player-identity__secondary {
+  font-size: 1rem;
+}
+
+
+.leaderboard-identity {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.challenge-row-identity {
+  display: inline-flex;
+  vertical-align: middle;
+}
