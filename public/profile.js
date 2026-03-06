@@ -50,10 +50,6 @@ function renderCreatureSelect(container, playerId, onContinue) {
   container.replaceChildren(section);
 }
 
-function hideRedundantNav() {
-  const newChallengeNav = document.getElementById("navNewChallenge");
-  if (newChallengeNav) newChallengeNav.hidden = true;
-}
 
 function showSelectedCreatureLine(playerId, creatureId) {
   renderPlayerIdentity(document.getElementById("profileIdentity"), {
@@ -240,7 +236,6 @@ async function refreshPlayerHome(playerId, creatureId) {
 }
 
 export async function initPlayerProfilePage(playerId) {
-  hideRedundantNav();
   const flow = document.getElementById("creatureFlow");
   const profileContent = document.getElementById("profileContent");
   const selected = getPlayerCreatureId(playerId);

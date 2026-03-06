@@ -350,14 +350,28 @@ export function updateTopNav() {
   if (profileLink) {
     profileLink.href = playerId ? `/p/${encodeURIComponent(playerId)}` : "/";
   }
-  const navLinks = document.querySelector(".topbar .nav-links");
-  if (navLinks && !document.getElementById("navDaily")) {
-    const dailyLink = document.createElement("a");
-    dailyLink.id = "navDaily";
-    dailyLink.href = "/daily";
-    dailyLink.textContent = "Daily";
-    navLinks.appendChild(dailyLink);
-  }
+
+  const pathname = window.location.pathname;
+  const activeNav = pathname === "/" || pathname === "/home"
+    ? "home"
+    : pathname.startsWith("/p/")
+      ? "profile"
+      : pathname.startsWith("/leaderboard")
+        ? "leaderboard"
+        : pathname.startsWith("/daily")
+          ? "daily"
+          : null;
+
+  document.querySelectorAll(".topbar .nav-links a[data-nav]").forEach((link) => {
+    const isActive = link.dataset.nav === activeNav;
+    link.classList.toggle("active", isActive);
+    if (isActive) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+
   updateResumeReplayLink();
 }
 
