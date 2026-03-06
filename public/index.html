@@ -41,9 +41,9 @@
 
       </main>
 <script type="module">
-import { copyText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, loadViewerProfileBar, renderCreaturePickerGrid, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, shouldSkipAutoResume, updateTopNav } from '/app.js';
-import { renderPlayerIdentity } from '/playerIdentity.js';
+import { copyText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, loadViewerProfileBar, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, shouldSkipAutoResume, updateTopNav } from '/app.js';
 const err = document.getElementById('error');
+try {
 const forceNewMode = shouldSkipAutoResume();
 if (forceNewMode) {
   const note = document.getElementById('newModeNote');
@@ -157,5 +157,11 @@ if (lastChallengeToken) {
   } catch {
     localStorage.removeItem('lastChallengeToken');
   }
+}
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  err.textContent = `Could not load page: ${message}`;
+  const profileBar = document.getElementById('profileBar');
+  if (profileBar) profileBar.textContent = 'Could not load page.';
 }
 </script></body></html>
