@@ -549,38 +549,71 @@ export function renderChallengeShareActions(container, { url, message, onCopySta
   heading.textContent = "Share Your Challenge";
   heading.className = "challenge-share-title";
 
+  const helper = document.createElement("p");
+  helper.className = "challenge-share-helper";
+  helper.textContent = "Invite another creature to join the arena.";
+
   const actions = document.createElement("div");
   actions.className = "challenge-share-actions";
 
+  function createShareIcon(iconName) {
+    const icon = document.createElement("span");
+    icon.className = "challenge-share-icon";
+    if (iconName === "whatsapp") {
+      icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.47 14.38c-.27-.14-1.58-.78-1.83-.87-.24-.09-.42-.14-.6.14-.18.27-.69.87-.85 1.05-.15.18-.31.2-.58.07-.27-.14-1.13-.41-2.16-1.31-.8-.71-1.34-1.58-1.5-1.85-.15-.27-.02-.42.11-.56.12-.12.27-.31.4-.47.13-.16.18-.27.27-.45.09-.18.05-.34-.02-.47-.07-.14-.6-1.44-.82-1.97-.22-.53-.44-.45-.6-.46-.15-.01-.34-.01-.52-.01-.18 0-.47.07-.72.34-.24.27-.92.9-.92 2.2 0 1.3.94 2.56 1.07 2.74.13.18 1.84 2.81 4.45 3.93.62.27 1.11.42 1.49.53.63.2 1.2.17 1.65.1.5-.07 1.58-.64 1.8-1.27.22-.63.22-1.16.15-1.27-.06-.11-.24-.18-.51-.32z"/></svg>';
+    } else if (iconName === "facebook") {
+      icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 22v-8h2.7l.4-3h-3.1V9.1c0-.87.25-1.46 1.5-1.46h1.64V5c-.28-.04-1.23-.12-2.34-.12-2.31 0-3.89 1.41-3.89 4v2.23H8v3h2.9v8h2.6z"/></svg>';
+    } else {
+      icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>';
+    }
+    return icon;
+  }
+
+  function createShareLabel(label) {
+    const textNode = document.createElement("span");
+    textNode.className = "challenge-share-label";
+    textNode.textContent = label;
+    return textNode;
+  }
+
   const whatsapp = document.createElement("a");
-  whatsapp.className = "button-link secondary";
-  whatsapp.textContent = "WhatsApp";
+  whatsapp.className = "button-link secondary challenge-share-button challenge-share-button--whatsapp";
+  whatsapp.append(createShareIcon("whatsapp"), createShareLabel("WhatsApp"));
   whatsapp.href = `https://wa.me/?text=${encodeURIComponent(text)}`;
   whatsapp.target = "_blank";
   whatsapp.rel = "noopener noreferrer";
 
   const facebook = document.createElement("a");
-  facebook.className = "button-link secondary";
-  facebook.textContent = "Facebook";
+  facebook.className = "button-link secondary challenge-share-button challenge-share-button--facebook";
+  facebook.append(createShareIcon("facebook"), createShareLabel("Facebook"));
   facebook.href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
   facebook.target = "_blank";
   facebook.rel = "noopener noreferrer";
 
   const copy = document.createElement("button");
   copy.type = "button";
-  copy.className = "secondary";
-  copy.textContent = "Copy";
+  copy.className = "secondary challenge-share-button challenge-share-button--copy";
+  const copyLabel = createShareLabel("Copy");
+  copy.append(createShareIcon("copy"), copyLabel);
+  let copyResetTimer = null;
   copy.onclick = async () => {
     try {
       await copyText(url);
-      onCopyStateChange?.("Link copied", false);
+      copyLabel.textContent = "Copied";
+      copy.classList.add("is-copied");
+      if (copyResetTimer) clearTimeout(copyResetTimer);
+      copyResetTimer = setTimeout(() => {
+        copyLabel.textContent = "Copy";
+        copy.classList.remove("is-copied");
+      }, 1800);
+      onCopyStateChange?.("Copied", false);
     } catch {
       onCopyStateChange?.("Could not copy link", true);
     }
   };
 
   actions.append(whatsapp, facebook, copy);
-  container.append(heading, actions);
+  container.append(heading, helper, actions);
   container.hidden = false;
 }
 
