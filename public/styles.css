@@ -743,25 +743,94 @@ a { color: var(--accent); }
 
 
 .challenge-share {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(7, 10, 24, 0.58);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 .challenge-share-title {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.challenge-share-helper {
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
 }
 
 .challenge-share-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .challenge-share-actions > a,
 .challenge-share-actions > button {
-  min-width: 96px;
+  min-width: 0;
+}
+
+.challenge-share-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.challenge-share-button:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 6px 14px rgba(0, 0, 0, 0.2);
+}
+
+.challenge-share-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.challenge-share-button--whatsapp {
+  background: rgba(37, 211, 102, 0.12);
+}
+
+.challenge-share-button--facebook {
+  background: rgba(24, 119, 242, 0.12);
+}
+
+.challenge-share-button--copy {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.challenge-share-button--copy.is-copied {
+  border-color: rgba(123, 242, 190, 0.85);
+  background: rgba(123, 242, 190, 0.2);
+}
+
+.challenge-share-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+}
+
+.challenge-share-icon > svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.challenge-share-label {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .challenge-share-actions {
+    grid-template-columns: 1fr;
+  }
 }
