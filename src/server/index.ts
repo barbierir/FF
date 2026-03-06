@@ -30,6 +30,8 @@ const STATIC_MIME: Record<string, string> = {
   ".svg": "image/svg+xml; charset=utf-8",
   ".gif": "image/gif",
   ".webp": "image/webp",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
 };
 
 function sendJson(res: import("node:http").ServerResponse, status: number, body: unknown): void {
@@ -151,6 +153,11 @@ export function createApiServer(): import("node:http").Server {
 
       if (req.method === "GET" && path === "/styles.css") {
         await sendStaticFile(res, "styles.css");
+        return;
+      }
+
+      if (req.method === "GET" && path === "/arena-background.jpg") {
+        await sendStaticFile(res, "arena-background.jpg");
         return;
       }
 
