@@ -26,16 +26,14 @@
       <div id="selectedIdentity"></div>
       <div class="card-actions"><button id="createBtn">New Challenge</button></div>
       <p id="error" class="error"></p>
-      <div id="linkWrap" style="display:none">
-        <label>Share Link</label>
-        <div class="linkbox"><input id="link" readonly/><button class="secondary" id="copyBtn">Copy</button></div>
-      </div>
+      <section id="linkWrap" class="challenge-share" hidden></section>
+      <p id="shareFeedback" class="small"></p>
       <div id="continueWrap" class="card-actions" style="display:none"><h3>Continue</h3><p id="continueMsg" class="small"></p></div>
     </section>
 
       </main>
 <script type="module">
-import { copyText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, loadViewerProfileBar, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, shouldSkipAutoResume, updateTopNav } from '/app.js';
+import { buildChallengeShareText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getShareableChallengeUrl, loadViewerProfileBar, renderChallengeShareActions, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, shouldSkipAutoResume, updateTopNav } from '/app.js';
 const err = document.getElementById('error');
 try {
 const forceNewMode = shouldSkipAutoResume();
@@ -130,21 +128,33 @@ document.getElementById('createBtn').onclick = async () => {
     const challenge = await createChallenge(playerId, creatureFromDom('a'), getPlayerCreatureId(playerId));
     const url = `${location.origin}/c/${challenge.token}`;
     localStorage.setItem('lastChallengeToken', challenge.token);
-    document.getElementById('link').value = url;
-    document.getElementById('linkWrap').style.display = 'block';
+const shareWrap = document.getElementById('linkWrap');
+    const shareFeedback = document.getElementById('shareFeedback');
+    renderChallengeShareActions(shareWrap, {
+      url: getShareableChallengeUrl(challenge) || url,
+      message: buildChallengeShareText({ challengerLabel: selectedNickname }),
+      onCopyStateChange: (message, isError) => {
+        shareFeedback.textContent = message;
+        shareFeedback.className = isError ? 'error' : 'small';
+      },
+    });
     const alreadyAccepted = await checkAndContinue(challenge.token);
     if (!alreadyAccepted) startContinuePolling(challenge.token);
   } catch (e) { err.textContent = e.message; }
 };
-document.getElementById('copyBtn').onclick = async () => {
-  await copyText(document.getElementById('link').value);
-};
-
 const lastChallengeToken = forceNewMode ? null : localStorage.getItem('lastChallengeToken');
 if (lastChallengeToken) {
   const url = `${location.origin}/c/${lastChallengeToken}`;
-  document.getElementById('link').value = url;
-  document.getElementById('linkWrap').style.display = 'block';
+  const shareWrap = document.getElementById('linkWrap');
+  const shareFeedback = document.getElementById('shareFeedback');
+  renderChallengeShareActions(shareWrap, {
+    url,
+    message: buildChallengeShareText({ challengerLabel: selectedNickname }),
+    onCopyStateChange: (message, isError) => {
+      shareFeedback.textContent = message;
+      shareFeedback.className = isError ? 'error' : 'small';
+    },
+  });
   try {
     const alreadyAccepted = await checkAndContinue(lastChallengeToken);
     if (!alreadyAccepted) startContinuePolling(lastChallengeToken);
