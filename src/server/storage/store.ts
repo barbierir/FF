@@ -33,6 +33,7 @@ export interface Store {
   getReplayByPublicId(publicId: string): Promise<ReplayPayload | undefined>;
   getFinalizedPayload(matchId: string): Promise<FinalizedPayload | undefined>;
   getOrCreatePlayer(playerId?: string): Promise<PlayerProfile>;
+  setPlayerCreatureSelection(playerId: string, creatureId?: string | null, creatureNickname?: string | null): Promise<void>;
   applyMatchRewards(matchId: string): Promise<void>;
   recordShare(playerId: string, matchPublicId: string): Promise<{ awarded: boolean; stinkFameGained: number }>;
   recordChallengeAccepted(challengeId: string): Promise<void>;

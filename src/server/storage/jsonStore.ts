@@ -514,6 +514,16 @@ export class JsonStore implements Store {
     return profile;
   }
 
+  async setPlayerCreatureSelection(playerId: string, creatureId?: string | null, creatureNickname?: string | null): Promise<void> {
+    await this.ready;
+    const profile = this.findPlayer(playerId);
+    const normalizedCreatureId = typeof creatureId === "string" && creatureId.trim() ? creatureId.trim() : undefined;
+    const normalizedNickname = typeof creatureNickname === "string" && creatureNickname.trim() ? creatureNickname.trim() : undefined;
+    if (normalizedCreatureId) profile.creatureId = normalizedCreatureId;
+    if (normalizedNickname) profile.creatureNickname = normalizedNickname;
+    await this.flush();
+  }
+
   async applyMatchRewards(matchId: string): Promise<void> {
     await this.ready;
     const match = this.state.matches.find((item) => item.id === matchId);
@@ -738,17 +748,35 @@ export class JsonStore implements Store {
       .map((match) => ({ match, challenge: challengeById.get(match.challengeId) }))
       .filter((row) => row.challenge && (row.challenge.playerAId === playerId || row.challenge.playerBId === playerId));
 
+    const playerById = new Map(this.state.players.map((player) => [player.id, player]));
     const recentMatches = involvedMatches
       .slice()
       .sort((a, b) => Date.parse(b.match.finalizedAtISO) - Date.parse(a.match.finalizedAtISO))
       .slice(0, 10)
-      .map(({ match }) => {
+      .map(({ match, challenge }) => {
         const summary = JSON.parse(match.summary_json) as SummaryV1;
+        const isA = challenge?.playerAId === playerId;
+        const opponentPlayerId = isA ? challenge?.playerBId : challenge?.playerAId;
+        const opponentProfile = opponentPlayerId ? playerById.get(opponentPlayerId) : undefined;
+        const won = (summary.winner === "A" && isA) || (summary.winner === "B" && !isA);
+        const resultLabel = summary.winner === "DRAW" ? "Draw" : won ? "Victory" : "Defeat";
+        const playerAProfile = challenge?.playerAId ? playerById.get(challenge.playerAId) : undefined;
+        const playerBProfile = challenge?.playerBId ? playerById.get(challenge.playerBId) : undefined;
         return {
           publicId: match.publicId,
           winner: summary.winner,
           maxHit: summary.highlights.maxHitValue,
           createdAtISO: match.finalizedAtISO,
+          playerAId: challenge?.playerAId ?? undefined,
+          playerBId: challenge?.playerBId ?? undefined,
+          playerACreatureId: playerAProfile?.creatureId,
+          playerBCreatureId: playerBProfile?.creatureId,
+          playerANickname: playerAProfile?.creatureNickname,
+          playerBNickname: playerBProfile?.creatureNickname,
+          opponentPlayerId: opponentPlayerId ?? undefined,
+          opponentCreatureId: opponentProfile?.creatureId,
+          opponentCreatureNickname: opponentProfile?.creatureNickname,
+          resultLabel,
         };
       });
 
@@ -794,7 +822,15 @@ export class JsonStore implements Store {
 
   async getGlobalLeaderboard(): Promise<GlobalLeaderboardRow[]> {
     await this.ready;
-    return buildLeaderboard(this.state.matches, this.state.challenges).slice(0, 50);
+    const playerById = new Map(this.state.players.map((player) => [player.id, player]));
+    return buildLeaderboard(this.state.matches, this.state.challenges).slice(0, 50).map((row) => {
+      const profile = playerById.get(row.playerId);
+      return {
+        ...row,
+        creatureId: profile?.creatureId,
+        creatureNickname: profile?.creatureNickname,
+      };
+    });
   }
 
   async getRivalry(playerA: string, playerB: string): Promise<RivalryStats> {

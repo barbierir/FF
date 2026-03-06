@@ -61,6 +61,8 @@ export type PlayerProfile = {
   maxHitEver: number;
   totalBackfires: number;
   totalCataclysms: number;
+  creatureId?: string;
+  creatureNickname?: string;
   lastMissionDay?: string;
   lastShareDay?: string;
   lastShareCountDay?: number;
@@ -141,6 +143,16 @@ export type PublicRecentMatch = {
   winner: "A" | "B" | "DRAW";
   maxHit: number;
   createdAtISO: string;
+  playerAId?: string;
+  playerBId?: string;
+  playerACreatureId?: string;
+  playerBCreatureId?: string;
+  playerANickname?: string;
+  playerBNickname?: string;
+  opponentPlayerId?: string;
+  opponentCreatureId?: string;
+  opponentCreatureNickname?: string;
+  resultLabel?: "Victory" | "Defeat" | "Draw";
 };
 
 export type PublicRivalryRow = {
@@ -159,6 +171,8 @@ export type PublicPlayerResponse = {
 export type GlobalLeaderboardRow = {
   rank: number;
   playerId: string;
+  creatureId?: string;
+  creatureNickname?: string;
   wins: number;
   losses: number;
   draws: number;

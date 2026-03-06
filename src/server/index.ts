@@ -73,6 +73,12 @@ async function parseJsonBody(req: import("node:http").IncomingMessage): Promise<
   }
 }
 
+function normalizeNicknameInput(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized.length ? normalized : undefined;
+}
+
 function getBaseUrl(req: import("node:http").IncomingMessage): string {
   const host = req.headers.host ?? `localhost:${PORT}`;
   const forwardedProtoHeader = req.headers["x-forwarded-proto"];
@@ -296,12 +302,13 @@ export function createApiServer(): import("node:http").Server {
 
       if (req.method === "POST" && path === "/api/challenges") {
         enforceRateLimit(req, "createChallenge", 10);
-        const body = (await parseJsonBody(req)) as { creatureA?: unknown; expiresInHours?: unknown; playerId?: unknown; playerAId?: unknown };
+        const body = (await parseJsonBody(req)) as { creatureA?: unknown; expiresInHours?: unknown; playerId?: unknown; playerAId?: unknown; creatureId?: unknown; creatureNickname?: unknown };
         const creatureA = validateCreatureSpec(body.creatureA);
         const expiresInHours = validateExpiresInHours(body.expiresInHours);
         const playerId = maybeValidatePlayerId(body.playerAId ?? body.playerId);
 
         const creator = await store.getOrCreatePlayer(playerId);
+        await store.setPlayerCreatureSelection(creator.id, body.creatureId as string | undefined, normalizeNicknameInput(body.creatureNickname));
         const challenge = await store.createChallenge({
           creatureA,
           expiresInHours,
@@ -320,9 +327,10 @@ export function createApiServer(): import("node:http").Server {
       if (req.method === "POST" && acceptMatch) {
         enforceRateLimit(req, "acceptChallenge", 20);
         const token = validateId("token", decodeURIComponent(acceptMatch[1]));
-        const body = (await parseJsonBody(req)) as { creatureB?: unknown; playerId?: unknown; playerBId?: unknown };
+        const body = (await parseJsonBody(req)) as { creatureB?: unknown; playerId?: unknown; playerBId?: unknown; creatureId?: unknown; creatureNickname?: unknown };
         const creatureB = validateCreatureSpec(body.creatureB);
         const joiner = await store.getOrCreatePlayer(maybeValidatePlayerId(body.playerBId ?? body.playerId));
+        await store.setPlayerCreatureSelection(joiner.id, body.creatureId as string | undefined, normalizeNicknameInput(body.creatureNickname));
         const match = await store.acceptChallenge(token, creatureB, joiner.id);
         sendJson(res, 200, {
           matchId: match.id,
@@ -382,12 +390,18 @@ export function createApiServer(): import("node:http").Server {
         const viewerIdRaw = url.searchParams.get("viewerId");
         const viewerId = viewerIdRaw ? validateId("viewerId", viewerIdRaw, 3) : undefined;
         const challenge = await loadChallengeForViewer(store, token, viewerId);
+        const playerAProfile = challenge.playerAId ? await store.getOrCreatePlayer(challenge.playerAId) : undefined;
+        const playerBProfile = challenge.playerBId ? await store.getOrCreatePlayer(challenge.playerBId) : undefined;
         sendJson(res, 200, {
           id: challenge.id,
           token: challenge.token,
           status: challenge.status,
           playerAId: challenge.playerAId ?? null,
           playerBId: challenge.playerBId ?? null,
+          playerACreatureId: playerAProfile?.creatureId,
+          playerANickname: playerAProfile?.creatureNickname,
+          playerBCreatureId: playerBProfile?.creatureId,
+          playerBNickname: playerBProfile?.creatureNickname,
           creatureA: challenge.creatureA,
           creatureB: challenge.creatureB,
           createdAtISO: challenge.createdAtISO,
@@ -552,7 +566,11 @@ export function createApiServer(): import("node:http").Server {
         if (!replay) {
           throw new HttpError(404, "replay_not_found", "Replay not found");
         }
-        const text = buildShareText(replay.summary as SummaryV1, publicId, getBaseUrl(req));
+        const match = await store.getMatchByPublicId(publicId);
+        const challenge = match ? await store.getChallengeById(match.challengeId) : undefined;
+        const playerAProfile = challenge?.playerAId ? await store.getOrCreatePlayer(challenge.playerAId) : undefined;
+        const playerBProfile = challenge?.playerBId ? await store.getOrCreatePlayer(challenge.playerBId) : undefined;
+        const text = buildShareText(replay.summary as SummaryV1, publicId, getBaseUrl(req), { a: playerAProfile?.creatureNickname, b: playerBProfile?.creatureNickname });
         sendJson(res, 200, { text });
         return;
       }
@@ -568,6 +586,9 @@ export function createApiServer(): import("node:http").Server {
           return;
         }
 
+        const challenge = await store.getChallengeById(match.challengeId);
+        const playerAProfile = challenge?.playerAId ? await store.getOrCreatePlayer(challenge.playerAId) : undefined;
+        const playerBProfile = challenge?.playerBId ? await store.getOrCreatePlayer(challenge.playerBId) : undefined;
         const html = renderReplayPage({
           publicId,
           replayData: {
@@ -575,6 +596,7 @@ export function createApiServer(): import("node:http").Server {
             matchHash: match.match_hash_hex,
             seedHex: match.seed_hex,
           },
+          matchupLabel: `${playerAProfile?.creatureNickname || challenge?.creatureA.classKey || "Challenger"} vs ${playerBProfile?.creatureNickname || challenge?.creatureB?.classKey || "Opponent"}`,
           baseUrl: getBaseUrl(req),
         });
 
