@@ -19,7 +19,6 @@ import { maybeValidatePlayerId, validateCreatureSpec, validateExpiresInHours, va
 const store = new JsonStore();
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
 const limiter = new TokenBucketRateLimiter();
-const shareIpDailyCounts = new Map<string, number>();
 const publicDir = path.resolve(process.cwd(), "public");
 
 const STATIC_MIME: Record<string, string> = {
@@ -94,16 +93,6 @@ function enforceRateLimit(req: import("node:http").IncomingMessage, key: string,
   if (!limiter.allow(`${key}:${ip}`, perMin)) {
     throw new HttpError(429, "rate_limited", "Rate limit exceeded");
   }
-}
-
-function enforceShareIpDailyCap(req: import("node:http").IncomingMessage): void {
-  const ip = getRequestIp(req);
-  const key = `${ip}:${dayKey(new Date().toISOString())}`;
-  const next = (shareIpDailyCounts.get(key) ?? 0) + 1;
-  if (next > 200) {
-    throw new HttpError(429, "share_ip_cap_reached", "Daily share cap reached for this IP");
-  }
-  shareIpDailyCounts.set(key, next);
 }
 
 
@@ -465,7 +454,6 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
-      const replayShare = path.match(/^\/api\/replay\/([^/]+)\/share$/);
       const rematchMatch = path.match(/^\/api\/rematch\/([^/]+)$/);
       if (req.method === "POST" && rematchMatch) {
         enforceRateLimit(req, "createChallenge", 10);
@@ -492,23 +480,6 @@ export function createApiServer(): import("node:http").Server {
           opponentHint: opponentPlayerId ? { playerId: opponentPlayerId } : null,
           baseUrl: getBaseUrl(req),
         });
-        return;
-      }
-
-      if (req.method === "POST" && replayShare) {
-        enforceRateLimit(req, "share", 60);
-        enforceShareIpDailyCap(req);
-        const publicId = validateId("publicId", decodeURIComponent(replayShare[1]));
-        const replay = await store.getReplayByPublicId(publicId);
-        if (!replay) {
-          throw new HttpError(404, "replay_not_found", "Replay not found");
-        }
-
-        const body = (await parseJsonBody(req)) as { playerId?: unknown };
-        const profile = await store.getOrCreatePlayer(maybeValidatePlayerId(body.playerId));
-        const result = await store.recordShare(profile.id, publicId);
-        const updated = await store.getOrCreatePlayer(profile.id);
-        sendJson(res, 200, { ...result, profile: updated, playerId: profile.id });
         return;
       }
 

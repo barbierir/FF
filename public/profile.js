@@ -341,11 +341,18 @@ export async function apiRivalry(playerA, playerB) {
 }
 
 export async function apiDaily() {
-  const data = await api("/api/daily-highlight");
-  const nickname = getPlayerCreatureNickname(data.playerId);
-  const creatureId = getPlayerCreatureId(data.playerId);
-  const { creatureName } = getCreaturePresentation(data.playerId, creatureId, nickname);
-  const label = nickname || creatureName;
+  const dailyEl = document.getElementById("daily");
   const dailyBadge = createStatusBadge({ label: "Daily", variant: "daily", size: "sm" }).outerHTML;
-  document.getElementById("daily").innerHTML = `${dailyBadge} ${data.highlightType} by <a href="/p/${encodeURIComponent(data.playerId)}">${label}</a> (value ${data.value}) · <a href="/replay/${data.publicId}">Watch replay</a>`;
+
+  try {
+    const data = await api("/api/daily-highlight");
+    const fallbackPresentation = getCreaturePresentation(data.playerId, data.playerCreatureId ?? null, null);
+    const challengerLabel = (data.playerCreatureNickname || "").trim() || fallbackPresentation.creatureName || "Mystery Challenger";
+    const valueLabel = data.valueLabel || "Score";
+    const metricLabel = data.highlightLabel || "Daily Record";
+
+    dailyEl.innerHTML = `${dailyBadge} Face today's challenger and try to beat the daily record.<br><strong>${metricLabel}</strong>: ${valueLabel} ${data.value} · Challenger: <a href="/p/${encodeURIComponent(data.playerId)}">${challengerLabel}</a> · <a href="/replay/${data.publicId}">Watch replay</a>`;
+  } catch (error) {
+    dailyEl.textContent = "Today's challenge is not ready yet.";
+  }
 }

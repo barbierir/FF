@@ -661,13 +661,6 @@ export async function createRematch(publicId, playerId, side) {
   });
 }
 
-export async function shareReplay(publicId, playerId) {
-  return api(`/api/replay/${encodeURIComponent(publicId)}/share`, {
-    method: "POST",
-    body: JSON.stringify({ playerId }),
-  });
-}
-
 export function parsePath() {
   return location.pathname.split("/").filter(Boolean);
 }
@@ -875,18 +868,14 @@ export function getMatchOpponentSummary(match, currentPlayerId) {
   const iAmA = match?.playerAId === currentPlayerId;
   const opponentPlayerId = iAmA ? match?.playerBId : match?.playerAId;
   const opponentCreatureId = iAmA ? match?.playerBCreatureId : match?.playerACreatureId;
-  const opponentCreatureNickname = iAmA ? match?.playerBNickname : match?.playerANickname;
-  const summary = getPlayerCreatureSummary({
-    playerId: opponentPlayerId,
-    creatureId: opponentCreatureId,
-    creatureNickname: opponentCreatureNickname,
-  });
+  const opponentCreatureNickname = normalizeNickname(iAmA ? match?.playerBNickname : match?.playerANickname);
+  const presentation = getCreaturePresentation(opponentPlayerId, opponentCreatureId, opponentCreatureNickname);
   return {
     opponentPlayerId,
-    opponentCreatureId: summary.creatureId,
-    opponentCreatureNickname: summary.creatureNickname,
-    opponentCreatureName: summary.creatureName,
-    opponentPrimaryLabel: summary.primaryLabel,
+    opponentCreatureId: opponentCreatureId ?? null,
+    opponentCreatureNickname,
+    opponentCreatureName: presentation.creatureName,
+    opponentPrimaryLabel: presentation.primaryLabel,
   };
 }
 
