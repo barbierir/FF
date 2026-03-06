@@ -29,7 +29,9 @@ body {
 .topbar {
   position: sticky;
   top: 0;
+  z-index: 10;
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
@@ -164,8 +166,31 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.12); }
 a { color: var(--accent); }
 
-.nav-links { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.nav-links a { color: var(--text); text-decoration: none; font-weight: 600; }
+.nav-links { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.nav-links a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.nav-links a:hover {
+  border-color: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+}
+
+.nav-links a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.nav-links a.active,
+.nav-links a[aria-current="page"] {
+  color: #0b1022;
+  background: linear-gradient(120deg, var(--accent2), var(--accent));
+}
 .button-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .button-link { display: inline-block; padding: 10px 14px; border-radius: 10px; text-decoration: none; font-weight: 700; background: linear-gradient(120deg, var(--accent2), var(--accent)); color: #0b1022; }
 .primary-cta-group {
@@ -256,6 +281,25 @@ a { color: var(--accent); }
 }
 
 @media (max-width: 640px){
+  .topbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .topbar > strong {
+    width: 100%;
+  }
+
+  .nav-links {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .topbar #profileBar,
+  .topbar #meta {
+    width: 100%;
+  }
+
   .arena-faceoff { grid-template-columns: 1fr; text-align: center; }
   .chaotic-move-grid { grid-template-columns: 1fr; }
 }
@@ -421,6 +465,18 @@ a { color: var(--accent); }
   font-size: 0.85rem;
   color: var(--muted);
   text-decoration: underline;
+}
+
+
+.topbar-utility-link {
+  white-space: nowrap;
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.35);
+}
+
+.topbar-utility-link:hover {
+  color: var(--text);
+  border-bottom-color: var(--accent);
 }
 
 .player-home-links {
