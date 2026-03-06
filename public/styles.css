@@ -405,6 +405,18 @@ a { color: var(--accent); }
   margin-bottom: 10px;
 }
 
+
+.profile-stats-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.profile-stats-row span {
+  font-size: 0.92rem;
+}
+
 .small-link {
   font-size: 0.85rem;
   color: var(--muted);

@@ -129,6 +129,7 @@ export type PublicProfile = {
   wins: number;
   losses: number;
   draws: number;
+  leaderboardRank?: number;
   bestStreak: number;
   maxHitEver: number;
   totalCataclysms: number;
@@ -156,10 +157,12 @@ export type PublicPlayerResponse = {
 };
 
 export type GlobalLeaderboardRow = {
+  rank: number;
   playerId: string;
-  stinkFame: number;
   wins: number;
-  maxHitEver: number;
+  losses: number;
+  draws: number;
+  played: number;
 };
 
 export type RivalryStats = {

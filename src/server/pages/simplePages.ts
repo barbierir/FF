@@ -27,7 +27,7 @@ export function renderProfileShell(playerId: string): string {
     `Fart And Furious — ${playerId}`,
     `Player ${playerId}`,
     `Track ${playerId}'s stats, recent matches, and rivalries.`,
-    `<section class="card"><h1 id="player">${escapeHtml(playerId)}</h1><div id="creatureFlow"></div><div id="profileContent" hidden><div class="player-home-header"><p id="selectedCreatureLine"></p><a id="changeCreatureBtn" class="small-link" href="#">Change creature</a></div><button id="primaryActionBtn" type="button">New challenge</button><p id="homeStatus" class="small"></p><p id="homeError" class="error"></p><div class="player-home-links"><a href="/leaderboard">Leaderboard</a><a href="#matchHistory">Match history</a><a id="shareChallengeLink" href="#" hidden>Share link</a></div><h2 id="matchHistory">Match history</h2><ul id="recent"></ul></div></section>
+    `<section class="card"><h1 id="player">${escapeHtml(playerId)}</h1><div id="creatureFlow"></div><div id="profileContent" hidden><div class="player-home-header"><div id="profileCreatureVisual" class="creature-slot"></div><div><p id="selectedCreatureLine"></p><a id="changeCreatureBtn" class="small-link" href="#">Change creature</a></div></div><div class="profile-stats-row"><span>Wins: <strong id="profileWins">0</strong></span><span>Losses: <strong id="profileLosses">0</strong></span><span>Draws: <strong id="profileDraws">0</strong></span><span>Rank: <strong id="profileRank">—</strong></span></div><button id="primaryActionBtn" type="button">New challenge</button><p id="homeStatus" class="small"></p><p id="homeError" class="error"></p><div class="player-home-links"><a href="/leaderboard">Leaderboard</a><a href="#matchHistory">Match history</a><a id="shareChallengeLink" href="#" hidden>Share link</a></div><h2 id="matchHistory">Match history</h2><ul id="recent"></ul></div></section>
 <script type="module">
 import { initPlayerProfilePage } from '/profile.js';
 initPlayerProfilePage(${JSON.stringify(playerId)});
@@ -40,7 +40,7 @@ export function renderLeaderboardShell(): string {
     "Fart And Furious — Leaderboard",
     "Top Fart And Furious Players",
     "Global top 50 by StinkFame.",
-    `<section class="card"><h1 class="chaos-glow">🏆 GLOBAL STENCH RANKING</h1><table><thead><tr><th>#</th><th>Player</th><th>StinkFame</th><th>Wins</th><th>Max Hit</th></tr></thead><tbody id="rows"></tbody></table></section>
+    `<section class="card"><h1 class="chaos-glow">🏆 GLOBAL STENCH RANKING</h1><p id="leaderboardEmpty" class="small" hidden>No completed matches yet.</p><table><thead><tr><th>#</th><th>Player</th><th>Wins</th><th>Losses</th><th>Draws</th><th>Played</th></tr></thead><tbody id="rows"></tbody></table></section>
 <script type="module">
 import { apiLeaderboardGlobal } from '/profile.js';
 apiLeaderboardGlobal();
