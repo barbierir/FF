@@ -12,25 +12,25 @@
     <nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a>
     <span id="profileBar">Loading...</span>
   </div>
-  <main>
-    <section class="card">
+  <main class="page-stack">
+    <section class="card module-secondary">
       <h1>Fart And Furious</h1>
       <p>Create a challenge link and send it to a friend.</p>
       <p id="newModeNote" class="small" style="display:none">New Challenge mode: cleared previous replay state.</p>
           </section>
 
-    <section class="card">
+    <section class="card module-primary">
       <h2>Choose Your Creature</h2>
       <input id="a-class" type="hidden" value="goblin" aria-label="Selected creature"/>
       <div id="creatureGrid" class="creature-select-grid" role="list"></div>
       <div id="selectedIdentity"></div>
-      <div style="margin-top:10px"><button id="createBtn">New Challenge</button></div>
+      <div class="card-actions"><button id="createBtn">New Challenge</button></div>
       <p id="error" class="error"></p>
       <div id="linkWrap" style="display:none">
         <label>Share Link</label>
         <div class="linkbox"><input id="link" readonly/><button class="secondary" id="copyBtn">Copy</button></div>
       </div>
-      <div id="continueWrap" style="display:none;margin-top:12px"><h3>Continue</h3><p id="continueMsg" class="small"></p></div>
+      <div id="continueWrap" class="card-actions" style="display:none"><h3>Continue</h3><p id="continueMsg" class="small"></p></div>
     </section>
 
       </main>

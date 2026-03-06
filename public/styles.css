@@ -39,14 +39,81 @@ body {
   background: rgba(10, 12, 28, 0.7);
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
-main { max-width: 900px; margin: 0 auto; padding: 16px; }
+main {
+  width: min(100%, 960px);
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+.page-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.page-stack > .card {
+  margin-bottom: 0;
+}
 .arena-shell { position: relative; overflow: hidden; }
 .card {
   background: linear-gradient(170deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
-  padding: 14px;
+  padding: 16px;
   margin-bottom: 14px;
+}
+
+.module-primary {
+  border-color: rgba(57, 255, 20, 0.35);
+  box-shadow: 0 0 14px rgba(57, 255, 20, 0.18);
+}
+
+.module-secondary {
+  background: linear-gradient(170deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+}
+
+
+.card > h1,
+.card > h2,
+.card > h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.card > :last-child {
+  margin-bottom: 0;
+}
+
+.card-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.inline-actions > .button-link,
+.inline-actions > button {
+  min-width: 170px;
+}
+
+.data-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.data-list li {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(7, 10, 28, 0.5);
 }
 
 .arena-particles {
@@ -281,6 +348,20 @@ a { color: var(--accent); }
 }
 
 @media (max-width: 640px){
+  main {
+    padding: 16px 12px 24px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .inline-actions > .button-link,
+  .inline-actions > button {
+    width: 100%;
+    min-width: 0;
+  }
+
   .topbar {
     align-items: flex-start;
     flex-wrap: wrap;
@@ -446,7 +527,7 @@ a { color: var(--accent); }
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 
@@ -454,7 +535,7 @@ a { color: var(--accent); }
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .profile-stats-row span {
@@ -482,8 +563,8 @@ a { color: var(--accent); }
 .player-home-links {
   display: flex;
   gap: 12px;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin-top: 12px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 

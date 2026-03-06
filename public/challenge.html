@@ -1,7 +1,7 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Accept Challenge</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><div class="topbar"><strong>Challenge</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="profileBar">Loading...</span></div><main class="arena-shell">
+<body><div class="topbar"><strong>Challenge</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="profileBar">Loading...</span></div><main class="arena-shell page-stack">
 <div class="arena-particles" aria-hidden="true"></div>
-<section class="card chaotic-arena-panel">
+<section class="card chaotic-arena-panel module-primary">
 <h1 class="chaos-glow">Challenge Found</h1><p id="chalInfo"></p>
 <div class="arena-faceoff">
   <article class="arena-player-card"><div id="playerAIdentity"></div><div id="playerARank" class="gas-rank-badge">Gas Trainee</div></article>
@@ -9,7 +9,7 @@
   <article class="arena-player-card"><div id="playerBIdentity"></div><div id="playerBRank" class="gas-rank-badge">Gas Trainee</div></article>
 </div>
 </section>
-<section class="card chaotic-arena-panel"><h2 class="chaos-glow">Choose Your Creature</h2><input id="b-class" type="hidden" value="goblin"/><div id="challengeCreatureGrid" class="creature-select-grid" role="list"></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
+<section class="card chaotic-arena-panel module-secondary"><h2 class="chaos-glow">Choose Your Creature</h2><input id="b-class" type="hidden" value="goblin"/><div id="challengeCreatureGrid" class="creature-select-grid" role="list"></div><div class="card-actions"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
 </main>
 <script type="module">
 import { acceptChallenge, generateCreatureNickname, getChallenge, getGasRankTitle, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getProfile, loadViewerProfileBar, parsePath, randomSeed, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, updateTopNav } from '/app.js';
