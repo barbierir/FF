@@ -57,8 +57,10 @@ const FORCE_NEW_QUERY_VALUE = "1";
 
 const PLAYER_CREATURE_PREFIX = "ff:player:";
 const PLAYER_CREATURE_SUFFIX = ":creatureId";
+const PLAYER_CREATURE_NICKNAME_SUFFIX = ":creatureNickname";
 const LEGACY_PLAYER_CREATURE_PREFIX = "faf_playerCreature_";
 const PENDING_CREATURE_KEY = "ff:pendingCreatureId";
+const PENDING_CREATURE_NICKNAME_KEY = "ff:pendingCreatureNickname";
 
 function playerCreatureStorageKey(playerId) {
   return `${PLAYER_CREATURE_PREFIX}${playerId}${PLAYER_CREATURE_SUFFIX}`;
@@ -66,6 +68,10 @@ function playerCreatureStorageKey(playerId) {
 
 function legacyPlayerCreatureStorageKey(playerId) {
   return `${LEGACY_PLAYER_CREATURE_PREFIX}${playerId}`;
+}
+
+function playerCreatureNicknameStorageKey(playerId) {
+  return `${PLAYER_CREATURE_PREFIX}${playerId}${PLAYER_CREATURE_NICKNAME_SUFFIX}`;
 }
 
 export function getPlayerCreatureId(playerId) {
@@ -85,6 +91,21 @@ export function clearPlayerCreatureId(playerId) {
   localStorage.removeItem(legacyPlayerCreatureStorageKey(playerId));
 }
 
+export function getPlayerCreatureNickname(playerId) {
+  if (!playerId) return null;
+  return localStorage.getItem(playerCreatureNicknameStorageKey(playerId));
+}
+
+export function setPlayerCreatureNickname(playerId, nickname) {
+  if (!playerId || !nickname) return;
+  localStorage.setItem(playerCreatureNicknameStorageKey(playerId), nickname);
+}
+
+export function clearPlayerCreatureNickname(playerId) {
+  if (!playerId) return;
+  localStorage.removeItem(playerCreatureNicknameStorageKey(playerId));
+}
+
 export function getPendingCreatureId() {
   return localStorage.getItem(PENDING_CREATURE_KEY);
 }
@@ -94,13 +115,41 @@ export function setPendingCreatureId(creatureId) {
   localStorage.setItem(PENDING_CREATURE_KEY, creatureId);
 }
 
+export function getPendingCreatureNickname() {
+  return localStorage.getItem(PENDING_CREATURE_NICKNAME_KEY);
+}
+
+export function setPendingCreatureNickname(nickname) {
+  if (!nickname) return;
+  localStorage.setItem(PENDING_CREATURE_NICKNAME_KEY, nickname);
+}
+
+export function getPendingCreatureSelection() {
+  const creatureId = getPendingCreatureId();
+  const nickname = getPendingCreatureNickname();
+  if (!creatureId || !nickname) return null;
+  return { creatureId, nickname };
+}
+
+export function setPendingCreatureSelection({ creatureId, nickname }) {
+  if (!creatureId || !nickname) return;
+  setPendingCreatureId(creatureId);
+  setPendingCreatureNickname(nickname);
+}
+
+export function clearPendingCreatureSelection() {
+  localStorage.removeItem(PENDING_CREATURE_KEY);
+  localStorage.removeItem(PENDING_CREATURE_NICKNAME_KEY);
+}
+
 export function flushPendingCreatureIdToPlayer(playerId) {
   if (!playerId) return null;
-  const pendingCreatureId = getPendingCreatureId();
-  if (!pendingCreatureId) return null;
-  setPlayerCreatureId(playerId, pendingCreatureId);
-  localStorage.removeItem(PENDING_CREATURE_KEY);
-  return pendingCreatureId;
+  const pending = getPendingCreatureSelection();
+  if (!pending) return null;
+  setPlayerCreatureId(playerId, pending.creatureId);
+  setPlayerCreatureNickname(playerId, pending.nickname);
+  clearPendingCreatureSelection();
+  return pending.creatureId;
 }
 
 const STICKY_RESUME_KEYS = [

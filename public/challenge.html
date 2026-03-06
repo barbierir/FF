@@ -4,23 +4,55 @@
 <section class="card chaotic-arena-panel">
 <h1 class="chaos-glow">Challenge Found</h1><p id="chalInfo"></p>
 <div class="arena-faceoff">
-  <article class="arena-player-card"><h2 id="playerAName">Player A</h2><div id="playerARank" class="gas-rank-badge">Gas Trainee</div><div class="creature-slot" id="playerACreatureVisual"></div><p class="small" id="playerACreature">Creature: ???</p></article>
+  <article class="arena-player-card"><h2 id="playerAName">Player A</h2><div id="playerARank" class="gas-rank-badge">Gas Trainee</div><div class="creature-slot" id="playerACreatureVisual"></div><p class="small" id="playerACreature">Creature: ???</p><p class="small" id="playerANickname"></p></article>
   <div class="arena-vs chaos-glow">⚡ VS ⚡</div>
-  <article class="arena-player-card"><h2 id="playerBName">You</h2><div id="playerBRank" class="gas-rank-badge">Gas Trainee</div><div class="creature-slot" id="playerBCreatureVisual"></div><p class="small" id="playerBCreature">Creature: Pending</p></article>
+  <article class="arena-player-card"><h2 id="playerBName">You</h2><div id="playerBRank" class="gas-rank-badge">Gas Trainee</div><div class="creature-slot" id="playerBCreatureVisual"></div><p class="small" id="playerBCreature">Creature: Pending</p><p class="small" id="playerBNickname"></p></article>
 </div>
 </section>
-<section class="card chaotic-arena-panel"><h2 class="chaos-glow">Your Creature</h2><div class="row"><div><label>classKey</label><select id="b-class"><option>goblin</option><option>dragon</option><option>skunk</option><option>troll</option><option>fairy</option><option>demon</option></select></div><div><label>cosmeticSeed</label><input id="b-seed" type="number"/></div></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
+<section class="card chaotic-arena-panel"><h2 class="chaos-glow">Choose your creature</h2><input id="b-class" type="hidden" value="goblin"/><div id="challengeCreatureGrid" class="creature-select-grid" role="list"></div><div style="margin-top:10px"><button id="acceptBtn">Accept & Continue</button></div><p id="error" class="error"></p></section>
 </main>
 <script type="module">
-import { acceptChallenge, getChallenge, getOrCreateGuestPlayer, getPlayerCreatureId, getProfile, loadViewerProfileBar, parsePath, randomSeed, creatureFromDom, updateTopNav, getGasRankTitle } from '/app.js';
+import { acceptChallenge, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getProfile, loadViewerProfileBar, parsePath, randomSeed, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, updateTopNav, getGasRankTitle } from '/app.js';
 import { renderCreatureIdle } from '/app.js';
+import { generateCreatureNickname } from '/creatureNames.js';
+import { renderCreaturePickerGrid } from '/creaturePicker.js';
+
 const err = document.getElementById('error');
-document.getElementById('b-seed').value = String(randomSeed());
 const token = parsePath()[1];
 const playerId = await getOrCreateGuestPlayer();
+const profile = await getProfile(playerId);
 updateTopNav();
 void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId });
-renderCreatureIdle(document.getElementById('playerBCreatureVisual'), { classKey: document.getElementById('b-class').value, size: 88, alt: 'Your creature idle preview' });
+
+const classInput = document.getElementById('b-class');
+const grid = document.getElementById('challengeCreatureGrid');
+const pendingSelection = getPendingCreatureSelection();
+let selectedCreatureId = getPlayerCreatureId(playerId) || pendingSelection?.creatureId || 'goblin';
+let selectedNickname = getPlayerCreatureNickname(playerId) || pendingSelection?.nickname || generateCreatureNickname(selectedCreatureId);
+
+function renderSelectedPreview() {
+  classInput.value = selectedCreatureId;
+  document.getElementById('playerBCreature').textContent = `Creature: ${selectedCreatureId}`;
+  document.getElementById('playerBNickname').textContent = `Nickname: ${selectedNickname}`;
+  renderCreatureIdle(document.getElementById('playerBCreatureVisual'), { classKey: selectedCreatureId, size: 88, alt: 'Your creature idle preview' });
+}
+
+function selectCreature(nextCreatureId) {
+  const shouldKeepNickname = nextCreatureId === selectedCreatureId && selectedNickname;
+  selectedCreatureId = nextCreatureId;
+  if (!shouldKeepNickname) {
+    selectedNickname = generateCreatureNickname(nextCreatureId);
+  }
+  setPendingCreatureSelection({ creatureId: selectedCreatureId, nickname: selectedNickname });
+  setPlayerCreatureId(playerId, selectedCreatureId);
+  setPlayerCreatureNickname(playerId, selectedNickname);
+  renderCreaturePickerGrid({ container: grid, selectedId: selectedCreatureId, onSelect: selectCreature });
+  renderSelectedPreview();
+}
+
+renderCreaturePickerGrid({ container: grid, selectedId: selectedCreatureId, onSelect: selectCreature });
+renderSelectedPreview();
+
 try {
   const c = await getChallenge(token, playerId);
   if (c.matchId && (c.playerAId === playerId || c.playerBId === playerId)) {
@@ -36,6 +68,8 @@ try {
       const hostTitle = getGasRankTitle(hostProfile.profile.wins ?? 0);
       document.getElementById('playerARank').textContent = hostTitle;
       document.getElementById('playerARank').classList.toggle('top-tier', hostTitle.includes('👑'));
+      const hostNickname = getPlayerCreatureNickname(c.playerAId);
+      if (hostNickname) document.getElementById('playerANickname').textContent = `Nickname: ${hostNickname}`;
     }
     document.getElementById('playerBName').textContent = playerId;
     const guestTitle = getGasRankTitle(profile.profile.wins ?? 0);
@@ -50,17 +84,14 @@ try {
   document.getElementById('chalInfo').innerHTML = `Could not load challenge. <a href='/?new=1'>Go home</a>`;
   err.textContent = e.message;
 }
-document.getElementById('b-class').addEventListener('change', (event) => {
-  const selectedClassKey = event.target.value;
-  renderCreatureIdle(document.getElementById('playerBCreatureVisual'), { classKey: selectedClassKey, size: 88, alt: 'Your creature idle preview' });
-});
+
 document.getElementById('acceptBtn').onclick = async () => {
   err.textContent = '';
-  const selectedClassKey = document.getElementById('b-class').value;
-  document.getElementById('playerBCreature').textContent = `Creature: ${selectedClassKey}`;
-  renderCreatureIdle(document.getElementById('playerBCreatureVisual'), { classKey: selectedClassKey, size: 88, alt: 'Your selected creature idle sprite' });
   try {
-    const r = await acceptChallenge(token, playerId, creatureFromDom('b'), getPlayerCreatureId(playerId));
+    setPendingCreatureSelection({ creatureId: selectedCreatureId, nickname: selectedNickname });
+    setPlayerCreatureId(playerId, selectedCreatureId);
+    setPlayerCreatureNickname(playerId, selectedNickname);
+    const r = await acceptChallenge(token, playerId, { classKey: selectedCreatureId, cosmeticSeed: randomSeed() }, getPlayerCreatureId(playerId));
     location.href = `/m/${r.matchId}?side=B`;
   } catch (e) { err.textContent = e.message; }
 };
