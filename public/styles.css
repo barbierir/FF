@@ -30,7 +30,13 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background: url('/arena-background.jpg') center / cover fixed no-repeat;
+  background-image: url('/arena-background.jpg');
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  filter: saturate(0.92) contrast(1.05) brightness(0.92);
+  transform: scale(1.01);
   pointer-events: none;
   z-index: -2;
 }
@@ -39,9 +45,19 @@ body::after {
   content: "";
   position: fixed;
   inset: 0;
-  background: linear-gradient(rgba(9, 11, 16, 0.18), rgba(9, 11, 16, 0.18));
+  background:
+    radial-gradient(120% 70% at 50% 16%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(140% 90% at 50% 50%, rgba(8, 10, 22, 0) 55%, rgba(8, 10, 22, 0.42) 100%),
+    linear-gradient(rgba(8, 10, 20, 0.3), rgba(8, 10, 20, 0.3));
   pointer-events: none;
   z-index: -1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  body::before {
+    background-attachment: scroll;
+    transform: none;
+  }
 }
 .topbar {
   position: sticky;
@@ -72,7 +88,7 @@ main {
 }
 .arena-shell { position: relative; overflow: hidden; }
 .card {
-  background: linear-gradient(170deg, rgba(8, 12, 24, 0.88), rgba(12, 16, 32, 0.82));
+  background: linear-gradient(170deg, rgba(8, 12, 24, 0.9), rgba(12, 16, 32, 0.86));
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
   padding: 16px;
