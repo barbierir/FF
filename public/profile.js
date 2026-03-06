@@ -1,4 +1,4 @@
-import { clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, generateCreatureNickname, getGasRankTitle, getMatch, getPlayerCreatureId, getPlayerCreatureNickname, randomSeed, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
+import { clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, generateCreatureNickname, getCreaturePresentation, getGasRankTitle, getMatch, getPlayerCreatureId, getPlayerCreatureNickname, randomSeed, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
 
 async function api(path, opts = {}) {
   const res = await fetch(path, opts);
@@ -63,7 +63,6 @@ function showSelectedCreatureLine(playerId, creatureId) {
     variant: "hero",
     showGif: true,
     showCreatureName: true,
-    showPlayerId: true,
     showNickname: true,
   });
 
@@ -124,7 +123,7 @@ async function resolveHomeState(playerId, creatureId) {
     return {
       kind: "incoming",
       ctaLabel: "Accept challenge",
-      statusText: `Incoming challenge from ${incomingChallenge.playerAId ?? "another player"}.`,
+      statusText: "Incoming challenge ready.",
       shareUrl: null,
       onClick: () => {
         location.href = `/c/${incomingChallenge.token}`;
@@ -203,12 +202,13 @@ async function refreshPlayerHome(playerId, creatureId) {
     const draws = state.profile?.draws ?? 0;
     const rankPosition = state.profile?.leaderboardRank;
     const rankTitle = getGasRankTitle(wins);
-    const playerName = document.getElementById("player");
-    playerName.textContent = playerId;
 
     const rank = document.querySelector(".gas-rank-badge");
     if (rank) rank.remove();
-    playerName.insertAdjacentHTML("afterend", `<div class="gas-rank-badge${rankTitle.includes("👑") ? " top-tier" : ""}">${rankTitle}</div>`);
+    const identityRoot = document.getElementById("profileIdentity");
+    if (identityRoot) {
+      identityRoot.insertAdjacentHTML("afterend", `<div class="gas-rank-badge${rankTitle.includes("👑") ? " top-tier" : ""}">${rankTitle}</div>`);
+    }
 
     primaryBtn.textContent = state.ctaLabel;
     primaryBtn.disabled = false;
@@ -271,7 +271,10 @@ export async function apiLeaderboardGlobal() {
     .map((r) => {
       const rankTitle = getGasRankTitle(r.wins ?? 0);
       const badgeClass = rankTitle.includes("👑") ? "gas-rank-badge top-tier" : "gas-rank-badge";
-      return `<tr><td>${r.rank}</td><td><a href="/p/${encodeURIComponent(r.playerId)}" class="leaderboard-identity" data-player-id="${r.playerId}"></a><div class="${badgeClass}">${rankTitle}</div></td><td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td>${r.played}</td></tr>`;
+      const creatureId = getPlayerCreatureId(r.playerId);
+      const creatureNickname = getPlayerCreatureNickname(r.playerId);
+      const presentation = getCreaturePresentation(r.playerId, creatureId, creatureNickname);
+      return `<tr><td>${r.rank}</td><td><a href="/p/${encodeURIComponent(r.playerId)}" class="leaderboard-identity" data-player-id="${r.playerId}"></a><div class="${badgeClass}">${rankTitle}</div></td><td>${presentation.creatureName}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td>${r.played}</td></tr>`;
     })
     .join("");
 
@@ -285,19 +288,24 @@ export async function apiLeaderboardGlobal() {
       variant: "compact",
       showGif: true,
       showCreatureName: true,
-      showPlayerId: true,
-      showNickname: true,
+        showNickname: true,
     });
   });
 }
 
 export async function apiRivalry(playerA, playerB) {
   const data = await api(`/api/rivalry/${encodeURIComponent(playerA)}/${encodeURIComponent(playerB)}`);
-  document.getElementById("stats").textContent = `Matches ${data.totalMatches} · ${playerA} W${data.winsA} · ${playerB} W${data.winsB} · Damage ${data.totalDamageA}/${data.totalDamageB}`;
+  const playerALabel = getPlayerCreatureNickname(playerA) || "Player A";
+  const playerBLabel = getPlayerCreatureNickname(playerB) || "Player B";
+  document.getElementById("stats").textContent = `Matches ${data.totalMatches} · ${playerALabel} W${data.winsA} · ${playerBLabel} W${data.winsB} · Damage ${data.totalDamageA}/${data.totalDamageB}`;
   document.getElementById("matches").innerHTML = data.matches.map((publicId) => `<li><a href="/replay/${publicId}">${publicId}</a></li>`).join("");
 }
 
 export async function apiDaily() {
   const data = await api("/api/daily-highlight");
-  document.getElementById("daily").innerHTML = `${data.highlightType} by <a href="/p/${encodeURIComponent(data.playerId)}">${data.playerId}</a> (value ${data.value}) · <a href="/replay/${data.publicId}">Watch replay</a>`;
+  const nickname = getPlayerCreatureNickname(data.playerId);
+  const creatureId = getPlayerCreatureId(data.playerId);
+  const { creatureName } = getCreaturePresentation(data.playerId, creatureId, nickname);
+  const label = nickname || creatureName;
+  document.getElementById("daily").innerHTML = `${data.highlightType} by <a href="/p/${encodeURIComponent(data.playerId)}">${label}</a> (value ${data.value}) · <a href="/replay/${data.publicId}">Watch replay</a>`;
 }

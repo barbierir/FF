@@ -628,7 +628,7 @@ export function createPlayerIdentity({
   variant = "default",
   showGif = true,
   showCreatureName = true,
-  showPlayerId = true,
+  showPlayerId = Boolean(window.__FF_DEBUG_SHOW_PLAYER_ID__),
   showNickname = true,
   className = "",
 } = {}) {
