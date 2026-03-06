@@ -1,5 +1,4 @@
-import { clearPlayerCreatureId, createChallenge, getGasRankTitle, getMatch, getPlayerCreatureId, randomSeed, setPlayerCreatureId } from "/app.js";
-import { CREATURES, getCreatureById } from "/creatures.js";
+import { CREATURES, clearPlayerCreatureId, createChallenge, getGasRankTitle, getMatch, getPlayerCreatureId, randomSeed, setPlayerCreatureId } from "/app.js";
 
 async function api(path, opts = {}) {
   const res = await fetch(path, opts);
@@ -111,8 +110,22 @@ function hideRedundantNav() {
 
 function showSelectedCreatureLine(playerId, creatureId) {
   const line = document.getElementById("selectedCreatureLine");
-  const creature = creatureId ? getCreatureById(creatureId) : null;
+  const creature = creatureId ? CREATURES.find((item) => item.id === creatureId) ?? null : null;
   line.textContent = creature ? `Creature: ${creature.name}` : "Creature: not selected";
+
+  const visual = document.getElementById("profileCreatureVisual");
+  visual.innerHTML = "";
+  if (creature) {
+    const img = document.createElement("img");
+    img.src = creature.idleSrc;
+    img.alt = `${creature.name} idle`;
+    img.width = 88;
+    img.height = 88;
+    img.onerror = () => {
+      visual.innerHTML = '<div class="missing-gif" aria-label="Missing GIF">Missing GIF</div>';
+    };
+    visual.appendChild(img);
+  }
 
   const button = document.getElementById("changeCreatureBtn");
   button.onclick = (event) => {
@@ -161,7 +174,7 @@ async function resolveHomeState(playerId, creatureId) {
         await refreshPlayerHome(playerId, creatureId);
       },
       recentMatches: publicData.recentMatches,
-      wins: publicData.profile?.wins ?? 0,
+      profile: publicData.profile ?? null,
     };
   }
 
@@ -176,7 +189,7 @@ async function resolveHomeState(playerId, creatureId) {
         location.href = `/c/${incomingChallenge.token}`;
       },
       recentMatches: publicData.recentMatches,
-      wins: publicData.profile?.wins ?? 0,
+      profile: publicData.profile ?? null,
     };
   }
 
@@ -196,7 +209,7 @@ async function resolveHomeState(playerId, creatureId) {
             location.href = `/m/${encodeURIComponent(details.matchId)}?side=${side}`;
           },
           recentMatches: publicData.recentMatches,
-          wins: publicData.profile?.wins ?? 0,
+          profile: publicData.profile ?? null,
         };
       }
       if (match.status === "finished") {
@@ -211,7 +224,7 @@ async function resolveHomeState(playerId, creatureId) {
             location.href = `/replay/${encodeURIComponent(publicId)}`;
           },
           recentMatches: publicData.recentMatches,
-          wins: publicData.profile?.wins ?? 0,
+          profile: publicData.profile ?? null,
         };
         }
       }
@@ -228,7 +241,7 @@ async function resolveHomeState(playerId, creatureId) {
       await refreshPlayerHome(playerId, creatureId);
     },
     recentMatches: publicData.recentMatches,
-    wins: publicData.profile?.wins ?? 0,
+    profile: publicData.profile ?? null,
   };
 }
 
@@ -244,7 +257,11 @@ async function refreshPlayerHome(playerId, creatureId) {
 
   try {
     const state = await resolveHomeState(playerId, creatureId);
-    const rankTitle = getGasRankTitle(state.wins);
+    const wins = state.profile?.wins ?? 0;
+    const losses = state.profile?.losses ?? 0;
+    const draws = state.profile?.draws ?? 0;
+    const rankPosition = state.profile?.leaderboardRank;
+    const rankTitle = getGasRankTitle(wins);
     const playerName = document.getElementById("player");
     playerName.textContent = playerId;
 
@@ -257,6 +274,10 @@ async function refreshPlayerHome(playerId, creatureId) {
     primaryBtn.onclick = () => void state.onClick();
 
     statusEl.textContent = state.statusText;
+    document.getElementById("profileWins").textContent = String(wins);
+    document.getElementById("profileLosses").textContent = String(losses);
+    document.getElementById("profileDraws").textContent = String(draws);
+    document.getElementById("profileRank").textContent = rankPosition ? `#${rankPosition}` : "—";
     shareLink.hidden = !state.shareUrl;
     if (state.shareUrl) {
       shareLink.href = state.shareUrl;
@@ -297,11 +318,19 @@ export async function initPlayerProfilePage(playerId) {
 
 export async function apiLeaderboardGlobal() {
   const data = await api("/api/leaderboard/global");
-  document.getElementById("rows").innerHTML = data.rows
-    .map((r, i) => {
+  const empty = document.getElementById("leaderboardEmpty");
+  const rows = data.rows ?? [];
+  if (!rows.length) {
+    empty.hidden = false;
+    document.getElementById("rows").innerHTML = "";
+    return;
+  }
+  empty.hidden = true;
+  document.getElementById("rows").innerHTML = rows
+    .map((r) => {
       const rankTitle = getGasRankTitle(r.wins ?? 0);
       const badgeClass = rankTitle.includes("👑") ? "gas-rank-badge top-tier" : "gas-rank-badge";
-      return `<tr><td>${i + 1}</td><td><a href="/p/${encodeURIComponent(r.playerId)}">${r.playerId}</a><div class="${badgeClass}">${rankTitle}</div></td><td>${r.stinkFame}</td><td>${r.wins}</td><td>${r.maxHitEver}</td></tr>`;
+      return `<tr><td>${r.rank}</td><td><a href="/p/${encodeURIComponent(r.playerId)}">${r.playerId}</a><div class="${badgeClass}">${rankTitle}</div></td><td>${r.wins}</td><td>${r.losses}</td><td>${r.draws}</td><td>${r.played}</td></tr>`;
     })
     .join("");
 }

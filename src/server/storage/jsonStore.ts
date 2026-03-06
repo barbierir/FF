@@ -30,6 +30,7 @@ import type {
   StoredMatch,
   StoredMoves,
 } from "./types.ts";
+import { buildLeaderboard, getPlayerProfileStats } from "./matchStats.ts";
 
 type DbState = {
   challenges: StoredChallenge[];
@@ -728,6 +729,8 @@ export class JsonStore implements Store {
     await this.ready;
     const profile = this.state.players.find((player) => player.id === playerId);
     if (!profile) return undefined;
+    const leaderboard = buildLeaderboard(this.state.matches, this.state.challenges);
+    const leaderboardRow = getPlayerProfileStats(playerId, leaderboard);
 
     const challengeById = new Map(this.state.challenges.map((challenge) => [challenge.id, challenge]));
     const involvedMatches = this.state.matches
@@ -778,6 +781,7 @@ export class JsonStore implements Store {
         wins: profile.wins,
         losses: profile.losses,
         draws: profile.draws,
+        leaderboardRank: leaderboardRow?.rank,
         bestStreak: profile.bestStreak,
         maxHitEver: profile.maxHitEver,
         totalCataclysms: profile.totalCataclysms,
@@ -790,16 +794,7 @@ export class JsonStore implements Store {
 
   async getGlobalLeaderboard(): Promise<GlobalLeaderboardRow[]> {
     await this.ready;
-    return this.state.players
-      .slice()
-      .sort((a, b) => b.stinkFame - a.stinkFame || b.wins - a.wins || a.id.localeCompare(b.id))
-      .slice(0, 50)
-      .map((player) => ({
-        playerId: player.id,
-        stinkFame: player.stinkFame,
-        wins: player.wins,
-        maxHitEver: player.maxHitEver,
-      }));
+    return buildLeaderboard(this.state.matches, this.state.challenges).slice(0, 50);
   }
 
   async getRivalry(playerA: string, playerB: string): Promise<RivalryStats> {
