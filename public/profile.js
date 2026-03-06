@@ -1,6 +1,4 @@
-import { CREATURES, clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, getGasRankTitle, getMatch, getPlayerCreatureId, getPlayerCreatureNickname, getPlayerIdOrNull, randomSeed, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
-import { renderCreaturePickerGrid } from "/creaturePicker.js";
-import { generateCreatureNickname } from "/creatureNames.js";
+import { CREATURES, clearPlayerCreatureId, clearPlayerCreatureNickname, createChallenge, generateCreatureNickname, getGasRankTitle, getMatch, getPlayerCreatureId, getPlayerCreatureNickname, getPlayerIdOrNull, randomSeed, renderCreaturePickerGrid, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname } from "/app.js";
 
 async function api(path, opts = {}) {
   const res = await fetch(path, opts);
