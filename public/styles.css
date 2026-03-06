@@ -19,11 +19,10 @@ body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: var(--text);
-  background:
-    linear-gradient(rgba(9, 11, 16, 0.18), rgba(9, 11, 16, 0.18)),
-    url('/arena-background.jpg') center / cover fixed no-repeat;
+  background: var(--chaos-bg);
   min-height: 100vh;
   position: relative;
+  isolation: isolate;
   animation: chaos-fade-in 280ms ease-out;
 }
 
@@ -31,14 +30,18 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background: rgba(8, 10, 24, 0.36);
+  background: url('/arena-background.jpg') center / cover fixed no-repeat;
   pointer-events: none;
-  z-index: -1;
+  z-index: -2;
 }
 
-body > * {
-  position: relative;
-  z-index: 1;
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(rgba(9, 11, 16, 0.18), rgba(9, 11, 16, 0.18));
+  pointer-events: none;
+  z-index: -1;
 }
 .topbar {
   position: sticky;
