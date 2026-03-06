@@ -1,11 +1,12 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
 <body><div class="topbar"><strong>Replay</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="profileBar">Loading...</span></div><main class="page-stack">
 <section class="card module-primary"><h1 id="title">Battle Replay</h1><p id="winner" class="victory-highlight"></p><p id="stats"></p><div class="replay-creature-row"><div id="replayIdentityA"></div><div class="arena-vs">VS</div><div id="replayIdentityB"></div></div><div class="button-row primary-cta-group"><a class="button-link primary-cta" href="/?new=1">New Challenge</a><button class="primary-cta" id="rematchBtn" disabled>Rematch</button></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p><a id="sharePage" href="#">Share Page</a></p><div class="inline-actions"><button class="secondary" id="copyShareText">Copy Share Text</button></div><p id="shareMsg"></p><div id="rematchResult"></div></section>
-<section class="card module-secondary"><h2>HP</h2><div>A <div class="hp"><span id="hpA"></span></div></div><div>B <div class="hp"><span id="hpB"></span></div></div><div class="inline-actions"><button class="secondary" id="skip">Skip</button><button class="secondary" id="replay">Replay</button></div><div class="log" id="log"></div></section>
+<section class="card module-secondary"><h2>Battle Stage</h2><div id="battleStage" class="battle-stage"><div class="battle-stage-inner"><div class="battle-creature left" data-creature="A"><img alt="Creature A animation" src="/creatures/idle/goblin.gif"/></div><div class="battle-creature right" data-creature="B"><img alt="Creature B animation" src="/creatures/idle/goblin.gif"/></div><div class="battle-action-bubble center" data-battle-bubble data-state="hidden"></div><div class="battle-result-badge" data-result-badge data-state="hidden"></div></div><div class="battle-hp-grid"><div><div class="small">A HP</div><div class="hp"><span id="hpA"></span></div></div><div><div class="small">B HP</div><div class="hp"><span id="hpB"></span></div></div></div><div class="inline-actions"><button class="secondary" id="skip" data-skip>Skip to Result</button><button class="secondary" id="replay">Replay 40s Presentation</button></div></div><details class="battle-log-panel"><summary>Battle Log (secondary)</summary><div class="log" id="log"></div></details></section>
 </main>
 <div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row inline-actions"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
 <script type="module">
 import { copyText, createRematch, createStatusBadge, fetchReplay, getViewerPlayerId, loadViewerProfileBar, outcomeToBadgeVariant, parsePath, rememberLastReplayPublicId, renderPlayerIdentity, updateTopNav } from '/app.js';
+import { MatchPresentation, matchPresentationConstants } from '/matchPresentation.js';
 
 const publicId = parsePath()[1];
 const sideStorageKey = `faf_rematch_side_${publicId}`;
@@ -16,11 +17,13 @@ const shareMsg = document.getElementById('shareMsg');
 const sideAButton = document.getElementById('sideA');
 const sideBButton = document.getElementById('sideB');
 const cancelSidePickerButton = document.getElementById('cancelSidePicker');
+const replayButton = document.getElementById('replay');
+const skipButton = document.getElementById('skip');
 let data = null;
 let viewerPlayerId = null;
 let pickedSide = null;
 let rematchInFlight = false;
-
+let presentation = null;
 
 function getDetectedSide() {
   if (!data) return null;
@@ -41,7 +44,6 @@ function getResolvedSide() {
 
 function showSidePicker() { sideModal.hidden = false; }
 function hideSidePicker() { sideModal.hidden = true; }
-
 
 function renderRematchResult(payload) {
   const absUrl = `${location.origin}${payload.url}`;
@@ -88,6 +90,28 @@ function pickSide(side) {
   hideSidePicker();
 }
 
+function startPresentation() {
+  if (!data) return;
+  presentation?.stop();
+  presentation = new MatchPresentation({
+    root: document.getElementById('battleStage'),
+    hpA: document.getElementById('hpA'),
+    hpB: document.getElementById('hpB'),
+    eventLogRoot: document.getElementById('log'),
+    data,
+    creatures: {
+      a: data.summary?.a?.classKey ?? 'goblin',
+      b: data.summary?.b?.classKey ?? 'goblin',
+    },
+    onComplete: () => {
+      replayButton.disabled = false;
+    },
+  });
+  replayButton.disabled = true;
+  skipButton.hidden = false;
+  presentation.start();
+}
+
 if (!sideAButton || !sideBButton || !cancelSidePickerButton) {
   throw new Error('side picker buttons missing from DOM');
 }
@@ -114,11 +138,11 @@ try {
     : resolvedSide
       ? (data.summary.winner === resolvedSide ? 'Victory' : 'Defeat')
       : 'Match Complete';
-const winner = document.getElementById('winner');
+  const winner = document.getElementById('winner');
   winner.innerHTML = '';
   winner.append('Match Result: ');
   winner.appendChild(createStatusBadge({ label: resultLabel, variant: outcomeToBadgeVariant(resultLabel), size: 'md' }));
-  document.getElementById('stats').textContent = `Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;
+  document.getElementById('stats').textContent = `Timeline: ${matchPresentationConstants.MATCH_PRESENTATION_DURATION_MS / 1000}s · Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;
   renderPlayerIdentity(document.getElementById('replayIdentityA'), {
     playerId: data.match?.playerAId ?? 'Player A',
     creatureId: data.summary.a.classKey,
@@ -149,28 +173,13 @@ document.getElementById('copyShareText').onclick = async () => {
     shareMsg.textContent = 'Could not generate share text';
   }
 };
-const icon = (ev)=>{
-  if(ev.kind==='DEFEND') return '🛡️'; if(ev.kind==='HEAL') return '🧚✨'; if(ev.kind==='DOT') return '🔥';
-  if(ev.kind==='ATTACK' && ev.outcome==='BACKFIRE') return '💥↩️';
-  if(ev.kind==='ATTACK' && ev.outcome==='TOXIC') return '☠️💨';
-  if(ev.kind==='ATTACK' && ev.outcome==='CATACLYSM') return '🌪️💨🔥';
-  if(ev.kind==='ATTACK') return '💨';
-  return '➖';
-};
 
-const hpA=document.getElementById('hpA'); const hpB=document.getElementById('hpB'); const log=document.getElementById('log');
-let i=0, timer;
-function renderEvent(ev){
-  hpA.style.width = `${Math.max(0, Math.min(100, (ev.prA/20)*100))}%`;
-  hpB.style.width = `${Math.max(0, Math.min(100, (ev.prB/20)*100))}%`;
-  const line=document.createElement('div');
-  line.textContent=`T${ev.t} ${ev.actor} ${icon(ev)} ${ev.kind}${ev.outcome?` ${ev.outcome}`:''} | HP A:${ev.prA} B:${ev.prB}`;
-  log.appendChild(line); log.scrollTop = log.scrollHeight;
-}
-function play(){ if(!data) return; clearInterval(timer); log.innerHTML=''; i=0; timer=setInterval(()=>{ if(i>=data.events.length){ clearInterval(timer); return; } renderEvent(data.events[i++]); },250); }
-function skip(){ if(!data) return; clearInterval(timer); for(;i<data.events.length;i++) renderEvent(data.events[i]); }
+replayButton.onclick = () => startPresentation();
+skipButton.onclick = () => presentation?.skipToResult();
 
-document.getElementById('skip').onclick = skip;
-document.getElementById('replay').onclick = play;
-play();
+startPresentation();
+
+window.addEventListener('beforeunload', () => {
+  presentation?.stop();
+});
 </script></body></html>
