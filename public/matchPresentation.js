@@ -45,9 +45,10 @@ function getResultDurationMs(summary) {
 }
 
 export function estimatePresentationDurationMs(events = [], summary = null) {
-  const safeEvents = Array.isArray(events) ? events : [];
-  const playableEvents = safeEvents.filter((event) => event && (event.actor === 'A' || event.actor === 'B'));
-  const actionDurationMs = playableEvents.reduce((total, event) => total + getAnimationDurationMs(getPresentationActionType(event)), 0);
+  const timeline = buildMatchPresentationTimeline(events, summary);
+  const actionDurationMs = timeline.timeline
+    .filter((step) => step.phase === 'action')
+    .reduce((total, step) => total + (step.durationMs ?? getAnimationDurationMs(step.actionType)), 0);
   return battleAnimationTiming.introDurationMs + actionDurationMs + getResultDurationMs(summary) + battleAnimationTiming.finishBufferMs;
 }
 
@@ -63,6 +64,13 @@ function toBubbleText(event) {
   return getBubbleText(getPresentationActionType(event));
 }
 
+function getStepBubbleText(stepEvent) {
+  if (stepEvent.actionType === 'hit') return 'Direct hit!';
+  if (stepEvent.actionType === 'stunned') return 'Stunned!';
+  if (stepEvent.actionType === 'defeat') return 'Down!';
+  return toBubbleText(stepEvent.event);
+}
+
 export function getCreatureAnimation(creatureId, actionType) {
   return getCreatureAnimationCandidates(creatureId || 'goblin', actionType)[0];
 }
@@ -70,7 +78,71 @@ export function getCreatureAnimation(creatureId, actionType) {
 export function buildMatchPresentationTimeline(events = [], summary = null) {
   const timeline = [];
   const safeEvents = Array.isArray(events) ? events : [];
-  const playableEvents = safeEvents.filter((event) => event && (event.actor === 'A' || event.actor === 'B'));
+  const playableEvents = [];
+
+  const pushActionStep = (event, actionType, actor, metadata = {}) => {
+    if (!event || (actor !== 'A' && actor !== 'B')) return;
+    playableEvents.push({
+      event,
+      actionType,
+      actor,
+      ...metadata,
+    });
+  };
+
+  const addDamageReaction = (event, side, damage) => {
+    if (!Number.isFinite(damage) || damage <= 0) return;
+    const prKey = side === 'A' ? 'prA' : 'prB';
+    const hpAfter = Number.isFinite(event[prKey]) ? event[prKey] : null;
+    const reactionAction = hpAfter !== null && hpAfter <= 0 ? 'defeat' : 'hit';
+    pushActionStep(event, reactionAction, side, {
+      reaction: true,
+      logText: reactionAction === 'defeat'
+        ? `${side} is defeated.`
+        : `${side} takes ${damage} damage.`,
+    });
+  };
+
+  const hasStunTag = (event) => Array.isArray(event?.tags) && event.tags.some((tag) => tag === 'STUNNED' || tag === 'STUN' || tag === 'APPLY_STUN');
+  const shouldInferStun = (event) => event?.kind === 'ATTACK' && (event.outcome === 'TOXIC' || event.outcome === 'CATACLYSM' || event.outcome === 'BACKFIRE');
+
+  safeEvents.forEach((event) => {
+    if (!event) return;
+
+    if (event.actor === 'A' || event.actor === 'B') {
+      pushActionStep(event, getPresentationActionType(event), event.actor, {
+        reaction: false,
+      });
+    }
+
+    if (Number.isFinite(event.dmgToA) && event.dmgToA > 0) {
+      addDamageReaction(event, 'A', event.dmgToA);
+    }
+    if (Number.isFinite(event.dmgToB) && event.dmgToB > 0) {
+      addDamageReaction(event, 'B', event.dmgToB);
+    }
+
+    const explicitlyStunned = event.kind === 'STUNNED' || hasStunTag(event);
+    if (explicitlyStunned || shouldInferStun(event)) {
+      const candidates = [];
+      if (event.kind === 'STUNNED' && (event.actor === 'A' || event.actor === 'B')) {
+        candidates.push(event.actor);
+      }
+      if (Number.isFinite(event.dmgToA) && event.dmgToA > 0 && event.prA > 0) {
+        candidates.push('A');
+      }
+      if (Number.isFinite(event.dmgToB) && event.dmgToB > 0 && event.prB > 0) {
+        candidates.push('B');
+      }
+      [...new Set(candidates)].forEach((side) => {
+        pushActionStep(event, 'stunned', side, {
+          reaction: true,
+          logText: `${side} is stunned.`,
+        });
+      });
+    }
+  });
+
   const actionPhaseStartMs = battleAnimationTiming.introDurationMs;
   let nextActionAtMs = actionPhaseStartMs;
 
@@ -81,18 +153,20 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
     label: 'Arena online',
   });
 
-  playableEvents.forEach((event, index) => {
-    const actionType = getPresentationActionType(event);
+  playableEvents.forEach((stepEvent, index) => {
+    const actionType = stepEvent.actionType;
     const durationMs = getAnimationDurationMs(actionType);
     timeline.push({
-      key: `action_${index}_${event.t}_${event.kind}`,
+      key: `action_${index}_${stepEvent.event.t}_${stepEvent.event.kind}_${actionType}`,
       atMs: nextActionAtMs,
       phase: 'action',
-      event,
+      event: stepEvent.event,
       actionType,
       durationMs,
-      actor: event.actor,
-      bubbleText: toBubbleText(event),
+      actor: stepEvent.actor,
+      reaction: stepEvent.reaction === true,
+      logText: stepEvent.logText,
+      bubbleText: getStepBubbleText(stepEvent),
     });
     nextActionAtMs += durationMs;
   });
@@ -236,10 +310,15 @@ export class MatchPresentation {
     bubble.textContent = '';
   }
 
-  renderLogEvent(event) {
-    if (!this.eventLogRoot || !event) return;
+  renderLogEvent(step) {
+    if (!this.eventLogRoot || !step || !step.event) return;
+    const event = step.event;
     const line = document.createElement('div');
-    line.textContent = `T${event.t ?? '?'} ${event.actor ?? '?'} ${event.kind ?? 'UNKNOWN'}${event.outcome ? ` ${event.outcome}` : ''} | HP A:${event.prA ?? '?'} B:${event.prB ?? '?'}`;
+    if (step.logText) {
+      line.textContent = `T${event.t ?? '?'} ${step.logText} | HP A:${event.prA ?? '?'} B:${event.prB ?? '?'}`;
+    } else {
+      line.textContent = `T${event.t ?? '?'} ${event.actor ?? '?'} ${event.kind ?? 'UNKNOWN'}${event.outcome ? ` ${event.outcome}` : ''} | HP A:${event.prA ?? '?'} B:${event.prB ?? '?'}`;
+    }
     this.eventLogRoot.appendChild(line);
   }
 
@@ -279,13 +358,23 @@ export class MatchPresentation {
     }, actionDurationMs);
     this.activeTimerHandles.push(bubbleTimer);
 
-    this.renderLogEvent(event);
+    this.renderLogEvent(step);
   }
 
   showResult() {
     this.phase = 'result';
     const badge = this.root.querySelector('[data-result-badge]');
     const winner = this.data?.summary?.winner;
+
+    // Guard against pending action reset timers overwriting terminal result animations.
+    if (this.animationResetTimers.A) {
+      clearTimeout(this.animationResetTimers.A);
+      this.animationResetTimers.A = null;
+    }
+    if (this.animationResetTimers.B) {
+      clearTimeout(this.animationResetTimers.B);
+      this.animationResetTimers.B = null;
+    }
 
     if (winner === 'A') {
       badge.textContent = 'Victory';
@@ -358,7 +447,7 @@ export class MatchPresentation {
       this.currentHp = { A: last.prA, B: last.prB };
       this.setHpBars();
       if (this.eventLogRoot) this.eventLogRoot.innerHTML = '';
-      events.forEach((event) => this.renderLogEvent(event));
+      events.forEach((event) => this.renderLogEvent({ event }));
     }
     this.showResult();
     this.complete();
