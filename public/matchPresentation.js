@@ -1,7 +1,24 @@
-const INTRO_DURATION_MS = 4_000;
-const ACTION_STEP_DURATION_MS = 1_200;
-const RESULT_PHASE_DURATION_MS = 1_500;
-const FINISH_BUFFER_MS = 300;
+const DEFAULT_MATCH_ANIMATION_DURATION_MS = 3_000;
+
+export const battleAnimationTiming = Object.freeze({
+  introDurationMs: 4_000,
+  finishBufferMs: 300,
+  actionDurationsMs: Object.freeze({
+    prepare: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    charge: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    attack_normal: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    attack_toxic: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    attack_cataclysm: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    attack_backfire: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    hit: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    defend: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    critical_hit: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    stunned: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    revenge: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    defeat: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+    victory: DEFAULT_MATCH_ANIMATION_DURATION_MS,
+  }),
+});
 
 import {
   getActionSound,
@@ -16,6 +33,22 @@ function debugLog(...args) {
   if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
     console.debug(...args);
   }
+}
+
+function getAnimationDurationMs(actionType) {
+  return battleAnimationTiming.actionDurationsMs[actionType] ?? DEFAULT_MATCH_ANIMATION_DURATION_MS;
+}
+
+function getResultDurationMs(summary) {
+  if (summary?.winner === 'DRAW') return getAnimationDurationMs('prepare');
+  return Math.max(getAnimationDurationMs('victory'), getAnimationDurationMs('defeat'));
+}
+
+export function estimatePresentationDurationMs(events = [], summary = null) {
+  const safeEvents = Array.isArray(events) ? events : [];
+  const playableEvents = safeEvents.filter((event) => event && (event.actor === 'A' || event.actor === 'B'));
+  const actionDurationMs = playableEvents.reduce((total, event) => total + getAnimationDurationMs(getPresentationActionType(event)), 0);
+  return battleAnimationTiming.introDurationMs + actionDurationMs + getResultDurationMs(summary) + battleAnimationTiming.finishBufferMs;
 }
 
 export function getPresentationActionType(event) {
@@ -38,9 +71,8 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
   const timeline = [];
   const safeEvents = Array.isArray(events) ? events : [];
   const playableEvents = safeEvents.filter((event) => event && (event.actor === 'A' || event.actor === 'B'));
-  const actionPhaseStartMs = INTRO_DURATION_MS;
-  const actionPhaseEndMs = actionPhaseStartMs + playableEvents.length * ACTION_STEP_DURATION_MS;
-  const finishAtMs = actionPhaseEndMs + RESULT_PHASE_DURATION_MS + FINISH_BUFFER_MS;
+  const actionPhaseStartMs = battleAnimationTiming.introDurationMs;
+  let nextActionAtMs = actionPhaseStartMs;
 
   timeline.push({
     key: 'intro',
@@ -51,22 +83,30 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
 
   playableEvents.forEach((event, index) => {
     const actionType = getPresentationActionType(event);
+    const durationMs = getAnimationDurationMs(actionType);
     timeline.push({
       key: `action_${index}_${event.t}_${event.kind}`,
-      atMs: actionPhaseStartMs + index * ACTION_STEP_DURATION_MS,
+      atMs: nextActionAtMs,
       phase: 'action',
       event,
       actionType,
+      durationMs,
       actor: event.actor,
       bubbleText: toBubbleText(event),
     });
+    nextActionAtMs += durationMs;
   });
+
+  const actionPhaseEndMs = nextActionAtMs;
+  const resultDurationMs = getResultDurationMs(summary);
+  const finishAtMs = actionPhaseEndMs + resultDurationMs + battleAnimationTiming.finishBufferMs;
 
   timeline.push({
     key: 'result',
     atMs: actionPhaseEndMs,
     phase: 'result',
     winner: summary?.winner ?? 'DRAW',
+    durationMs: resultDurationMs,
   });
 
   timeline.push({
@@ -79,7 +119,7 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
 
   return {
     durationMs: finishAtMs,
-    introDurationMs: INTRO_DURATION_MS,
+    introDurationMs: battleAnimationTiming.introDurationMs,
     actionStartMs: actionPhaseStartMs,
     resultStartMs: actionPhaseEndMs,
     timeline,
@@ -107,6 +147,7 @@ export class MatchPresentation {
     this.activeBubble = null;
     this.activeTimerHandles = [];
     this.fallbackTimer = null;
+    this.animationResetTimers = { A: null, B: null };
     this.currentHp = { A: 20, B: 20 };
     this.currentAnimations = { A: 'idle', B: 'idle' };
 
@@ -119,6 +160,14 @@ export class MatchPresentation {
     if (this.fallbackTimer) {
       clearTimeout(this.fallbackTimer);
       this.fallbackTimer = null;
+    }
+    if (this.animationResetTimers.A) {
+      clearTimeout(this.animationResetTimers.A);
+      this.animationResetTimers.A = null;
+    }
+    if (this.animationResetTimers.B) {
+      clearTimeout(this.animationResetTimers.B);
+      this.animationResetTimers.B = null;
     }
   }
 
@@ -146,7 +195,9 @@ export class MatchPresentation {
     this.hpB.style.width = `${pctB}%`;
   }
 
-  setCreatureAnimation(side, actionType) {
+  setCreatureAnimation(side, actionType, options = {}) {
+    const { force = false } = options;
+    if (!force && this.currentAnimations[side] === actionType) return;
     this.currentAnimations[side] = actionType;
     const slot = this.root.querySelector(`[data-creature="${side}"] img`);
     if (!slot) return;
@@ -158,6 +209,9 @@ export class MatchPresentation {
       ...getCreatureAnimationCandidates(creatureId, actionType),
       ...getCreatureIdleCandidates(creatureId),
     ];
+    if (force) {
+      slot.src = '';
+    }
     debugLog('[presentation] animation candidates', side, actionType, candidates);
     loadImageWithFallback(slot, candidates, {
       creatureId,
@@ -202,18 +256,27 @@ export class MatchPresentation {
     const align = step.actor === 'A' ? 'left' : 'right';
     this.showBubble({ text: step.bubbleText, align });
     this.playSound(step.actionType);
+    const actionDurationMs = step.durationMs ?? getAnimationDurationMs(step.actionType);
+    debugLog('[presentation] applyAction timing', {
+      actionType: step.actionType,
+      actor: step.actor,
+      actionDurationMs,
+    });
 
     if (step.actor === 'A' || step.actor === 'B') {
-      this.setCreatureAnimation(step.actor, step.actionType);
+      this.setCreatureAnimation(step.actor, step.actionType, { force: true });
+      if (this.animationResetTimers[step.actor]) {
+        clearTimeout(this.animationResetTimers[step.actor]);
+      }
       const resetTimer = setTimeout(() => {
         this.setCreatureAnimation(step.actor, 'idle');
-      }, 900);
-      this.activeTimerHandles.push(resetTimer);
+      }, actionDurationMs);
+      this.animationResetTimers[step.actor] = resetTimer;
     }
 
     const bubbleTimer = setTimeout(() => {
       this.clearBubble();
-    }, 1200);
+    }, actionDurationMs);
     this.activeTimerHandles.push(bubbleTimer);
 
     this.renderLogEvent(event);
@@ -303,8 +366,7 @@ export class MatchPresentation {
 }
 
 export const matchPresentationConstants = {
-  INTRO_DURATION_MS,
-  ACTION_STEP_DURATION_MS,
-  RESULT_PHASE_DURATION_MS,
-  FINISH_BUFFER_MS,
+  INTRO_DURATION_MS: battleAnimationTiming.introDurationMs,
+  DEFAULT_MATCH_ANIMATION_DURATION_MS,
+  FINISH_BUFFER_MS: battleAnimationTiming.finishBufferMs,
 };
