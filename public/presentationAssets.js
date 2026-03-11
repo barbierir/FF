@@ -1,18 +1,10 @@
-const PRESENTATION_ACTION_TYPES = [
-  'prepare',
-  'charge',
-  'attack_normal',
-  'attack_cataclysm',
-  'attack_backfire',
-  'attack_toxic',
-  'hit',
-  'defend',
-  'critical_hit',
-  'stunned',
-  'revenge',
-  'defeat',
-  'victory',
-];
+import {
+  MATCH_ANIMATION_NAMES,
+  getCreatureAnimationAssetPath,
+  getCreatureMatchIdlePath,
+} from '/creatureAnimations.js';
+
+const PRESENTATION_ACTION_TYPES = MATCH_ANIMATION_NAMES.filter((name) => name !== 'idle');
 
 const SOUND_BY_ACTION = Object.freeze({
   prepare: '/audio/actions/prepare.mp3',
@@ -35,7 +27,7 @@ const CREATURE_IDS = ['goblin', 'dragon', 'skunk', 'troll', 'fairy', 'demon'];
 function buildCreatureMap(creatureId) {
   const map = {};
   for (const action of PRESENTATION_ACTION_TYPES) {
-    map[action] = `/animations/${creatureId}/${action}.gif`;
+    map[action] = getCreatureAnimationAssetPath(creatureId, action);
   }
   return Object.freeze(map);
 }
@@ -45,12 +37,12 @@ export const CREATURE_ANIMATION_MAP = Object.freeze(
 );
 
 export const CREATURE_IDLE_MAP = Object.freeze({
-  goblin: '/creatures/goblin/idle_placeholder.png',
-  dragon: '/creatures/dragon/idle_placeholder.png',
-  skunk: '/creatures/skunk/idle_placeholder.png',
-  troll: '/creatures/troll/idle_placeholder.png',
-  fairy: '/creatures/fairy/idle_placeholder.png',
-  demon: '/creatures/demon/idle_placeholder.png',
+  goblin: getCreatureMatchIdlePath('goblin'),
+  dragon: getCreatureMatchIdlePath('dragon'),
+  skunk: getCreatureMatchIdlePath('skunk'),
+  troll: getCreatureMatchIdlePath('troll'),
+  fairy: getCreatureMatchIdlePath('fairy'),
+  demon: getCreatureMatchIdlePath('demon'),
 });
 
 export function mapEventToPresentationAction(event) {

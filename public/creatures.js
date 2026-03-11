@@ -1,8 +1,9 @@
+import { getCreatureSelectionIdlePath } from '/creatureAnimations.js';
 export const CREATURES = [
   {
     id: 'goblin',
     name: 'Goblin',
-    idleSrc: '/creatures/goblin/idle_placeholder.png',
+    idleSrc: getCreatureSelectionIdlePath('goblin'),
     blurb: 'Efficient gas economy specialist.',
     specialAbilityName: 'RECHARGE_EXTRA bonus',
     specialAbilityDescription: 'RECHARGE_EXTRA restores 3 PG for goblin instead of the default 2.',
@@ -10,7 +11,7 @@ export const CREATURES = [
   {
     id: 'dragon',
     name: 'Dragon',
-    idleSrc: '/creatures/dragon/idle_placeholder.png',
+    idleSrc: getCreatureSelectionIdlePath('dragon'),
     blurb: 'High-pressure attacker.',
     specialAbilityName: 'DRAGON_PLUS1',
     specialAbilityDescription: 'Dragon ATTACK actions apply +1 extra damage compared to base ATTACK damage.',
@@ -18,7 +19,7 @@ export const CREATURES = [
   {
     id: 'skunk',
     name: 'Skunk',
-    idleSrc: '/creatures/skunk/idle_placeholder.png',
+    idleSrc: getCreatureSelectionIdlePath('skunk'),
     blurb: 'Risk-control attacker.',
     specialAbilityName: 'SKUNK_SAFE_USED',
     specialAbilityDescription: 'One ATTACK can consume safe=true to prevent BACKFIRE once per match.',
@@ -26,7 +27,7 @@ export const CREATURES = [
   {
     id: 'troll',
     name: 'Troll',
-    idleSrc: '/creatures/troll/idle_placeholder.png',
+    idleSrc: getCreatureSelectionIdlePath('troll'),
     blurb: 'Retaliation-focused defender.',
     specialAbilityName: 'TROLL_RETAL',
     specialAbilityDescription: 'When troll takes non-zero attack damage, the attacker takes 1 retaliation damage.',
@@ -34,7 +35,7 @@ export const CREATURES = [
   {
     id: 'fairy',
     name: 'Fairy',
-    idleSrc: '/creatures/fairy/idle_placeholder.png',
+    idleSrc: getCreatureSelectionIdlePath('fairy'),
     blurb: 'Sustain and recovery specialist.',
     specialAbilityName: 'HEAL',
     specialAbilityDescription: 'Only fairy can use HEAL when PG >= 1; HEAL restores PR (2, or 3 when PR <= 7).',
@@ -42,7 +43,7 @@ export const CREATURES = [
   {
     id: 'demon',
     name: 'Demon',
-    idleSrc: '/creatures/demon/idle_placeholder.png',
+    idleSrc: getCreatureSelectionIdlePath('demon'),
     blurb: 'Volatile all-rounder.',
     specialAbilityName: 'BASE KIT',
     specialAbilityDescription: 'Demon uses the baseline move kit without class-specific modifiers.',

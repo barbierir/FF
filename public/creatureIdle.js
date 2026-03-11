@@ -1,10 +1,11 @@
+import { getCreatureSelectionIdlePath } from '/creatureAnimations.js';
 const IDLE_ASSET_BY_CLASS = {
-  goblin: "/creatures/goblin/idle_placeholder.png",
-  dragon: "/creatures/dragon/idle_placeholder.png",
-  skunk: "/creatures/skunk/idle_placeholder.png",
-  troll: "/creatures/troll/idle_placeholder.png",
-  fairy: "/creatures/fairy/idle_placeholder.png",
-  demon: "/creatures/demon/idle_placeholder.png",
+  goblin: getCreatureSelectionIdlePath('goblin'),
+  dragon: getCreatureSelectionIdlePath('dragon'),
+  skunk: getCreatureSelectionIdlePath('skunk'),
+  troll: getCreatureSelectionIdlePath('troll'),
+  fairy: getCreatureSelectionIdlePath('fairy'),
+  demon: getCreatureSelectionIdlePath('demon'),
 };
 
 const isDev = ["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -24,7 +25,7 @@ function createFallback(classKey, size, alt) {
 export function renderCreatureIdle(container, { classKey, size = 72, alt } = {}) {
   if (!container) return;
   const safeClassKey = typeof classKey === 'string' && classKey.trim() ? classKey.trim() : 'unknown';
-  const assetKey = IDLE_ASSET_BY_CLASS[safeClassKey] ?? `/creatures/${safeClassKey}/idle_placeholder.png`;
+  const assetKey = IDLE_ASSET_BY_CLASS[safeClassKey] ?? getCreatureSelectionIdlePath(safeClassKey);
   container.innerHTML = '';
 
   const shell = document.createElement('div');
