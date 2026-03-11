@@ -1,13 +1,13 @@
-const MATCH_PRESENTATION_DURATION_MS = 40_000;
 const INTRO_DURATION_MS = 4_000;
-const ACTION_PHASE_END_MS = 34_000;
+const ACTION_STEP_DURATION_MS = 1_200;
+const RESULT_PHASE_DURATION_MS = 1_500;
+const FINISH_BUFFER_MS = 300;
 
 import {
   getActionSound,
   getBubbleText,
   getCreatureAnimationCandidates,
   getCreatureIdleCandidates,
-  getCreatureIdlePath,
   mapEventToPresentationAction,
 } from '/presentationAssets.js';
 import { loadImageWithFallback } from '/creatureAnimations.js';
@@ -38,8 +38,9 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
   const timeline = [];
   const safeEvents = Array.isArray(events) ? events : [];
   const playableEvents = safeEvents.filter((event) => event && (event.actor === 'A' || event.actor === 'B'));
-  const playbackDuration = ACTION_PHASE_END_MS - INTRO_DURATION_MS;
-  const spacing = playableEvents.length > 0 ? playbackDuration / playableEvents.length : playbackDuration;
+  const actionPhaseStartMs = INTRO_DURATION_MS;
+  const actionPhaseEndMs = actionPhaseStartMs + playableEvents.length * ACTION_STEP_DURATION_MS;
+  const finishAtMs = actionPhaseEndMs + RESULT_PHASE_DURATION_MS + FINISH_BUFFER_MS;
 
   timeline.push({
     key: 'intro',
@@ -52,7 +53,7 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
     const actionType = getPresentationActionType(event);
     timeline.push({
       key: `action_${index}_${event.t}_${event.kind}`,
-      atMs: Math.round(INTRO_DURATION_MS + spacing * index),
+      atMs: actionPhaseStartMs + index * ACTION_STEP_DURATION_MS,
       phase: 'action',
       event,
       actionType,
@@ -63,26 +64,33 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
 
   timeline.push({
     key: 'result',
-    atMs: ACTION_PHASE_END_MS,
+    atMs: actionPhaseEndMs,
     phase: 'result',
     winner: summary?.winner ?? 'DRAW',
   });
 
   timeline.push({
     key: 'finish',
-    atMs: MATCH_PRESENTATION_DURATION_MS,
+    atMs: finishAtMs,
     phase: 'finished',
   });
 
   debugLog('[presentation] timeline built length', timeline.length);
 
   return {
-    durationMs: MATCH_PRESENTATION_DURATION_MS,
+    durationMs: finishAtMs,
     introDurationMs: INTRO_DURATION_MS,
-    actionStartMs: INTRO_DURATION_MS,
-    resultStartMs: ACTION_PHASE_END_MS,
+    actionStartMs: actionPhaseStartMs,
+    resultStartMs: actionPhaseEndMs,
     timeline,
   };
+}
+
+function isAttackAnimation(actionType) {
+  return actionType === 'attack_normal'
+    || actionType === 'attack_toxic'
+    || actionType === 'attack_cataclysm'
+    || actionType === 'attack_backfire';
 }
 
 export class MatchPresentation {
@@ -142,6 +150,9 @@ export class MatchPresentation {
     this.currentAnimations[side] = actionType;
     const slot = this.root.querySelector(`[data-creature="${side}"] img`);
     if (!slot) return;
+    slot.dataset.side = side;
+    slot.dataset.animation = actionType;
+    slot.dataset.isAttack = isAttackAnimation(actionType) ? 'true' : 'false';
     const creatureId = side === 'A' ? this.creatures.a : this.creatures.b;
     const candidates = [
       ...getCreatureAnimationCandidates(creatureId, actionType),
@@ -250,12 +261,8 @@ export class MatchPresentation {
     this.clearBubble();
     if (this.eventLogRoot) this.eventLogRoot.innerHTML = '';
 
-    const leftCreatureId = this.creatures.a;
-    const rightCreatureId = this.creatures.b;
-    const slotA = this.root.querySelector('[data-creature="A"] img');
-    const slotB = this.root.querySelector('[data-creature="B"] img');
-    if (slotA) slotA.src = getCreatureIdlePath(leftCreatureId);
-    if (slotB) slotB.src = getCreatureIdlePath(rightCreatureId);
+    this.setCreatureAnimation('A', 'idle');
+    this.setCreatureAnimation('B', 'idle');
 
     const resultBadge = this.root.querySelector('[data-result-badge]');
     resultBadge.dataset.state = 'hidden';
@@ -296,7 +303,8 @@ export class MatchPresentation {
 }
 
 export const matchPresentationConstants = {
-  MATCH_PRESENTATION_DURATION_MS,
   INTRO_DURATION_MS,
-  ACTION_PHASE_END_MS,
+  ACTION_STEP_DURATION_MS,
+  RESULT_PHASE_DURATION_MS,
+  FINISH_BUFFER_MS,
 };

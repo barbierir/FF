@@ -868,6 +868,19 @@ a { color: var(--accent); }
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.2);
   background: rgba(0,0,0,0.2);
+  transition: transform 180ms ease;
+}
+
+.battle-creature img[data-side="B"] {
+  transform: scaleX(-1);
+}
+
+.battle-creature img[data-is-attack="true"][data-side="A"] {
+  transform: translateX(10px);
+}
+
+.battle-creature img[data-is-attack="true"][data-side="B"] {
+  transform: scaleX(-1) translateX(10px);
 }
 
 .battle-action-bubble {
