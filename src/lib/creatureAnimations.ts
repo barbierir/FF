@@ -55,12 +55,12 @@ export const CREATURE_ANIMATIONS: Record<CreatureId, CreatureAnimationMap> = {
 };
 
 export const CREATURE_IDLE_ANIMATIONS: Record<CreatureId, string> = {
-  goblin: "/creatures/idle/goblin.gif",
-  dragon: "/creatures/idle/dragon.gif",
-  skunk: "/creatures/idle/slime.gif",
-  troll: "/creatures/idle/skeleton.gif",
-  fairy: "/creatures/idle/wizard.gif",
-  demon: "/creatures/idle/demon.gif",
+  goblin: "/creatures/goblin/idle_placeholder.png",
+  dragon: "/creatures/dragon/idle_placeholder.png",
+  skunk: "/creatures/skunk/idle_placeholder.png",
+  troll: "/creatures/troll/idle_placeholder.png",
+  fairy: "/creatures/fairy/idle_placeholder.png",
+  demon: "/creatures/demon/idle_placeholder.png",
 };
 
 export const ACTION_SOUNDS: ActionSoundMap = {

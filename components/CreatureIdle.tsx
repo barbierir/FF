@@ -6,28 +6,24 @@ type CreatureIdleProps = {
   alt?: string;
 };
 
-type IdleMode = "webp" | "gif" | "fallback";
+type IdleMode = "primary" | "fallback";
 
 const isDev = typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname);
 const IDLE_ASSET_BY_CLASS: Record<string, string> = {
-  goblin: "goblin",
-  dragon: "dragon",
-  skunk: "slime",
-  troll: "skeleton",
-  fairy: "wizard",
-  demon: "demon",
+  goblin: "/creatures/goblin/idle_placeholder.png",
+  dragon: "/creatures/dragon/idle_placeholder.png",
+  skunk: "/creatures/skunk/idle_placeholder.png",
+  troll: "/creatures/troll/idle_placeholder.png",
+  fairy: "/creatures/fairy/idle_placeholder.png",
+  demon: "/creatures/demon/idle_placeholder.png",
 };
 
 export default function CreatureIdle({ classKey, size = 72, alt }: CreatureIdleProps) {
-  const [mode, setMode] = useState<IdleMode>("webp");
+  const [mode, setMode] = useState<IdleMode>("primary");
   const label = useMemo(() => classKey || "unknown", [classKey]);
-  const idleAsset = useMemo(() => IDLE_ASSET_BY_CLASS[label] ?? label, [label]);
+  const idleAsset = useMemo(() => IDLE_ASSET_BY_CLASS[label] ?? `/creatures/${label}/idle_placeholder.png`, [label]);
 
-  const src = mode === "webp"
-    ? `/creatures/idle/${idleAsset}.webp`
-    : mode === "gif"
-      ? `/creatures/idle/${idleAsset}.gif`
-      : "";
+  const src = mode === "primary" ? idleAsset : "";
 
   if (mode === "fallback") {
     return (
@@ -52,7 +48,7 @@ export default function CreatureIdle({ classKey, size = 72, alt }: CreatureIdleP
             attemptedSrc: event.currentTarget.currentSrc || event.currentTarget.src,
           });
         }
-        setMode((prev) => (prev === "webp" ? "gif" : "fallback"));
+        setMode("fallback");
       }}
     />
   );
