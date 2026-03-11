@@ -1,7 +1,6 @@
 import {
   MATCH_ANIMATION_NAMES,
-  getCreatureAnimationAssetPath,
-  getCreatureMatchIdlePath,
+  getCreatureAnimationAssetCandidates,
 } from '/creatureAnimations.js';
 
 const PRESENTATION_ACTION_TYPES = MATCH_ANIMATION_NAMES.filter((name) => name !== 'idle');
@@ -27,7 +26,7 @@ const CREATURE_IDS = ['goblin', 'dragon', 'skunk', 'troll', 'fairy', 'demon'];
 function buildCreatureMap(creatureId) {
   const map = {};
   for (const action of PRESENTATION_ACTION_TYPES) {
-    map[action] = getCreatureAnimationAssetPath(creatureId, action);
+    map[action] = getCreatureAnimationAssetCandidates(creatureId, action);
   }
   return Object.freeze(map);
 }
@@ -37,12 +36,12 @@ export const CREATURE_ANIMATION_MAP = Object.freeze(
 );
 
 export const CREATURE_IDLE_MAP = Object.freeze({
-  goblin: getCreatureMatchIdlePath('goblin'),
-  dragon: getCreatureMatchIdlePath('dragon'),
-  skunk: getCreatureMatchIdlePath('skunk'),
-  troll: getCreatureMatchIdlePath('troll'),
-  fairy: getCreatureMatchIdlePath('fairy'),
-  demon: getCreatureMatchIdlePath('demon'),
+  goblin: getCreatureAnimationAssetCandidates('goblin', 'idle'),
+  dragon: getCreatureAnimationAssetCandidates('dragon', 'idle'),
+  skunk: getCreatureAnimationAssetCandidates('skunk', 'idle'),
+  troll: getCreatureAnimationAssetCandidates('troll', 'idle'),
+  fairy: getCreatureAnimationAssetCandidates('fairy', 'idle'),
+  demon: getCreatureAnimationAssetCandidates('demon', 'idle'),
 });
 
 export function mapEventToPresentationAction(event) {
@@ -64,14 +63,22 @@ export function getActionSound(actionType) {
   return SOUND_BY_ACTION[actionType] || null;
 }
 
-export function getCreatureAnimationPath(creatureId, actionType) {
+export function getCreatureAnimationCandidates(creatureId, actionType) {
   const normalizedCreature = CREATURE_ANIMATION_MAP[creatureId] ? creatureId : 'goblin';
   const creatureMap = CREATURE_ANIMATION_MAP[normalizedCreature];
   return creatureMap[actionType] || CREATURE_IDLE_MAP[normalizedCreature];
 }
 
-export function getCreatureIdlePath(creatureId) {
+export function getCreatureAnimationPath(creatureId, actionType) {
+  return getCreatureAnimationCandidates(creatureId, actionType)[0];
+}
+
+export function getCreatureIdleCandidates(creatureId) {
   return CREATURE_IDLE_MAP[creatureId] || CREATURE_IDLE_MAP.goblin;
+}
+
+export function getCreatureIdlePath(creatureId) {
+  return getCreatureIdleCandidates(creatureId)[0];
 }
 
 export function getBubbleText(actionType) {
