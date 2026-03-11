@@ -7,7 +7,7 @@
 <div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row inline-actions"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
 <script type="module">
 import { copyText, createRematch, createStatusBadge, fetchReplay, getViewerPlayerId, loadViewerProfileBar, outcomeToBadgeVariant, parsePath, rememberLastReplayPublicId, renderPlayerIdentity, updateTopNav } from '/app.js';
-import { MatchPresentation, matchPresentationConstants } from '/matchPresentation.js';
+import { MatchPresentation, estimatePresentationDurationMs } from '/matchPresentation.js';
 
 const publicId = parsePath()[1];
 const sideStorageKey = `faf_rematch_side_${publicId}`;
@@ -194,7 +194,7 @@ try {
   winner.innerHTML = '';
   winner.append('Match Result: ');
   winner.appendChild(createStatusBadge({ label: resultLabel, variant: outcomeToBadgeVariant(resultLabel), size: 'md' }));
-  const estimatedTimelineSeconds = Math.round((matchPresentationConstants.INTRO_DURATION_MS + (data.summary.turns * matchPresentationConstants.ACTION_STEP_DURATION_MS) + matchPresentationConstants.RESULT_PHASE_DURATION_MS + matchPresentationConstants.FINISH_BUFFER_MS) / 1000);
+  const estimatedTimelineSeconds = Math.round(estimatePresentationDurationMs(data.events, data.summary) / 1000);
   document.getElementById('stats').textContent = `Timeline: ~${estimatedTimelineSeconds}s · Turns ${data.summary.turns} · MaxHit ${data.summary.highlights.maxHitValue} · Cataclysms ${data.summary.highlights.cataclysms.A + data.summary.highlights.cataclysms.B} · Backfires ${data.summary.a.backfires + data.summary.b.backfires}`;
   renderPlayerIdentity(document.getElementById('replayIdentityA'), {
     playerId: data.match?.playerAId ?? 'Player A',
