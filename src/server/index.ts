@@ -155,6 +155,12 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
+      const staticModulePath = path.match(/^\/(creatureAnimations|creatures|creaturePicker|creatureIdle|creatureNames)\.js$/);
+      if (req.method === "GET" && staticModulePath) {
+        await sendStaticFile(res, `${staticModulePath[1]}.js`);
+        return;
+      }
+
       if (req.method === "GET" && path === "/matchPresentation.js") {
         await sendStaticFile(res, "matchPresentation.js");
         return;
@@ -165,7 +171,7 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
-      const staticAssetPath = path.match(/^\/(creatures\/idle\/[a-z0-9_-]+\.(?:gif|webp))$/i);
+      const staticAssetPath = path.match(/^\/(creatures\/(?:idle\/[a-z0-9_-]+|[a-z0-9_-]+\/[a-z0-9_-]+)\.(?:gif|png|webp))$/i);
       if (req.method === "GET" && staticAssetPath) {
         await sendStaticFile(res, staticAssetPath[1]);
         return;

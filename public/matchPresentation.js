@@ -5,10 +5,12 @@ const ACTION_PHASE_END_MS = 34_000;
 import {
   getActionSound,
   getBubbleText,
-  getCreatureAnimationPath,
+  getCreatureAnimationCandidates,
+  getCreatureIdleCandidates,
   getCreatureIdlePath,
   mapEventToPresentationAction,
 } from '/presentationAssets.js';
+import { loadImageWithFallback } from '/creatureAnimations.js';
 
 function debugLog(...args) {
   if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
@@ -29,7 +31,7 @@ function toBubbleText(event) {
 }
 
 export function getCreatureAnimation(creatureId, actionType) {
-  return getCreatureAnimationPath(creatureId || 'goblin', actionType);
+  return getCreatureAnimationCandidates(creatureId || 'goblin', actionType)[0];
 }
 
 export function buildMatchPresentationTimeline(events = [], summary = null) {
@@ -141,13 +143,16 @@ export class MatchPresentation {
     const slot = this.root.querySelector(`[data-creature="${side}"] img`);
     if (!slot) return;
     const creatureId = side === 'A' ? this.creatures.a : this.creatures.b;
-    const candidate = getCreatureAnimation(creatureId, actionType) || getCreatureIdlePath(creatureId);
-    debugLog('[presentation] animation path', side, actionType, candidate);
-    slot.src = candidate;
-    slot.onerror = () => {
-      slot.onerror = null;
-      slot.src = getCreatureIdlePath(creatureId);
-    };
+    const candidates = [
+      ...getCreatureAnimationCandidates(creatureId, actionType),
+      ...getCreatureIdleCandidates(creatureId),
+    ];
+    debugLog('[presentation] animation candidates', side, actionType, candidates);
+    loadImageWithFallback(slot, candidates, {
+      creatureId,
+      animationName: actionType,
+      logPrefix: '[match-presentation]',
+    });
   }
 
   showBubble(payload) {

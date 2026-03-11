@@ -1,4 +1,4 @@
-import { getCreatureSelectionIdlePath } from '/creatureAnimations.js';
+import { getCreatureAnimationAssetCandidates, getCreatureSelectionIdlePath, loadImageWithFallback } from '/creatureAnimations.js';
 const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy", "demon"];
 const VALID_CREATURE_IDS = new Set(CLASS_KEYS);
 export const CREATURES = [
@@ -158,15 +158,20 @@ export function renderCreaturePickerGrid({
     imageWrap.className = "creature-select-image";
 
     const img = document.createElement("img");
-    img.src = creature.idleSrc;
     img.alt = `${creature.name} idle`;
     img.loading = "lazy";
     img.width = 132;
     img.height = 132;
+    const idleCandidates = getCreatureAnimationAssetCandidates(creature.id, 'idle_choose');
     img.onerror = () => {
       imageWrap.replaceChildren(createCreatureFallback(132, `${creature.name} missing GIF`));
     };
     imageWrap.appendChild(img);
+    loadImageWithFallback(img, idleCandidates, {
+      creatureId: creature.id,
+      animationName: 'idle_choose',
+      logPrefix: '[creature-picker]',
+    });
 
     const name = document.createElement("h3");
     name.textContent = creature.name;
@@ -706,21 +711,12 @@ export function getGasRankTitle(wins) {
   return "Supreme Gas Lord 👑";
 }
 
-const IDLE_ASSET_BY_CLASS = {
-  goblin: getCreatureSelectionIdlePath('goblin'),
-  dragon: getCreatureSelectionIdlePath('dragon'),
-  skunk: getCreatureSelectionIdlePath('skunk'),
-  troll: getCreatureSelectionIdlePath('troll'),
-  fairy: getCreatureSelectionIdlePath('fairy'),
-  demon: getCreatureSelectionIdlePath('demon'),
-};
 
 const isDevHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
 export function renderCreatureIdle(container, { classKey, size = "md", alt } = {}) {
   if (!container) return;
   const label = classKey || "unknown";
-  const assetKey = IDLE_ASSET_BY_CLASS[label] || getCreatureSelectionIdlePath(label);
   const resolvedSize = resolveAvatarSize(size);
 
   const img = document.createElement("img");
@@ -744,7 +740,11 @@ export function renderCreatureIdle(container, { classKey, size = "md", alt } = {
   };
 
   img.alt = alt || `${label} idle creature`;
-  img.src = assetKey;
+  loadImageWithFallback(img, getCreatureAnimationAssetCandidates(label, 'idle_choose'), {
+    creatureId: label,
+    animationName: 'idle_choose',
+    logPrefix: '[renderCreatureIdle]',
+  });
   container.innerHTML = "";
   container.appendChild(img);
 }

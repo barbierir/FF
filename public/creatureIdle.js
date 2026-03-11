@@ -1,12 +1,4 @@
-import { getCreatureSelectionIdlePath } from '/creatureAnimations.js';
-const IDLE_ASSET_BY_CLASS = {
-  goblin: getCreatureSelectionIdlePath('goblin'),
-  dragon: getCreatureSelectionIdlePath('dragon'),
-  skunk: getCreatureSelectionIdlePath('skunk'),
-  troll: getCreatureSelectionIdlePath('troll'),
-  fairy: getCreatureSelectionIdlePath('fairy'),
-  demon: getCreatureSelectionIdlePath('demon'),
-};
+import { getCreatureAnimationAssetCandidates, loadImageWithFallback } from '/creatureAnimations.js';
 
 const isDev = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
@@ -25,7 +17,6 @@ function createFallback(classKey, size, alt) {
 export function renderCreatureIdle(container, { classKey, size = 72, alt } = {}) {
   if (!container) return;
   const safeClassKey = typeof classKey === 'string' && classKey.trim() ? classKey.trim() : 'unknown';
-  const assetKey = IDLE_ASSET_BY_CLASS[safeClassKey] ?? getCreatureSelectionIdlePath(safeClassKey);
   container.innerHTML = '';
 
   const shell = document.createElement('div');
@@ -40,15 +31,6 @@ export function renderCreatureIdle(container, { classKey, size = 72, alt } = {})
   img.alt = alt ?? `${safeClassKey} idle creature`;
   img.decoding = 'async';
 
-  let state = 'primary';
-  const setSrc = () => {
-    if (state === 'primary') {
-      img.src = assetKey;
-      return;
-    }
-    shell.replaceChildren(createFallback(safeClassKey, size, alt));
-  };
-
   img.onerror = () => {
     if (isDev) {
       console.warn("[renderCreatureIdle] failed to load idle image", {
@@ -56,11 +38,14 @@ export function renderCreatureIdle(container, { classKey, size = 72, alt } = {})
         attemptedSrc: img.currentSrc || img.src,
       });
     }
-    state = 'fallback';
-    setSrc();
+    shell.replaceChildren(createFallback(safeClassKey, size, alt));
   };
 
   shell.appendChild(img);
   container.appendChild(shell);
-  setSrc();
+  loadImageWithFallback(img, getCreatureAnimationAssetCandidates(safeClassKey, 'idle_choose'), {
+    creatureId: safeClassKey,
+    animationName: 'idle_choose',
+    logPrefix: '[creature-idle]',
+  });
 }
