@@ -1,10 +1,10 @@
 const IDLE_ASSET_BY_CLASS = {
-  goblin: "goblin",
-  dragon: "dragon",
-  skunk: "slime",
-  troll: "skeleton",
-  fairy: "wizard",
-  demon: "demon",
+  goblin: "/creatures/goblin/idle_placeholder.png",
+  dragon: "/creatures/dragon/idle_placeholder.png",
+  skunk: "/creatures/skunk/idle_placeholder.png",
+  troll: "/creatures/troll/idle_placeholder.png",
+  fairy: "/creatures/fairy/idle_placeholder.png",
+  demon: "/creatures/demon/idle_placeholder.png",
 };
 
 const isDev = ["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -24,7 +24,7 @@ function createFallback(classKey, size, alt) {
 export function renderCreatureIdle(container, { classKey, size = 72, alt } = {}) {
   if (!container) return;
   const safeClassKey = typeof classKey === 'string' && classKey.trim() ? classKey.trim() : 'unknown';
-  const assetKey = IDLE_ASSET_BY_CLASS[safeClassKey] ?? safeClassKey;
+  const assetKey = IDLE_ASSET_BY_CLASS[safeClassKey] ?? `/creatures/${safeClassKey}/idle_placeholder.png`;
   container.innerHTML = '';
 
   const shell = document.createElement('div');
@@ -39,14 +39,10 @@ export function renderCreatureIdle(container, { classKey, size = 72, alt } = {})
   img.alt = alt ?? `${safeClassKey} idle creature`;
   img.decoding = 'async';
 
-  let state = 'webp';
+  let state = 'primary';
   const setSrc = () => {
-    if (state === 'webp') {
-      img.src = `/creatures/idle/${assetKey}.webp`;
-      return;
-    }
-    if (state === 'gif') {
-      img.src = `/creatures/idle/${assetKey}.gif`;
+    if (state === 'primary') {
+      img.src = assetKey;
       return;
     }
     shell.replaceChildren(createFallback(safeClassKey, size, alt));
@@ -58,11 +54,6 @@ export function renderCreatureIdle(container, { classKey, size = 72, alt } = {})
         creatureId: safeClassKey,
         attemptedSrc: img.currentSrc || img.src,
       });
-    }
-    if (state === 'webp') {
-      state = 'gif';
-      setSrc();
-      return;
     }
     state = 'fallback';
     setSrc();

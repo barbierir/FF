@@ -4,7 +4,7 @@ export const CREATURES = [
   {
     id: "goblin",
     name: "Goblin",
-    idleSrc: "/creatures/idle/goblin.gif",
+    idleSrc: "/creatures/goblin/idle_placeholder.png",
     blurb: "Efficient gas economy specialist.",
     specialAbilityName: "RECHARGE_EXTRA bonus",
     specialAbilityDescription: "RECHARGE_EXTRA restores 3 PG for goblin instead of the default 2.",
@@ -12,7 +12,7 @@ export const CREATURES = [
   {
     id: "dragon",
     name: "Dragon",
-    idleSrc: "/creatures/idle/dragon.gif",
+    idleSrc: "/creatures/dragon/idle_placeholder.png",
     blurb: "High-pressure attacker.",
     specialAbilityName: "DRAGON_PLUS1",
     specialAbilityDescription: "Dragon ATTACK actions apply +1 extra damage compared to base ATTACK damage.",
@@ -20,7 +20,7 @@ export const CREATURES = [
   {
     id: "skunk",
     name: "Skunk",
-    idleSrc: "/creatures/idle/slime.gif",
+    idleSrc: "/creatures/skunk/idle_placeholder.png",
     blurb: "Risk-control attacker.",
     specialAbilityName: "SKUNK_SAFE_USED",
     specialAbilityDescription: "One ATTACK can consume safe=true to prevent BACKFIRE once per match.",
@@ -28,7 +28,7 @@ export const CREATURES = [
   {
     id: "troll",
     name: "Troll",
-    idleSrc: "/creatures/idle/skeleton.gif",
+    idleSrc: "/creatures/troll/idle_placeholder.png",
     blurb: "Retaliation-focused defender.",
     specialAbilityName: "TROLL_RETAL",
     specialAbilityDescription: "When troll takes non-zero attack damage, the attacker takes 1 retaliation damage.",
@@ -36,7 +36,7 @@ export const CREATURES = [
   {
     id: "fairy",
     name: "Fairy",
-    idleSrc: "/creatures/idle/wizard.gif",
+    idleSrc: "/creatures/fairy/idle_placeholder.png",
     blurb: "Sustain and recovery specialist.",
     specialAbilityName: "HEAL",
     specialAbilityDescription: "Only fairy can use HEAL when PG >= 1; HEAL restores PR (2, or 3 when PR <= 7).",
@@ -44,7 +44,7 @@ export const CREATURES = [
   {
     id: "demon",
     name: "Demon",
-    idleSrc: "/creatures/idle/demon.gif",
+    idleSrc: "/creatures/demon/idle_placeholder.png",
     blurb: "Volatile all-rounder.",
     specialAbilityName: "BASE KIT",
     specialAbilityDescription: "Demon uses the baseline move kit without class-specific modifiers.",
@@ -706,12 +706,12 @@ export function getGasRankTitle(wins) {
 }
 
 const IDLE_ASSET_BY_CLASS = {
-  goblin: "goblin",
-  dragon: "dragon",
-  skunk: "slime",
-  troll: "skeleton",
-  fairy: "wizard",
-  demon: "demon",
+  goblin: "/creatures/goblin/idle_placeholder.png",
+  dragon: "/creatures/dragon/idle_placeholder.png",
+  skunk: "/creatures/skunk/idle_placeholder.png",
+  troll: "/creatures/troll/idle_placeholder.png",
+  fairy: "/creatures/fairy/idle_placeholder.png",
+  demon: "/creatures/demon/idle_placeholder.png",
 };
 
 const isDevHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -719,7 +719,7 @@ const isDevHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 export function renderCreatureIdle(container, { classKey, size = "md", alt } = {}) {
   if (!container) return;
   const label = classKey || "unknown";
-  const assetKey = IDLE_ASSET_BY_CLASS[label] || label;
+  const assetKey = IDLE_ASSET_BY_CLASS[label] || `/creatures/${label}/idle_placeholder.png`;
   const resolvedSize = resolveAvatarSize(size);
 
   const img = document.createElement("img");
@@ -732,7 +732,6 @@ export function renderCreatureIdle(container, { classKey, size = "md", alt } = {
     container.appendChild(createCreatureFallback(resolvedSize, alt || `${label} missing GIF`));
   };
 
-  let triedGif = false;
   img.onerror = () => {
     if (isDevHost) {
       console.warn("[renderCreatureIdle] failed to load idle image", {
@@ -740,16 +739,11 @@ export function renderCreatureIdle(container, { classKey, size = "md", alt } = {
         attemptedSrc: img.currentSrc || img.src,
       });
     }
-    if (!triedGif) {
-      triedGif = true;
-      img.src = `/creatures/idle/${encodeURIComponent(assetKey)}.gif`;
-      return;
-    }
     showFallback();
   };
 
   img.alt = alt || `${label} idle creature`;
-  img.src = `/creatures/idle/${encodeURIComponent(assetKey)}.webp`;
+  img.src = assetKey;
   container.innerHTML = "";
   container.appendChild(img);
 }
