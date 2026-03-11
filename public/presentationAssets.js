@@ -5,6 +5,15 @@ import {
 
 const PRESENTATION_ACTION_TYPES = MATCH_ANIMATION_NAMES.filter((name) => name !== 'idle');
 
+export const DEFAULT_MATCH_ANIMATION_DURATION_MS = 3_000;
+
+export const battlePresentationConfig = Object.freeze({
+  introDurationMs: 4_000,
+  finishBufferMs: 300,
+  finalStates: Object.freeze(['victory', 'defeat']),
+  actionDurationsMs: Object.freeze(Object.fromEntries(PRESENTATION_ACTION_TYPES.map((actionType) => [actionType, DEFAULT_MATCH_ANIMATION_DURATION_MS]))),
+});
+
 const SOUND_BY_ACTION = Object.freeze({
   prepare: '/audio/actions/prepare.mp3',
   charge: '/audio/actions/charge.mp3',
@@ -22,6 +31,12 @@ const SOUND_BY_ACTION = Object.freeze({
 });
 
 const CREATURE_IDS = ['goblin', 'dragon', 'skunk', 'troll', 'fairy', 'demon'];
+
+function devWarn(message, details) {
+  if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
+    console.warn(`[presentation] ${message}`, details);
+  }
+}
 
 function buildCreatureMap(creatureId) {
   const map = {};
@@ -56,6 +71,8 @@ export function mapEventToPresentationAction(event) {
   if (event.kind === 'VENGEANCE') return 'revenge';
   if (event.kind === 'RECHARGE_EXTRA' || event.kind === 'RECHARGE') return 'charge';
   if (event.kind === 'STUNNED' || (event.tags || []).includes('STUNNED')) return 'stunned';
+
+  devWarn('unknown event kind, using prepare fallback', { kind: event.kind, event });
   return 'prepare';
 }
 
@@ -103,6 +120,10 @@ export function getBubbleText(actionType) {
       return 'Stunned!';
     case 'revenge':
       return 'Final vengeance!';
+    case 'defeat':
+      return 'Down!';
+    case 'victory':
+      return 'Victory!';
     default:
       return 'Preparing...';
   }

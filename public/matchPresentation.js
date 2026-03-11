@@ -1,31 +1,11 @@
-const DEFAULT_MATCH_ANIMATION_DURATION_MS = 3_000;
-
-export const battleAnimationTiming = Object.freeze({
-  introDurationMs: 4_000,
-  finishBufferMs: 300,
-  actionDurationsMs: Object.freeze({
-    prepare: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    charge: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    attack_normal: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    attack_toxic: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    attack_cataclysm: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    attack_backfire: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    hit: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    defend: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    critical_hit: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    stunned: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    revenge: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    defeat: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-    victory: DEFAULT_MATCH_ANIMATION_DURATION_MS,
-  }),
-});
-
 import {
   getActionSound,
   getBubbleText,
   getCreatureAnimationCandidates,
   getCreatureIdleCandidates,
   mapEventToPresentationAction,
+  battlePresentationConfig,
+  DEFAULT_MATCH_ANIMATION_DURATION_MS,
 } from '/presentationAssets.js';
 import { loadImageWithFallback } from '/creatureAnimations.js';
 
@@ -34,6 +14,8 @@ function debugLog(...args) {
     console.debug(...args);
   }
 }
+
+export const battleAnimationTiming = battlePresentationConfig;
 
 function getAnimationDurationMs(actionType) {
   return battleAnimationTiming.actionDurationsMs[actionType] ?? DEFAULT_MATCH_ANIMATION_DURATION_MS;
@@ -55,7 +37,8 @@ export function estimatePresentationDurationMs(events = [], summary = null) {
 export function getPresentationActionType(event) {
   try {
     return mapEventToPresentationAction(event);
-  } catch {
+  } catch (error) {
+    debugLog('[presentation] failed to map event, using prepare fallback', { event, error });
     return 'prepare';
   }
 }
@@ -80,67 +63,82 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
   const safeEvents = Array.isArray(events) ? events : [];
   const playableEvents = [];
 
+  const hasAnyTag = (event, tags) => Array.isArray(event?.tags) && tags.some((tag) => event.tags.includes(tag));
+  const isCriticalOutcome = (event) => event?.outcome === 'CATACLYSM' || hasAnyTag(event, ['CRITICAL_HIT']);
+  const isStunEvent = (event) => event?.kind === 'STUNNED' || hasAnyTag(event, ['STUNNED', 'STUN', 'APPLY_STUN']);
+
   const pushActionStep = (event, actionType, actor, metadata = {}) => {
     if (!event || (actor !== 'A' && actor !== 'B')) return;
     playableEvents.push({
       event,
       actionType,
       actor,
-      ...metadata,
+      reaction: metadata.reaction === true,
+      logText: metadata.logText || null,
+      bubbleText: metadata.bubbleText || null,
     });
   };
 
-  const addDamageReaction = (event, side, damage) => {
+  const resolveDamageReaction = (event, side, damage) => {
     if (!Number.isFinite(damage) || damage <= 0) return;
-    const prKey = side === 'A' ? 'prA' : 'prB';
-    const hpAfter = Number.isFinite(event[prKey]) ? event[prKey] : null;
-    const reactionAction = hpAfter !== null && hpAfter <= 0 ? 'defeat' : 'hit';
+    const hpAfter = side === 'A' ? event.prA : event.prB;
+    if (Number.isFinite(hpAfter) && hpAfter <= 0) {
+      pushActionStep(event, 'defeat', side, {
+        reaction: true,
+        logText: `${side} is defeated.`,
+        bubbleText: 'Down!',
+      });
+      return;
+    }
+
+    const reactionAction = isCriticalOutcome(event) ? 'critical_hit' : 'hit';
     pushActionStep(event, reactionAction, side, {
       reaction: true,
-      logText: reactionAction === 'defeat'
-        ? `${side} is defeated.`
+      logText: reactionAction === 'critical_hit'
+        ? `${side} takes a critical hit (${damage}).`
         : `${side} takes ${damage} damage.`,
+      bubbleText: reactionAction === 'critical_hit' ? 'Critical hit!' : 'Direct hit!',
     });
   };
 
-  const hasStunTag = (event) => Array.isArray(event?.tags) && event.tags.some((tag) => tag === 'STUNNED' || tag === 'STUN' || tag === 'APPLY_STUN');
-  const shouldInferStun = (event) => event?.kind === 'ATTACK' && (event.outcome === 'TOXIC' || event.outcome === 'CATACLYSM' || event.outcome === 'BACKFIRE');
+  const resolveStunTargets = (event) => {
+    if (!isStunEvent(event) && !(event?.kind === 'ATTACK' && event?.outcome === 'TOXIC')) return [];
+    const sides = [];
+    if (event.kind === 'STUNNED' && (event.actor === 'A' || event.actor === 'B')) {
+      sides.push(event.actor);
+    }
+    if (Number.isFinite(event.dmgToA) && event.dmgToA > 0 && event.prA > 0) sides.push('A');
+    if (Number.isFinite(event.dmgToB) && event.dmgToB > 0 && event.prB > 0) sides.push('B');
+    return [...new Set(sides)];
+  };
 
   safeEvents.forEach((event) => {
     if (!event) return;
 
     if (event.actor === 'A' || event.actor === 'B') {
-      pushActionStep(event, getPresentationActionType(event), event.actor, {
+      const actionType = getPresentationActionType(event);
+      const actorLog = event.kind === 'ATTACK'
+        ? `${event.actor} uses ${actionType}.`
+        : event.kind === 'VENGEANCE'
+          ? `${event.actor} triggers revenge.`
+          : `${event.actor} uses ${event.kind?.toLowerCase() || 'action'}.`;
+      pushActionStep(event, actionType, event.actor, {
         reaction: false,
+        logText: actorLog,
       });
     }
 
-    if (Number.isFinite(event.dmgToA) && event.dmgToA > 0) {
-      addDamageReaction(event, 'A', event.dmgToA);
-    }
-    if (Number.isFinite(event.dmgToB) && event.dmgToB > 0) {
-      addDamageReaction(event, 'B', event.dmgToB);
-    }
+    if (Number.isFinite(event.dmgToA) && event.dmgToA > 0) resolveDamageReaction(event, 'A', event.dmgToA);
+    if (Number.isFinite(event.dmgToB) && event.dmgToB > 0) resolveDamageReaction(event, 'B', event.dmgToB);
 
-    const explicitlyStunned = event.kind === 'STUNNED' || hasStunTag(event);
-    if (explicitlyStunned || shouldInferStun(event)) {
-      const candidates = [];
-      if (event.kind === 'STUNNED' && (event.actor === 'A' || event.actor === 'B')) {
-        candidates.push(event.actor);
-      }
-      if (Number.isFinite(event.dmgToA) && event.dmgToA > 0 && event.prA > 0) {
-        candidates.push('A');
-      }
-      if (Number.isFinite(event.dmgToB) && event.dmgToB > 0 && event.prB > 0) {
-        candidates.push('B');
-      }
-      [...new Set(candidates)].forEach((side) => {
-        pushActionStep(event, 'stunned', side, {
-          reaction: true,
-          logText: `${side} is stunned.`,
-        });
+    resolveStunTargets(event).forEach((side) => {
+      pushActionStep(event, 'stunned', side, {
+        reaction: true,
+        logText: `${side} is stunned.`,
+        bubbleText: 'Stunned!',
       });
-    }
+    });
+
   });
 
   const actionPhaseStartMs = battleAnimationTiming.introDurationMs;
@@ -157,16 +155,16 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
     const actionType = stepEvent.actionType;
     const durationMs = getAnimationDurationMs(actionType);
     timeline.push({
-      key: `action_${index}_${stepEvent.event.t}_${stepEvent.event.kind}_${actionType}`,
+      key: `action_${index}_${stepEvent.event.t}_${stepEvent.event.kind}_${actionType}_${stepEvent.actor}`,
       atMs: nextActionAtMs,
       phase: 'action',
       event: stepEvent.event,
       actionType,
       durationMs,
       actor: stepEvent.actor,
-      reaction: stepEvent.reaction === true,
+      reaction: stepEvent.reaction,
       logText: stepEvent.logText,
-      bubbleText: getStepBubbleText(stepEvent),
+      bubbleText: stepEvent.bubbleText || getStepBubbleText(stepEvent),
     });
     nextActionAtMs += durationMs;
   });
@@ -314,11 +312,11 @@ export class MatchPresentation {
     if (!this.eventLogRoot || !step || !step.event) return;
     const event = step.event;
     const line = document.createElement('div');
-    if (step.logText) {
-      line.textContent = `T${event.t ?? '?'} ${step.logText} | HP A:${event.prA ?? '?'} B:${event.prB ?? '?'}`;
-    } else {
-      line.textContent = `T${event.t ?? '?'} ${event.actor ?? '?'} ${event.kind ?? 'UNKNOWN'}${event.outcome ? ` ${event.outcome}` : ''} | HP A:${event.prA ?? '?'} B:${event.prB ?? '?'}`;
-    }
+    const base = `T${event.t ?? '?'} `;
+    const detail = step.logText
+      ? step.logText
+      : `${event.actor ?? '?'} ${event.kind ?? 'UNKNOWN'}${event.outcome ? ` ${event.outcome}` : ''}`;
+    line.textContent = `${base}${detail} | HP A:${event.prA ?? '?'} B:${event.prB ?? '?'}`;
     this.eventLogRoot.appendChild(line);
   }
 
