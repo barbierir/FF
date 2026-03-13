@@ -473,8 +473,17 @@ a { color: var(--accent); }
   }
 
   .topbar #profileBar,
-  .topbar #meta {
+  .topbar #meta,
+  .audio-controls {
     width: 100%;
+  }
+
+  .audio-controls {
+    order: 10;
+  }
+
+  .audio-volume-slider {
+    flex: 1;
   }
 
   .arena-faceoff { grid-template-columns: 1fr; text-align: center; }
@@ -643,6 +652,27 @@ a { color: var(--accent); }
 }
 
 
+
+.audio-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.audio-mute-btn {
+  min-width: 40px;
+  padding: 6px 10px;
+}
+
+.audio-volume-slider {
+  width: 110px;
+}
+
+.audio-volume-value {
+  min-width: 40px;
+  text-align: right;
+}
 .topbar-utility-link {
   white-space: nowrap;
   text-decoration: none;
