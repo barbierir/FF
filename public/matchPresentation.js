@@ -47,7 +47,41 @@ function toBubbleText(event) {
   return getBubbleText(getPresentationActionType(event));
 }
 
+function mapActionBubbleText(actionType) {
+  switch (actionType) {
+    case 'attack_normal':
+      return 'Gas blast!';
+    case 'attack_toxic':
+      return 'Toxic cloud!';
+    case 'attack_cataclysm':
+      return 'Cataclysm blast!';
+    case 'attack_backfire':
+      return 'Backfire!';
+    case 'defend':
+      return 'Blocked!';
+    case 'charge':
+      return 'Charging up!';
+    case 'prepare':
+      return 'Preparing...';
+    case 'revenge':
+      return 'Final vengeance!';
+    case 'critical_hit':
+      return 'Critical hit!';
+    case 'stunned':
+      return 'Stunned!';
+    case 'defeat':
+      return 'Down!';
+    case 'victory':
+      return 'Victory!';
+    case 'hit':
+      return 'Direct hit!';
+    default:
+      return 'Preparing...';
+  }
+}
+
 function getStepBubbleText(stepEvent) {
+  if (stepEvent.bubbleText) return stepEvent.bubbleText;
   if (stepEvent.actionType === 'hit') return 'Direct hit!';
   if (stepEvent.actionType === 'stunned') return 'Stunned!';
   if (stepEvent.actionType === 'defeat') return 'Down!';
@@ -122,9 +156,13 @@ export function buildMatchPresentationTimeline(events = [], summary = null) {
         : event.kind === 'VENGEANCE'
           ? `${event.actor} triggers revenge.`
           : `${event.actor} uses ${event.kind?.toLowerCase() || 'action'}.`;
+      const actorBubbleText = event.kind === 'HEAL'
+        ? `Recovered ${event.gasSpent ?? '?'} gas`
+        : mapActionBubbleText(actionType);
       pushActionStep(event, actionType, event.actor, {
         reaction: false,
         logText: actorLog,
+        bubbleText: actorBubbleText,
       });
     }
 
@@ -205,10 +243,6 @@ function isAttackAnimation(actionType) {
     || actionType === 'attack_backfire';
 }
 
-function isGasAttackAnimation(actionType) {
-  return actionType === 'attack_toxic';
-}
-
 export class MatchPresentation {
   constructor(config) {
     this.root = config.root;
@@ -226,7 +260,7 @@ export class MatchPresentation {
     this.animationResetTimers = { A: null, B: null };
     this.currentHp = { A: 20, B: 20 };
     this.currentAnimations = { A: 'idle', B: 'idle' };
-    this.hitFreezeDurationMs = 70;
+    this.hitFreezeDurationMs = 80;
     this.pendingOffsetMs = 0;
 
     this.timelineData = buildMatchPresentationTimeline(this.data?.events || [], this.data?.summary || null);
@@ -333,18 +367,6 @@ export class MatchPresentation {
     motionNode.classList.add(className);
   }
 
-  triggerGasCloud(attackerSide) {
-    const effectsLayer = this.root.querySelector('[data-effects-layer]');
-    if (!effectsLayer) return;
-    const cloud = document.createElement('div');
-    cloud.className = `gas-cloud-effect ${attackerSide === 'A' ? 'from-left' : 'from-right'}`;
-    effectsLayer.appendChild(cloud);
-    const removeCloud = () => {
-      if (cloud.parentNode) cloud.parentNode.removeChild(cloud);
-    };
-    cloud.addEventListener('animationend', removeCloud, { once: true });
-  }
-
   isRealHitStep(step) {
     if (!step || !step.reaction) return false;
     if (step.actionType !== 'hit' && step.actionType !== 'critical_hit' && step.actionType !== 'defeat') return false;
@@ -391,9 +413,6 @@ export class MatchPresentation {
     this.showBubble({ text: step.bubbleText, align });
     this.playSound(step.actionType);
     const actionDurationMs = step.durationMs ?? getAnimationDurationMs(step.actionType);
-    if (!step.reaction && isGasAttackAnimation(step.actionType) && (step.actor === 'A' || step.actor === 'B')) {
-      this.triggerGasCloud(step.actor);
-    }
     debugLog('[presentation] applyAction timing', {
       actionType: step.actionType,
       actor: step.actor,

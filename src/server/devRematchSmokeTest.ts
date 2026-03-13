@@ -80,12 +80,24 @@ export async function runRematchSmokeTest(store: Store): Promise<SmokeReport> {
       creatureA: { classKey: "goblin", cosmeticSeed: 101 },
       playerAId,
       expiresInHours: 2,
+      mode: "manual",
     });
     const seedMatch = await store.acceptChallenge(seedChallenge.token, { classKey: "dragon", cosmeticSeed: 202 }, playerBId);
-    await store.submitMoves(seedMatch.id, "A", [{ type: "ATTACK", gas: 2 }]);
-    await store.submitMoves(seedMatch.id, "B", [{ type: "DEFEND" }]);
-    const seededFinal = await store.finalizeMatchIfReady(seedMatch.id);
-    artifacts.replayPublicId = seededFinal.publicId;
+
+    let seededFinal = await store.getMatch(seedMatch.id);
+    for (let turn = 0; turn < 30 && seededFinal?.status !== "finished"; turn += 1) {
+      const submitA = await store.submitTurnAction(seedMatch.id, "A", { type: "ATTACK", gas: 1 });
+      if (submitA.status === "finished") break;
+      const submitB = await store.submitTurnAction(seedMatch.id, "B", { type: "ATTACK", gas: 1 });
+      if (submitB.status === "finished") break;
+      seededFinal = await store.getMatch(seedMatch.id);
+    }
+
+    const finalizedSeed = await store.getMatch(seedMatch.id);
+    if (!finalizedSeed || finalizedSeed.status !== "finished") {
+      throw new Error("manual seed match did not finish");
+    }
+    artifacts.replayPublicId = finalizedSeed.publicId;
   } catch (error) {
     steps.push(failStep("0) Setup", { where: "seed match/replay creation" }, error instanceof Error ? error.message : "unknown setup error"));
     return { ok: false, startedAtISO, steps, artifacts };
@@ -199,55 +211,114 @@ export async function runRematchSmokeTest(store: Store): Promise<SmokeReport> {
     const accepted = await store.acceptChallenge(rematch.token, { classKey: "troll", cosmeticSeed: 303 }, playerBId);
     artifacts.matchId = accepted.id;
 
-    const movesA: Move[] = [{ type: "ATTACK", gas: 1 }];
-    const movesB: Move[] = [{ type: "HEAL" }];
+    if (accepted.mode === "manual") {
+      const submitA = await store.submitTurnAction(accepted.id, "A", { type: "ATTACK", gas: 1 });
+      const submitB = await store.submitTurnAction(accepted.id, "B", { type: "HEAL" });
+      const refreshed = await store.getMatch(accepted.id);
+      const history = refreshed?.turnHistoryJson ? JSON.parse(refreshed.turnHistoryJson) as Array<{ turn: number; A: Move; B: Move }> : [];
+      const firstTurn = history[0];
+      const mappedCorrectly = firstTurn?.A?.type === "ATTACK" && firstTurn?.B?.type === "HEAL";
 
-    const submitA = await submitMovesForPlayer(store, accepted.id, playerAId, movesA);
-    const stateAfterA = await store.getMovesForMatch(accepted.id);
+      if (!mappedCorrectly) {
+        const challengeState = await store.getChallengeByToken(rematch.token);
+        steps.push(
+          failStep(
+            "3) Identity-based slot mapping",
+            {
+              submitA,
+              submitB,
+              history,
+              challenge: challengeState ? await snapshotChallenge(store, challengeState) : null,
+              function: "submitTurnAction",
+            },
+            "manual mode slot mapping did not follow player identity",
+            { firstTurn: { A: "ATTACK", B: "HEAL" } },
+            firstTurn ?? null,
+          ),
+        );
+        return { ok: false, startedAtISO, steps, artifacts };
+      }
 
-    const hintedSide: Side = "A";
-    const submitB = await submitMovesForPlayer(store, accepted.id, playerBId, movesB, hintedSide);
-    const stateAfterB = await store.getMovesForMatch(accepted.id);
+      let finished = false;
+      for (let turn = 0; turn < 30; turn += 1) {
+        const aFollowUp = await store.submitTurnAction(accepted.id, "A", { type: "ATTACK", gas: 1 });
+        if (aFollowUp.status === "finished") {
+          finished = true;
+          break;
+        }
+        const bFollowUp = await store.submitTurnAction(accepted.id, "B", { type: "ATTACK", gas: 1 });
+        if (bFollowUp.status === "finished") {
+          finished = true;
+          break;
+        }
+      }
 
-    const aMapped = Array.isArray(stateAfterA.A) && !stateAfterA.B;
-    const bMapped = Array.isArray(stateAfterB.A) && Array.isArray(stateAfterB.B);
-    const sideHintIgnored = submitB.sideHintIgnored && submitB.side === "B";
+      if (!finished) {
+        throw new Error("manual rematch did not finish within expected turns");
+      }
 
-    if (!aMapped || !bMapped || !sideHintIgnored) {
-      const challengeState = await store.getChallengeByToken(rematch.token);
-      steps.push(
-        failStep(
-          "3) Identity-based slot mapping",
-          {
-            submitA,
-            submitB,
-            hintedSide,
-            stateAfterA,
-            stateAfterB,
-            challenge: challengeState ? await snapshotChallenge(store, challengeState) : null,
-            function: "submitMovesForPlayer",
-          },
-          "move slot mapping did not follow player identity",
-          { afterA: { A: "set", B: "unset" }, afterB: { A: "set", B: "set" }, submitBSide: "B" },
-          { stateAfterA, stateAfterB, submitBSide: submitB.side },
-        ),
-      );
-      return { ok: false, startedAtISO, steps, artifacts };
+      steps.push({
+        name: "3) Identity-based slot mapping",
+        ok: true,
+        details: {
+          mode: "manual",
+          playerASubmitStatus: submitA.status,
+          playerBSubmitStatus: submitB.status,
+          firstTurn,
+        },
+      });
+    } else {
+      const movesA: Move[] = [{ type: "ATTACK", gas: 1 }];
+      const movesB: Move[] = [{ type: "HEAL" }];
+
+      const submitA = await submitMovesForPlayer(store, accepted.id, playerAId, movesA);
+      const stateAfterA = await store.getMovesForMatch(accepted.id);
+
+      const hintedSide: Side = "A";
+      const submitB = await submitMovesForPlayer(store, accepted.id, playerBId, movesB, hintedSide);
+      const stateAfterB = await store.getMovesForMatch(accepted.id);
+
+      const aMapped = Array.isArray(stateAfterA.A) && !stateAfterA.B;
+      const bMapped = Array.isArray(stateAfterB.A) && Array.isArray(stateAfterB.B);
+      const sideHintIgnored = submitB.sideHintIgnored && submitB.side === "B";
+
+      if (!aMapped || !bMapped || !sideHintIgnored) {
+        const challengeState = await store.getChallengeByToken(rematch.token);
+        steps.push(
+          failStep(
+            "3) Identity-based slot mapping",
+            {
+              submitA,
+              submitB,
+              hintedSide,
+              stateAfterA,
+              stateAfterB,
+              challenge: challengeState ? await snapshotChallenge(store, challengeState) : null,
+              function: "submitMovesForPlayer",
+            },
+            "move slot mapping did not follow player identity",
+            { afterA: { A: "set", B: "unset" }, afterB: { A: "set", B: "set" }, submitBSide: "B" },
+            { stateAfterA, stateAfterB, submitBSide: submitB.side },
+          ),
+        );
+        return { ok: false, startedAtISO, steps, artifacts };
+      }
+
+      steps.push({
+        name: "3) Identity-based slot mapping",
+        ok: true,
+        details: {
+          mode: "auto",
+          playerASubmitResolvedSide: submitA.side,
+          playerBSubmitResolvedSide: submitB.side,
+          intentionallyWrongSideHint: hintedSide,
+          slotsAfterA: { movesASet: Boolean(stateAfterA.A), movesBSet: Boolean(stateAfterA.B) },
+          slotsAfterB: { movesASet: Boolean(stateAfterB.A), movesBSet: Boolean(stateAfterB.B) },
+        },
+      });
     }
-
-    steps.push({
-      name: "3) Identity-based slot mapping",
-      ok: true,
-      details: {
-        playerASubmitResolvedSide: submitA.side,
-        playerBSubmitResolvedSide: submitB.side,
-        intentionallyWrongSideHint: hintedSide,
-        slotsAfterA: { movesASet: Boolean(stateAfterA.A), movesBSet: Boolean(stateAfterA.B) },
-        slotsAfterB: { movesASet: Boolean(stateAfterB.A), movesBSet: Boolean(stateAfterB.B) },
-      },
-    });
   } catch (error) {
-    steps.push(failStep("3) Identity-based slot mapping", { function: "submitMovesForPlayer" }, error instanceof Error ? error.message : "unknown submit error"));
+    steps.push(failStep("3) Identity-based slot mapping", { function: "submission" }, error instanceof Error ? error.message : "unknown submit error"));
     return { ok: false, startedAtISO, steps, artifacts };
   }
 

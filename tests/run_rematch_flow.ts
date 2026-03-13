@@ -52,6 +52,57 @@ async function main(): Promise<void> {
       body: JSON.stringify({ playerId: playerBId, side: "B", moves: [{ type: "DEFEND" }] }),
     });
 
+
+    const manualChallenge = await api(baseUrl, "/api/challenges", {
+      method: "POST",
+      body: JSON.stringify({
+        playerId: playerAId,
+        creatureA: { classKey: "goblin", cosmeticSeed: 901 },
+        mode: "manual",
+      }),
+    });
+
+    const manualAccepted = await api(baseUrl, `/api/challenges/${manualChallenge.token}/accept`, {
+      method: "POST",
+      body: JSON.stringify({
+        playerId: playerBId,
+        creatureB: { classKey: "troll", cosmeticSeed: 11 },
+      }),
+    });
+
+    let manualFinished = false;
+    for (let turn = 0; turn < 30; turn += 1) {
+      const aTurn = await api(baseUrl, `/api/matches/${manualAccepted.matchId}/action`, {
+        method: "POST",
+        body: JSON.stringify({ playerId: playerAId, action: { type: "ATTACK", gas: 1 } }),
+      });
+      if (aTurn.status === "finished") {
+        manualFinished = true;
+        break;
+      }
+      const bTurn = await api(baseUrl, `/api/matches/${manualAccepted.matchId}/action`, {
+        method: "POST",
+        body: JSON.stringify({ playerId: playerBId, action: { type: "ATTACK", gas: 1 } }),
+      });
+      if (bTurn.status === "finished") {
+        manualFinished = true;
+        break;
+      }
+    }
+    if (!manualFinished) {
+      throw new Error("manual seed match did not finish");
+    }
+
+    const manualMatchMeta = await api(baseUrl, `/api/matches/${manualAccepted.matchId}`);
+    const manualRematch = await api(baseUrl, `/api/rematch/${manualMatchMeta.publicId}`, {
+      method: "POST",
+      body: JSON.stringify({ playerId: playerAId, side: "A" }),
+    });
+    const manualRematchChallenge = await api(baseUrl, `/api/challenges/${manualRematch.token}?viewerId=${playerAId}`);
+    if (manualRematchChallenge.mode !== "manual") {
+      throw new Error(`manual rematch mode was not preserved (got ${manualRematchChallenge.mode})`);
+    }
+
     const rematch = await api(baseUrl, `/api/rematch/${accepted.publicId}`, {
       method: "POST",
       body: JSON.stringify({ playerId: playerAId, side: "A" }),
@@ -96,25 +147,32 @@ async function main(): Promise<void> {
       throw new Error("accepted rematch should remain visible to player A with active match metadata");
     }
 
-    const waiting = await api(baseUrl, `/api/matches/${rematchAccepted.matchId}/moves`, {
-      method: "POST",
-      body: JSON.stringify({ playerId: playerBId, side: "A", moves: [{ type: "DEFEND" }] }),
-    });
-    if (waiting.status !== "waiting_for_opponent") {
-      throw new Error("first rematch submit should wait for opponent");
-    }
+    if (rematchAccepted.publicId) {
+      const replay = await api(baseUrl, `/api/replay/${rematchAccepted.publicId}`);
+      if (!Array.isArray(replay.events) || replay.events.length === 0) {
+        throw new Error("auto rematch should have finalized replay events");
+      }
+    } else {
+      const waiting = await api(baseUrl, `/api/matches/${rematchAccepted.matchId}/moves`, {
+        method: "POST",
+        body: JSON.stringify({ playerId: playerBId, side: "A", moves: [{ type: "DEFEND" }] }),
+      });
+      if (waiting.status !== "waiting_for_opponent") {
+        throw new Error("first rematch submit should wait for opponent");
+      }
 
-    const challengeForAAfterBMove = await api(baseUrl, `/api/challenges/${rematch.token}?viewerId=${playerAId}`);
-    if (challengeForAAfterBMove.matchId !== rematchAccepted.matchId) {
-      throw new Error("player A should still be able to load accepted rematch after player B submits");
-    }
+      const challengeForAAfterBMove = await api(baseUrl, `/api/challenges/${rematch.token}?viewerId=${playerAId}`);
+      if (challengeForAAfterBMove.matchId !== rematchAccepted.matchId) {
+        throw new Error("player A should still be able to load accepted rematch after player B submits");
+      }
 
-    const done = await api(baseUrl, `/api/matches/${rematchAccepted.matchId}/moves`, {
-      method: "POST",
-      body: JSON.stringify({ playerId: playerAId, side: "B", moves: [{ type: "ATTACK", gas: 1 }] }),
-    });
-    if (done.status !== "finished" || !done.replayUrl) {
-      throw new Error("both rematch moves did not finalize");
+      const done = await api(baseUrl, `/api/matches/${rematchAccepted.matchId}/moves`, {
+        method: "POST",
+        body: JSON.stringify({ playerId: playerAId, side: "B", moves: [{ type: "ATTACK", gas: 1 }] }),
+      });
+      if (done.status !== "finished" || !done.replayUrl) {
+        throw new Error("both rematch moves did not finalize");
+      }
     }
 
     console.log("ok");

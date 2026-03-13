@@ -1,6 +1,6 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
 <body><div class="topbar"><strong>Replay</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="profileBar">Loading...</span></div><main class="page-stack">
-<section class="module-secondary battle-stage-module"><h2>Battle Stage</h2><div id="battleStage" class="battle-stage"><div class="battle-stage-inner"><div class="battle-effects-layer" data-effects-layer aria-hidden="true"></div><div class="battle-creature left" data-creature="A"><div class="battle-creature-motion" data-creature-motion="A"><img alt="Creature A animation" src="/creatures/goblin/idle_placeholder.png"/></div></div><div class="battle-creature right" data-creature="B"><div class="battle-creature-motion" data-creature-motion="B"><img alt="Creature B animation" src="/creatures/goblin/idle_placeholder.png"/></div></div><div class="battle-action-bubble center" data-battle-bubble data-state="hidden"></div><div class="battle-result-badge" data-result-badge data-state="hidden"></div></div><div class="battle-hp-grid"><div><div class="small">A HP</div><div class="hp"><span id="hpA"></span></div></div><div><div class="small">B HP</div><div class="hp"><span id="hpB"></span></div></div></div><div class="inline-actions"><button class="secondary" id="skip" data-skip>Skip to Result</button></div></div><details class="battle-log-panel"><summary>Battle Log (secondary)</summary><div class="log" id="log"></div></details></section>
+<section class="module-secondary battle-stage-module"><h2>Battle Stage</h2><div id="battleStage" class="battle-stage"><div class="battle-stage-inner"><div class="battle-creature left" data-creature="A"><div class="battle-creature-motion" data-creature-motion="A"><img alt="Creature A animation" src="/creatures/goblin/idle_placeholder.png"/></div></div><div class="battle-creature right" data-creature="B"><div class="battle-creature-motion" data-creature-motion="B"><img alt="Creature B animation" src="/creatures/goblin/idle_placeholder.png"/></div></div><div class="battle-action-bubble center" data-battle-bubble data-state="hidden"></div><div class="battle-result-badge" data-result-badge data-state="hidden"></div></div><div class="battle-hp-grid"><div><div class="small">A HP</div><div class="hp"><span id="hpA"></span></div></div><div><div class="small">B HP</div><div class="hp"><span id="hpB"></span></div></div></div><div class="inline-actions"><button class="secondary" id="skip" data-skip>Skip to Result</button></div></div><details class="battle-log-panel"><summary>Battle Log (secondary)</summary><div class="log" id="log"></div></details></section>
 <section class="card module-secondary" id="presentationStatusCard" hidden><p id="presentationStatus" class="small"></p><div class="inline-actions"><button class="secondary" id="retryLoadBtn" hidden>Retry</button></div></section>
 <section class="card module-primary" id="postMatchPanel" hidden><h2 id="title">Battle Replay</h2><p id="winner" class="victory-highlight"></p><p id="stats"></p><div class="replay-creature-row"><div id="replayIdentityA"></div><div class="arena-vs">VS</div><div id="replayIdentityB"></div></div><div class="button-row primary-cta-group"><button class="primary-cta" id="rematchBtn" disabled>Rematch</button><a class="button-link primary-cta" href="/?new=1">New Challenge</a></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p><a id="sharePage" href="#">Share Page</a></p><div class="inline-actions"><button class="secondary" id="copyShareText">Copy Share Text</button><button class="secondary" id="replay">Replay Presentation</button></div><p id="shareMsg"></p><div id="rematchResult"></div></section>
 </main>
@@ -122,6 +122,26 @@ function pickSide(side) {
   hideSidePicker();
 }
 
+function describePresentationError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return `Failed to load match presentation: ${message}`;
+}
+
+function assertReplayPresentationData(payload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Replay payload missing');
+  }
+  if (!Array.isArray(payload.events)) {
+    throw new Error('Replay events missing or invalid');
+  }
+  if (!payload.summary || typeof payload.summary !== 'object') {
+    throw new Error('Replay summary missing');
+  }
+  if (!payload.summary.a?.classKey || !payload.summary.b?.classKey) {
+    throw new Error('Replay summary creature class keys missing');
+  }
+}
+
 function startPresentation() {
   if (!data) return;
   try {
@@ -151,12 +171,10 @@ function startPresentation() {
     presentation.start();
   } catch (error) {
     setPresentationFinished(true);
-    setPresentationError('Failed to load match presentation.');
-    const message = error instanceof Error ? error.message : String(error);
+    const message = describePresentationError(error);
+    setPresentationError(message);
     shareMsg.textContent = message;
-    if (window.location.hostname === 'localhost') {
-      console.debug('[replay] presentation start failed', error);
-    }
+    console.error('[replay] presentation start failed', error, { publicId, replayData: data });
   }
 }
 
@@ -178,6 +196,7 @@ try {
     console.debug(`[replay] init start publicId=${publicId}`);
   }
   data = await fetchReplay(publicId);
+  assertReplayPresentationData(data);
   rememberLastReplayPublicId(publicId);
   viewerPlayerId = await getViewerPlayerId();
   const storedSide = sessionStorage.getItem(sideStorageKey);
@@ -217,15 +236,13 @@ try {
   setPresentationFinished(false);
   startPresentation();
 } catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = describePresentationError(error);
   shareMsg.textContent = message;
-  setPresentationError('Failed to load match presentation.');
+  setPresentationError(message);
+  console.error('[replay] init failed', error, { publicId });
   const profileBar = document.getElementById('profileBar');
   if (profileBar && profileBar.textContent === 'Loading...') profileBar.textContent = 'Profile unavailable';
   setPresentationFinished(true);
-  if (window.location.hostname === 'localhost') {
-    console.debug('[replay] init failed', error);
-  }
 } finally {
   setLoadingState(false);
   if (window.location.hostname === 'localhost') {

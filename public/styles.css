@@ -859,77 +859,42 @@ a { color: var(--accent); }
 }
 
 .battle-stage-inner.arena-hit-shake {
-  animation: arenaShake 180ms ease-out;
+  animation: arenaShake 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 @keyframes arenaShake {
   0% { transform: translate3d(0, 0, 0); }
-  20% { transform: translate3d(-4px, 2px, 0); }
-  40% { transform: translate3d(3px, -2px, 0); }
-  60% { transform: translate3d(-2px, 1px, 0); }
-  80% { transform: translate3d(2px, -1px, 0); }
+  18% { transform: translate3d(-9px, 5px, 0); }
+  36% { transform: translate3d(8px, -5px, 0); }
+  54% { transform: translate3d(-6px, 3px, 0); }
+  72% { transform: translate3d(5px, -3px, 0); }
+  88% { transform: translate3d(-2px, 1px, 0); }
   100% { transform: translate3d(0, 0, 0); }
 }
 
-.battle-effects-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  overflow: hidden;
-}
 
 .battle-creature-motion {
   will-change: transform;
 }
 
 .battle-creature-motion.hit-push-left-creature {
-  animation: pushBackLeftCreature 220ms ease-out;
+  animation: pushBackLeftCreature 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .battle-creature-motion.hit-push-right-creature {
-  animation: pushBackRightCreature 220ms ease-out;
+  animation: pushBackRightCreature 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 @keyframes pushBackLeftCreature {
   0% { transform: translateX(0); }
-  40% { transform: translateX(-12px); }
+  35% { transform: translateX(-22px); }
   100% { transform: translateX(0); }
 }
 
 @keyframes pushBackRightCreature {
   0% { transform: translateX(0); }
-  40% { transform: translateX(12px); }
+  35% { transform: translateX(22px); }
   100% { transform: translateX(0); }
-}
-
-.gas-cloud-effect {
-  position: absolute;
-  top: 54%;
-  width: clamp(100px, 22vw, 180px);
-  height: clamp(54px, 11vw, 94px);
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 50%, rgba(184, 255, 132, 0.65), rgba(86, 201, 73, 0.38) 52%, rgba(25, 56, 28, 0) 100%);
-  filter: blur(2px);
-  opacity: 0;
-  transform-origin: center;
-  animation: gasExpand 400ms ease-out;
-}
-
-.gas-cloud-effect.from-left {
-  left: 34%;
-  transform-origin: left center;
-}
-
-.gas-cloud-effect.from-right {
-  right: 34%;
-  transform-origin: right center;
-}
-
-@keyframes gasExpand {
-  0% { transform: scale(0.6); opacity: 0.35; }
-  50% { transform: scale(1.15); opacity: 0.8; }
-  100% { transform: scale(1.4); opacity: 0; }
 }
 
 .battle-creature {
