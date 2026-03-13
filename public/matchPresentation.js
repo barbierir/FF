@@ -205,6 +205,10 @@ function isAttackAnimation(actionType) {
     || actionType === 'attack_backfire';
 }
 
+function isGasAttackAnimation(actionType) {
+  return actionType === 'attack_toxic';
+}
+
 export class MatchPresentation {
   constructor(config) {
     this.root = config.root;
@@ -222,11 +226,14 @@ export class MatchPresentation {
     this.animationResetTimers = { A: null, B: null };
     this.currentHp = { A: 20, B: 20 };
     this.currentAnimations = { A: 'idle', B: 'idle' };
+    this.hitFreezeDurationMs = 70;
+    this.pendingOffsetMs = 0;
 
     this.timelineData = buildMatchPresentationTimeline(this.data?.events || [], this.data?.summary || null);
   }
 
   clearTimers() {
+    this.pendingOffsetMs = 0;
     this.activeTimerHandles.forEach((handle) => clearTimeout(handle));
     this.activeTimerHandles = [];
     if (this.fallbackTimer) {
@@ -308,6 +315,56 @@ export class MatchPresentation {
     bubble.textContent = '';
   }
 
+
+  triggerArenaShake() {
+    const arenaInner = this.root.querySelector('.battle-stage-inner');
+    if (!arenaInner) return;
+    arenaInner.classList.remove('arena-hit-shake');
+    void arenaInner.offsetWidth;
+    arenaInner.classList.add('arena-hit-shake');
+  }
+
+  triggerTargetPushback(side) {
+    const motionNode = this.root.querySelector(`[data-creature-motion="${side}"]`);
+    if (!motionNode) return;
+    const className = side === 'A' ? 'hit-push-left-creature' : 'hit-push-right-creature';
+    motionNode.classList.remove(className);
+    void motionNode.offsetWidth;
+    motionNode.classList.add(className);
+  }
+
+  triggerGasCloud(attackerSide) {
+    const effectsLayer = this.root.querySelector('[data-effects-layer]');
+    if (!effectsLayer) return;
+    const cloud = document.createElement('div');
+    cloud.className = `gas-cloud-effect ${attackerSide === 'A' ? 'from-left' : 'from-right'}`;
+    effectsLayer.appendChild(cloud);
+    const removeCloud = () => {
+      if (cloud.parentNode) cloud.parentNode.removeChild(cloud);
+    };
+    cloud.addEventListener('animationend', removeCloud, { once: true });
+  }
+
+  isRealHitStep(step) {
+    if (!step || !step.reaction) return false;
+    if (step.actionType !== 'hit' && step.actionType !== 'critical_hit' && step.actionType !== 'defeat') return false;
+    const event = step.event;
+    if (!event) return false;
+    if (step.actor === 'A') return Number.isFinite(event.dmgToA) && event.dmgToA > 0;
+    if (step.actor === 'B') return Number.isFinite(event.dmgToB) && event.dmgToB > 0;
+    return false;
+  }
+
+  applyImpactEffects(step) {
+    if (!this.isRealHitStep(step)) return;
+    this.triggerArenaShake();
+    this.triggerTargetPushback(step.actor);
+  }
+
+  getImpactDelayMs(step) {
+    return this.isRealHitStep(step) ? this.hitFreezeDurationMs : 0;
+  }
+
   renderLogEvent(step) {
     if (!this.eventLogRoot || !step || !step.event) return;
     const event = step.event;
@@ -334,6 +391,9 @@ export class MatchPresentation {
     this.showBubble({ text: step.bubbleText, align });
     this.playSound(step.actionType);
     const actionDurationMs = step.durationMs ?? getAnimationDurationMs(step.actionType);
+    if (!step.reaction && isGasAttackAnimation(step.actionType) && (step.actor === 'A' || step.actor === 'B')) {
+      this.triggerGasCloud(step.actor);
+    }
     debugLog('[presentation] applyAction timing', {
       actionType: step.actionType,
       actor: step.actor,
@@ -356,6 +416,7 @@ export class MatchPresentation {
     }, actionDurationMs);
     this.activeTimerHandles.push(bubbleTimer);
 
+    this.applyImpactEffects(step);
     this.renderLogEvent(step);
   }
 
@@ -420,13 +481,18 @@ export class MatchPresentation {
 
     this.showBubble({ text: 'Round start!', align: 'center' });
 
+    this.pendingOffsetMs = 0;
     this.timelineData.timeline.forEach((step) => {
+      const scheduledAt = step.atMs + this.pendingOffsetMs;
       const handle = setTimeout(() => {
         if (step.phase === 'action') this.applyAction(step);
         if (step.phase === 'result') this.showResult();
         if (step.phase === 'finished') this.complete();
-      }, step.atMs);
+      }, scheduledAt);
       this.activeTimerHandles.push(handle);
+      if (step.phase === 'action') {
+        this.pendingOffsetMs += this.getImpactDelayMs(step);
+      }
     });
 
     this.fallbackTimer = setTimeout(() => {
@@ -434,7 +500,7 @@ export class MatchPresentation {
         this.showResult();
         this.complete();
       }
-    }, this.timelineData.durationMs + 100);
+    }, this.timelineData.durationMs + this.pendingOffsetMs + 100);
   }
 
   skipToResult() {
