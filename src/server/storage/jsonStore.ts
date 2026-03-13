@@ -42,6 +42,10 @@ type DbState = {
 
 const MAX_TURNS = 30;
 
+function buildAutoMoves(): Move[] {
+  return Array.from({ length: MAX_TURNS }, () => ({ type: "ATTACK", gas: 1 as const }));
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -225,6 +229,7 @@ export class JsonStore implements Store {
       playerAId: input.playerAId ?? null,
       playerBId: null,
       rematchOfPublicId: input.rematchOfPublicId,
+      mode: input.mode,
     };
 
     this.state.challenges.push(challenge);
@@ -339,10 +344,37 @@ export class JsonStore implements Store {
       playerAId: challenge.playerAId ?? null,
       playerBId: challenge.playerBId ?? null,
       createdAtISO: nowIso(),
+      mode: challenge.mode,
+      currentTurn: 1,
+      pendingActionsJson: canonicalStringify({}),
+      turnHistoryJson: canonicalStringify([]),
     };
 
     challenge.matchId = match.id;
     this.state.matches.push(match);
+
+    if (challenge.mode === "auto") {
+      const autoA = buildAutoMoves();
+      const autoB = buildAutoMoves();
+      this.state.moves.push({
+        id: randomId("mv"),
+        matchId: match.id,
+        side: "A",
+        moves_received_json: JSON.stringify(autoA),
+        moves_json: canonicalStringify(autoA),
+        submitted_at: nowIso(),
+      });
+      this.state.moves.push({
+        id: randomId("mv"),
+        matchId: match.id,
+        side: "B",
+        moves_received_json: JSON.stringify(autoB),
+        moves_json: canonicalStringify(autoB),
+        submitted_at: nowIso(),
+      });
+      await this.finalizeMatchIfReady(match.id);
+    }
+
     await this.recordChallengeAccepted(challenge.id);
     await this.flush();
     return match;
@@ -354,6 +386,10 @@ export class JsonStore implements Store {
     const match = this.state.matches.find((item) => item.id === matchId);
     if (!match) {
       throw new HttpError(404, "match_not_found", "Match not found");
+    }
+
+    if (match.mode === "manual") {
+      throw new HttpError(409, "manual_mode_requires_turn_action", "Use turn action submission in manual mode");
     }
 
     if (match.status === "finished") {
@@ -381,6 +417,74 @@ export class JsonStore implements Store {
     this.state.moves.push(record);
     await this.flush();
     return record;
+  }
+
+
+  async submitTurnAction(matchId: string, side: Side, action: Move): Promise<{ status: "waiting_for_opponent" | "finished" | "turn_resolved"; currentTurn: number }> {
+    await this.ready;
+    const match = this.state.matches.find((item) => item.id === matchId);
+    if (!match) throw new HttpError(404, "match_not_found", "Match not found");
+    if (match.mode !== "manual") throw new HttpError(409, "not_manual_mode", "Match is not in manual mode");
+    if (match.status === "finished") throw new HttpError(409, "match_finished", "Match is already finished");
+
+    const currentTurn = match.currentTurn ?? 1;
+    const pending = match.pendingActionsJson ? (JSON.parse(match.pendingActionsJson) as Partial<Record<Side, Move>>) : {};
+    if (pending[side]) {
+      throw new HttpError(409, "action_already_submitted", `Action already submitted for side ${side}`);
+    }
+    pending[side] = action;
+
+    if (!pending.A || !pending.B) {
+      match.pendingActionsJson = canonicalStringify(pending);
+      await this.flush();
+      return { status: "waiting_for_opponent", currentTurn };
+    }
+
+    const history = match.turnHistoryJson ? (JSON.parse(match.turnHistoryJson) as Array<{ turn: number; A: Move; B: Move }>) : [];
+    history.push({ turn: currentTurn, A: pending.A, B: pending.B });
+
+    const challenge = this.state.challenges.find((item) => item.id === match.challengeId);
+    if (!challenge || !challenge.creatureB) throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
+
+    const input: MatchInput = {
+      rulesetVersion: RULESET_VERSION,
+      challengeId: challenge.id,
+      creatureA: challenge.creatureA,
+      creatureB: challenge.creatureB,
+      movesA: history.map((item) => item.A),
+      movesB: history.map((item) => item.B),
+      createdAtISO: challenge.createdAtISO,
+    };
+
+    const serverSalt = sha256Hex(`${this.serverSecret}:${challenge.id}`);
+    const seedU64 = deriveSeedU64(input, serverSalt);
+    const seedHex = sha256Hex(canonicalStringify({ input, serverSalt }));
+    const { events, summary } = simulateMatch(input, seedU64);
+
+    match.input_json = canonicalStringify(input);
+    match.seed_hex = seedHex;
+    match.events_json = canonicalStringify(events);
+    match.summary_json = canonicalStringify(summary);
+    match.match_hash_hex = summary.matchHash;
+
+    const turnsResolved = summary.turns;
+    if (turnsResolved <= history.length) {
+      match.status = "finished";
+      match.finalizedAtISO = nowIso();
+      match.currentTurn = turnsResolved;
+      match.pendingActionsJson = canonicalStringify({});
+      match.turnHistoryJson = canonicalStringify(history.slice(0, turnsResolved));
+      await this.applyMatchRewards(matchId);
+      await this.recordRivalry(match);
+      await this.flush();
+      return { status: "finished", currentTurn: turnsResolved };
+    }
+
+    match.currentTurn = currentTurn + 1;
+    match.pendingActionsJson = canonicalStringify({});
+    match.turnHistoryJson = canonicalStringify(history);
+    await this.flush();
+    return { status: "turn_resolved", currentTurn: match.currentTurn };
   }
 
   async getMovesForMatch(matchId: string): Promise<Partial<Record<Side, Move[]>>> {

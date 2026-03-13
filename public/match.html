@@ -1,124 +1,89 @@
-<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Submit Moves</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><div class="topbar"><strong>Match</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="meta"></span></div><main class="arena-shell page-stack" id="arenaContainer">
-<div class="arena-particles" aria-hidden="true"></div>
-<section class="card chaotic-arena-panel module-primary" id="submitPanel"><div class="arena-faceoff"><article class="arena-player-card"><div id="leftIdentity"></div><div id="leftRank" class="status-badge status-badge--rank status-badge--md gas-rank-badge">Gas Trainee</div></article><div class="arena-vs chaos-glow">⚡ VS ⚡</div><article class="arena-player-card"><div id="rightIdentity"></div><div id="rightRank" class="status-badge status-badge--rank status-badge--md gas-rank-badge">Gas Trainee</div></article></div><h1 class="chaos-glow">⚠️ SELECT YOUR WEAPONIZED GAS</h1><p id="tips" class="small"></p><div id="gasMeter" class="animated-gas-meter" aria-hidden="true"><span></span></div><div id="moves" class="chaotic-move-grid"></div><button id="submitBtn" class="deploy-gas-btn">DEPLOY GAS</button><p id="error" class="error"></p><div id="waitWrap" class="waiting-block" style="display:none"><p id="wait" class="small"></p></div><button id="refreshBtn" class="secondary" style="display:none">Refresh</button></section>
-<section class="card module-secondary" id="finishedPanel" style="display:none"><h2>Match Finished</h2><p><a class="button-link" id="viewReplayLink" href="#">View Replay</a></p><p><a class="button-link" href="/?new=1">New Challenge</a></p></section>
+<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Match</title><link rel="stylesheet" href="/styles.css"/></head>
+<body><div class="topbar"><strong>Match</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="meta"></span></div><main class="arena-shell page-stack">
+<section class="card module-primary"><h2 id="modeLabel">Mode</h2><p id="statusMsg">Loading…</p><div id="actions"></div><p id="error" class="error"></p></section>
+<section class="card module-secondary" id="finishedPanel" style="display:none"><h2>Match Finished</h2><p><a class="button-link" id="viewReplayLink" href="#">View Replay</a></p></section>
 </main>
 <script type="module">
-import { getGasRankTitle, getMatch, getOrCreateGuestPlayer, getPlayerCreatureNickname, getProfile, parsePath, q, renderPlayerIdentity, submitMoves, updateTopNav } from '/app.js';
+import { getMatch, getOrCreateGuestPlayer, parsePath, submitAction, updateTopNav } from '/app.js';
 const matchId = parsePath()[1];
-const side = q('side') === 'A' ? 'A' : 'B';
-const state = { classKey: 'goblin', safeUsed: false, polling: null, introPlaying: false };
-const viewerPlayerId = await getOrCreateGuestPlayer();
-const sel = ['','ATTACK_1','ATTACK_2','ATTACK_3','ATTACK_4','DEFEND','RECHARGE_EXTRA','HEAL'];
+const playerId = await getOrCreateGuestPlayer();
 updateTopNav();
+const actionsWrap = document.getElementById('actions');
+const statusMsg = document.getElementById('statusMsg');
+const errorEl = document.getElementById('error');
+const actionDefs = [
+  { label: 'ATTACK 1', value: { type: 'ATTACK', gas: 1 } },
+  { label: 'ATTACK 2', value: { type: 'ATTACK', gas: 2 } },
+  { label: 'ATTACK 3', value: { type: 'ATTACK', gas: 3 } },
+  { label: 'ATTACK 4', value: { type: 'ATTACK', gas: 4 } },
+  { label: 'DEFEND', value: { type: 'DEFEND' } },
+  { label: 'RECHARGE', value: { type: 'RECHARGE_EXTRA' } },
+  { label: 'HEAL', value: { type: 'HEAL' } },
+];
+let selected = null;
 
-function row(i){
-  const div = document.createElement('div'); div.className = 'turn-grid';
-  div.innerHTML = `<strong>T${i+1}</strong><select data-turn='${i}'>${sel.map(v=>`<option value='${v}'>${v || '(blank)'}</option>`).join('')}</select><label><input type='checkbox' data-safe='${i}'/> safe</label>`;
-  return div;
-}
-for(let i=0;i<10;i++) document.getElementById('moves').appendChild(row(i));
-
-function setPlayerCard(identityId, idRank, playerId, wins, classKey, creatureNickname = null) {
-  const title = getGasRankTitle(wins ?? 0);
-  const rankNode = document.getElementById(idRank);
-  rankNode.textContent = title;
-  rankNode.classList.toggle('top-tier', title.includes('👑'));
-  renderPlayerIdentity(document.getElementById(identityId), {
-    playerId: playerId ?? 'Unknown',
-    creatureId: classKey ?? null,
-    creatureNickname: creatureNickname || (playerId ? getPlayerCreatureNickname(playerId) : null),
-    variant: 'default',
-  });
-}
-
-function showMatchIntro(onDone) {
-  if (state.introPlaying) return;
-  state.introPlaying = true;
-  const intro = document.createElement('div');
-  intro.className = 'match-intro';
-  intro.innerHTML = `<div class='match-intro-flash'></div><div class='match-intro-text'>⚔️ ROUND START</div>`;
-  document.body.appendChild(intro);
-  const arena = document.getElementById('arenaContainer');
-  arena.classList.add('arena-shake');
-  setTimeout(() => {
-    intro.remove();
-    arena.classList.remove('arena-shake');
-    state.introPlaying = false;
-    onDone();
-  }, 600);
-}
-
-function revealFinished(publicId) {
-  if (state.polling) { clearInterval(state.polling); state.polling = null; }
-  showMatchIntro(() => {
-    location.href = `/replay/${publicId}`;
-  });
-}
-
-try {
-const m = await getMatch(matchId);
-const [aProfile, bProfile] = await Promise.all([
-  m.playerAId ? getProfile(m.playerAId).catch(() => null) : Promise.resolve(null),
-  m.playerBId ? getProfile(m.playerBId).catch(() => null) : Promise.resolve(null),
-]);
-const aWins = aProfile?.profile?.wins ?? 0;
-const bWins = bProfile?.profile?.wins ?? 0;
-setPlayerCard('leftIdentity', 'leftRank', m.playerAId, aWins, m.playerACreatureId || m.creatureA?.classKey, m.playerANickname);
-setPlayerCard('rightIdentity', 'rightRank', m.playerBId, bWins, m.playerBCreatureId || m.creatureB?.classKey, m.playerBNickname);
-if (m.status === 'finished') {
-  if (m.publicId) {
-    revealFinished(m.publicId);
+function renderActions(disabled) {
+  actionsWrap.replaceChildren();
+  for (const def of actionDefs) {
+    const b = document.createElement('button');
+    b.textContent = def.label;
+    b.disabled = disabled;
+    b.className = selected === def.label ? 'secondary' : '';
+    b.onclick = async () => {
+      selected = def.label;
+      renderActions(true);
+      statusMsg.textContent = 'Action locked · Waiting for opponent';
+      errorEl.textContent = '';
+      try {
+        const result = await submitAction(matchId, def.value, playerId);
+        if (result.status === 'finished') {
+          const latest = await getMatch(matchId);
+          if (latest.publicId) location.href = `/replay/${latest.publicId}`;
+          return;
+        }
+      } catch (e) {
+        errorEl.textContent = e instanceof Error ? e.message : String(e);
+      }
+    };
+    actionsWrap.appendChild(b);
   }
-  document.getElementById('submitPanel').style.display = 'none';
-  document.getElementById('finishedPanel').style.display = 'block';
-  document.getElementById('viewReplayLink').href = m.publicId ? `/replay/${m.publicId}` : '/home';
-} else {
-  if (side==='A' && (m.playerACreatureId || m.creatureA)) state.classKey = m.playerACreatureId || m.creatureA.classKey;
-  if (side==='B' && (m.playerBCreatureId || m.creatureB)) state.classKey = m.playerBCreatureId || m.creatureB.classKey;
-  document.getElementById('meta').textContent = `Side ${side}`;
-  document.getElementById('tips').textContent = state.classKey==='fairy' ? 'Fairy can HEAL.' : 'HEAL may be auto-sanitized if class cannot use it.';
-}
-} catch (e) {
-  const message = e instanceof Error ? e.message : String(e);
-  document.getElementById('error').textContent = `Could not load match: ${message}`;
-  document.getElementById('submitBtn').disabled = true;
 }
 
-function collectMoves(){
-  const out=[];
-  const rows=[...document.querySelectorAll('select[data-turn]')];
-  for (const s of rows){
-    const idx=Number(s.dataset.turn); const safe=document.querySelector(`input[data-safe='${idx}']`).checked;
-    const v=s.value;
-    if (!v) {
-      out.push(null);
-    } else if(v.startsWith('ATTACK_')){
-      const gas=Number(v.split('_')[1]); const mv={type:'ATTACK',gas};
-      if(state.classKey==='skunk' && safe && !state.safeUsed){ mv.safe=true; state.safeUsed=true; }
-      out.push(mv);
-    } else if(v==='DEFEND'||v==='RECHARGE_EXTRA'||v==='HEAL'){ out.push({type:v}); }
+async function refresh() {
+  const m = await getMatch(matchId);
+  const mode = m.mode || 'auto';
+  document.getElementById('modeLabel').textContent = `Mode: ${mode === 'manual' ? 'Manuale' : 'Auto'}`;
+  if (m.status === 'finished') {
+    statusMsg.textContent = 'Match finished';
+    document.getElementById('finishedPanel').style.display = 'block';
+    document.getElementById('viewReplayLink').href = m.publicId ? `/replay/${m.publicId}` : '/home';
+    actionsWrap.replaceChildren();
+    return;
   }
-  while(out.length && out[out.length-1]===null) out.pop();
-  return out.filter(Boolean);
+
+  const side = m.playerAId === playerId ? 'A' : m.playerBId === playerId ? 'B' : null;
+  if (mode === 'auto') {
+    statusMsg.textContent = 'Auto battle in progress';
+    actionsWrap.replaceChildren();
+    return;
+  }
+
+  if (!side) {
+    statusMsg.textContent = 'You are not a participant';
+    renderActions(true);
+    return;
+  }
+
+  const locked = Boolean(m.pendingActions?.[side]);
+  if (locked) {
+    statusMsg.textContent = 'Action locked · Waiting for opponent';
+    renderActions(true);
+  } else {
+    statusMsg.textContent = 'Choose your action';
+    renderActions(false);
+  }
 }
 
-async function poll(){
-  const latest = await getMatch(matchId);
-  if(latest.status==='finished' && latest.publicId) revealFinished(latest.publicId);
-}
-
-document.getElementById('refreshBtn').onclick = poll;
-document.getElementById('submitBtn').onclick = async()=>{
-  const err=document.getElementById('error'); err.textContent='';
-  try{
-    const resp=await submitMoves(matchId, side, collectMoves(), viewerPlayerId);
-    if(resp.status==='finished'){ revealFinished(resp.replayUrl.replace('/api/replay/','')); return; }
-    document.getElementById('waitWrap').style.display='block';
-    document.getElementById('wait').textContent='🧍 Opponent calibrating intestines…';
-    document.getElementById('refreshBtn').style.display='block';
-    state.polling=setInterval(poll,2000);
-  }catch(e){ const message = e instanceof Error ? e.message : String(e); err.textContent=message.includes('already')?'Moves already submitted. 🧍 Opponent calibrating intestines…':message; }
-};
+await refresh();
+setInterval(refresh, 1500);
 </script></body></html>

@@ -4,6 +4,7 @@ import type { Mission } from "../economy/missions.ts";
 export type ChallengeStatus = "open" | "accepted" | "expired";
 export type MatchStatus = "collecting_moves" | "finished";
 export type Side = "A" | "B";
+export type MatchMode = "manual" | "auto";
 
 export type StoredChallenge = {
   id: string;
@@ -19,6 +20,7 @@ export type StoredChallenge = {
   playerAId?: string | null;
   playerBId?: string | null;
   rematchOfPublicId?: string;
+  mode?: MatchMode;
 };
 
 export type StoredMatch = {
@@ -39,6 +41,10 @@ export type StoredMatch = {
   playerBCreatureIdSnapshot?: string;
   playerACreatureNicknameSnapshot?: string;
   playerBCreatureNicknameSnapshot?: string;
+  mode?: MatchMode;
+  currentTurn?: number;
+  pendingActionsJson?: string;
+  turnHistoryJson?: string;
 };
 
 export type StoredMoves = {
@@ -86,6 +92,7 @@ export type CreateChallengeInput = {
   expiresInHours?: number;
   playerAId?: string | null;
   rematchOfPublicId?: string;
+  mode?: MatchMode;
 };
 
 export type ResetCounts = {

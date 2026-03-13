@@ -501,10 +501,10 @@ export async function loadViewerProfileBar({ profileBarEl, playerId, onLoaded } 
   return attemptLoad();
 }
 
-export async function createChallenge(playerId, creatureA, creatureId = null) {
+export async function createChallenge(playerId, creatureA, creatureId = null, mode = "auto") {
   return api("/api/challenges", {
     method: "POST",
-    body: JSON.stringify({ playerAId: playerId, creatureA, creatureId, creatureNickname: getPlayerCreatureNickname(playerId) }),
+    body: JSON.stringify({ playerAId: playerId, creatureA, creatureId, creatureNickname: getPlayerCreatureNickname(playerId), mode }),
   });
 }
 
@@ -641,6 +641,14 @@ export async function submitMoves(matchId, side, moves, playerId) {
   return api(`/api/matches/${encodeURIComponent(matchId)}/moves`, {
     method: "POST",
     body: JSON.stringify({ side, moves, playerId }),
+  });
+}
+
+
+export async function submitAction(matchId, action, playerId) {
+  return api(`/api/matches/${encodeURIComponent(matchId)}/action`, {
+    method: "POST",
+    body: JSON.stringify({ action, playerId }),
   });
 }
 

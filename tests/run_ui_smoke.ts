@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   const base = `http://127.0.0.1:${address.port}`;
 
   const matchPage = await getText(`${base}/m/test`);
-  assert.ok(matchPage.includes("<title>Submit Moves</title>"), "Expected /m/:id to serve match.html");
+  assert.ok(matchPage.includes("<title>Match</title>"), "Expected /m/:id to serve match.html");
 
   const replayPage = await getText(`${base}/replay/test`);
   assert.ok(replayPage.includes("<title>Replay</title>"), "Expected /replay/:id to serve replay.html");

@@ -2,7 +2,7 @@
 <body><div class="topbar"><strong>Challenge</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="profileBar">Loading...</span></div><main class="arena-shell page-stack">
 <div class="arena-particles" aria-hidden="true"></div>
 <section class="card chaotic-arena-panel module-primary">
-<h1 class="chaos-glow">Challenge Found</h1><p id="chalInfo"></p>
+<h1 class="chaos-glow">Challenge Found</h1><p id="chalInfo"></p><p id="modeBadge" class="small"></p>
 <div class="arena-faceoff">
   <article class="arena-player-card"><div id="playerAIdentity"></div><div id="playerARank" class="status-badge status-badge--rank status-badge--md gas-rank-badge">Gas Trainee</div></article>
   <div class="arena-vs chaos-glow">⚡ VS ⚡</div>
@@ -72,6 +72,7 @@ try {
     location.replace(`/m/${c.matchId}?side=${side}`);
   } else {
     document.getElementById('chalInfo').textContent = `Opponent creature locked in (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
+    document.getElementById('modeBadge').textContent = `Mode: ${(c.mode || 'auto') === 'manual' ? 'Manuale' : 'Auto'}`;
     if (c.playerAId) {
       const hostProfile = await getProfile(c.playerAId);
       const hostTitle = getGasRankTitle(hostProfile.profile.wins ?? 0);
