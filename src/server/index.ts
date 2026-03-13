@@ -14,7 +14,7 @@ import { buildRematchText, buildShareText } from "./pages/shareText.ts";
 import { renderDailyShell, renderLeaderboardShell, renderProfileShell, renderRivalryShell } from "./pages/simplePages.ts";
 import { HttpError } from "./errors.ts";
 import { dayKey, getRequestIp, TokenBucketRateLimiter } from "./rateLimit.ts";
-import { maybeValidatePlayerId, validateCreatureSpec, validateExpiresInHours, validateId, validateMoves } from "./validate.ts";
+import { maybeValidatePlayerId, validateCreatureSpec, validateExpiresInHours, validateId, validateMatchMode, validateMoves, validateSingleAction } from "./validate.ts";
 
 const store = new JsonStore();
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -314,10 +314,11 @@ export function createApiServer(): import("node:http").Server {
 
       if (req.method === "POST" && path === "/api/challenges") {
         enforceRateLimit(req, "createChallenge", 10);
-        const body = (await parseJsonBody(req)) as { creatureA?: unknown; expiresInHours?: unknown; playerId?: unknown; playerAId?: unknown; creatureId?: unknown; creatureNickname?: unknown };
+        const body = (await parseJsonBody(req)) as { creatureA?: unknown; expiresInHours?: unknown; playerId?: unknown; playerAId?: unknown; creatureId?: unknown; creatureNickname?: unknown; mode?: unknown };
         const creatureA = validateCreatureSpec(body.creatureA);
         const expiresInHours = validateExpiresInHours(body.expiresInHours);
         const playerId = maybeValidatePlayerId(body.playerAId ?? body.playerId);
+        const mode = validateMatchMode(body.mode);
 
         const creator = await store.getOrCreatePlayer(playerId);
         await store.setPlayerCreatureSelection(creator.id, body.creatureId as string | undefined, normalizeNicknameInput(body.creatureNickname));
@@ -325,6 +326,7 @@ export function createApiServer(): import("node:http").Server {
           creatureA,
           expiresInHours,
           playerAId: creator.id,
+          mode,
         });
         sendJson(res, 200, {
           token: challenge.token,
@@ -367,6 +369,7 @@ export function createApiServer(): import("node:http").Server {
             expiresAtISO: challenge.expiresAtISO,
             creatureA: challenge.creatureA,
             playerAId: challenge.playerAId ?? null,
+            mode: challenge.mode ?? "auto",
           })),
         });
         return;
@@ -389,6 +392,7 @@ export function createApiServer(): import("node:http").Server {
             expiresAtISO: challenge.expiresAtISO,
             creatureA: challenge.creatureA,
             playerAId: challenge.playerAId ?? null,
+            mode: challenge.mode ?? "auto",
             status: challenge.status,
           })),
         });
@@ -410,6 +414,7 @@ export function createApiServer(): import("node:http").Server {
           status: challenge.status,
           playerAId: challenge.playerAId ?? null,
           playerBId: challenge.playerBId ?? null,
+          mode: challenge.mode ?? "auto",
           playerACreatureId: playerAProfile?.creatureId,
           playerANickname: playerAProfile?.creatureNickname,
           playerBCreatureId: playerBProfile?.creatureId,
@@ -425,6 +430,7 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
+
       const movesMatch = path.match(/^\/api\/matches\/([^/]+)\/moves$/);
       if (req.method === "POST" && movesMatch) {
         enforceRateLimit(req, "submitMoves", 30);
@@ -434,39 +440,52 @@ export function createApiServer(): import("node:http").Server {
         const hintedSide = body.side === "A" || body.side === "B" ? body.side : undefined;
 
         const match = await store.getMatch(matchId);
-        if (!match) {
-          throw new HttpError(404, "match_not_found", "Match not found");
+        if (!match) throw new HttpError(404, "match_not_found", "Match not found");
+        if (match.mode === "manual") {
+          throw new HttpError(409, "manual_mode_requires_action", "Use /api/matches/:id/action for manual mode");
         }
+
         const challengeObj = await store.getChallengeById(match.challengeId);
-        if (!challengeObj) {
-          throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
-        }
+        if (!challengeObj) throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
         const resolvedSide: Side = challengeObj.playerAId === playerId ? "A" : challengeObj.playerBId === playerId ? "B" : (() => {
           throw new HttpError(403, "player_not_in_match", "playerId is not part of this match");
         })();
         const classKey = resolvedSide === "A" ? challengeObj.creatureA?.classKey : challengeObj.creatureB?.classKey;
-        if (!classKey) {
-          throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
-        }
+        if (!classKey) throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
         const moves = validateMoves(classKey, body.moves);
 
         const submission = await submitMovesForPlayer(store, matchId, playerId, moves, hintedSide);
-        console.log(`[match.finalize-check] matchId=${matchId} playerId=${playerId} side=${submission.side}`);
-        if (submission.sideHintIgnored) {
-          console.log(`[match.side-hint-ignored] matchId=${matchId} playerId=${playerId} hinted=${hintedSide} resolved=${submission.side}`);
-        }
         if (submission.status === "finished") {
           const finalized = await store.getMatch(matchId);
           const payload = await store.getFinalizedPayload(matchId);
-          sendJson(res, 200, {
-            status: "finished",
-            summary: payload?.summary,
-            replayUrl: finalized ? `/api/replay/${finalized.publicId}` : undefined,
-          });
+          sendJson(res, 200, { status: "finished", summary: payload?.summary, replayUrl: finalized ? `/api/replay/${finalized.publicId}` : undefined });
           return;
         }
-
         sendJson(res, 200, { status: "waiting_for_opponent" });
+        return;
+      }
+
+      const actionMatch = path.match(/^\/api\/matches\/([^/]+)\/action$/);
+      if (req.method === "POST" && actionMatch) {
+        enforceRateLimit(req, "submitAction", 40);
+        const matchId = validateId("matchId", decodeURIComponent(actionMatch[1]), 4);
+        const body = (await parseJsonBody(req)) as { side?: Side; action?: unknown; playerId?: unknown };
+        const playerId = validateId("playerId", body.playerId, 3);
+
+        const match = await store.getMatch(matchId);
+        if (!match) throw new HttpError(404, "match_not_found", "Match not found");
+        const challengeObj = await store.getChallengeById(match.challengeId);
+        if (!challengeObj) throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
+
+        const side: Side = challengeObj.playerAId === playerId ? "A" : challengeObj.playerBId === playerId ? "B" : (() => {
+          throw new HttpError(403, "player_not_in_match", "playerId is not part of this match");
+        })();
+        const classKey = side === "A" ? challengeObj.creatureA?.classKey : challengeObj.creatureB?.classKey;
+        if (!classKey) throw new HttpError(409, "challenge_state_invalid", "Challenge state is invalid");
+        const action = validateSingleAction(classKey, body.action);
+        const result = await store.submitTurnAction(matchId, side, action);
+        const payload = await store.getFinalizedPayload(matchId);
+        sendJson(res, 200, { status: result.status, currentTurn: result.currentTurn, summary: payload?.summary });
         return;
       }
 
@@ -537,6 +556,10 @@ export function createApiServer(): import("node:http").Server {
           creatureA: challenge?.creatureA,
           creatureB: challenge?.creatureB,
           seedHex: match.seed_hex,
+          mode: match.mode ?? challenge?.mode ?? "auto",
+          currentTurn: match.currentTurn ?? 1,
+          pendingActions: match.pendingActionsJson ? JSON.parse(match.pendingActionsJson) : {},
+          turnHistory: match.turnHistoryJson ? JSON.parse(match.turnHistoryJson) : [],
           summary: payload?.summary,
         });
         return;

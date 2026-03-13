@@ -1,4 +1,5 @@
 import type { ClassKey, CreatureSpec, Move } from "../core/types.ts";
+import type { MatchMode } from "./storage/types.ts";
 import { HttpError } from "./errors.ts";
 
 const CLASS_KEYS: ClassKey[] = ["goblin", "dragon", "skunk", "troll", "fairy", "demon"];
@@ -91,4 +92,15 @@ export function validateExpiresInHours(value: unknown): number | undefined {
     throw new HttpError(400, "invalid_expires_in_hours", "expiresInHours must be between 1 and 168");
   }
   return hours;
+}
+
+export function validateMatchMode(value: unknown): MatchMode | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (value === "manual" || value === "auto") return value;
+  throw new HttpError(400, "invalid_mode", "mode must be 'manual' or 'auto'");
+}
+
+export function validateSingleAction(classKey: ClassKey, value: unknown): Move {
+  const moves = validateMoves(classKey, [value]);
+  return moves[0];
 }

@@ -26,6 +26,7 @@ export interface Store {
   listChallenges(playerId: string | undefined, status: "open" | "accepted", limit: number, excludePlayerId?: string): Promise<StoredChallenge[]>;
   acceptChallenge(token: string, creatureB: CreatureSpec, playerBId?: string | null): Promise<StoredMatch>;
   submitMoves(matchId: string, side: Side, moves: Move[]): Promise<StoredMoves>;
+  submitTurnAction(matchId: string, side: Side, action: Move): Promise<{ status: "waiting_for_opponent" | "finished" | "turn_resolved"; currentTurn: number }>;
   getMovesForMatch(matchId: string): Promise<Partial<Record<Side, Move[]>>>;
   getMatch(matchId: string): Promise<StoredMatch | undefined>;
   getMatchByPublicId(publicId: string): Promise<StoredMatch | undefined>;

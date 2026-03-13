@@ -24,6 +24,7 @@
       <input id="a-class" type="hidden" value="goblin" aria-label="Selected creature"/>
       <div id="creatureGrid" class="creature-select-grid" role="list"></div>
       <div id="selectedIdentity"></div>
+      <fieldset class="mode-picker"><legend>Match mode</legend><label><input type="radio" name="matchMode" value="manual"/> Manuale</label><label><input type="radio" name="matchMode" value="auto" checked/> Auto</label></fieldset>
       <div class="card-actions"><button id="createBtn">New Challenge</button></div>
       <p id="error" class="error"></p>
       <section id="linkWrap" class="challenge-share" hidden></section>
@@ -35,6 +36,7 @@
 <script type="module">
 import { buildChallengeShareText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getShareableChallengeUrl, loadViewerProfileBar, renderChallengeShareActions, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, shouldSkipAutoResume, updateTopNav } from '/app.js';
 const err = document.getElementById('error');
+const matchModeInput = () => document.querySelector('input[name="matchMode"]:checked')?.value || "auto";
 try {
 const forceNewMode = shouldSkipAutoResume();
 if (forceNewMode) {
@@ -125,7 +127,7 @@ function startContinuePolling(token) {
 document.getElementById('createBtn').onclick = async () => {
   err.textContent = '';
   try {
-    const challenge = await createChallenge(playerId, creatureFromDom('a'), getPlayerCreatureId(playerId));
+    const challenge = await createChallenge(playerId, creatureFromDom('a'), getPlayerCreatureId(playerId), matchModeInput());
     const url = `${location.origin}/c/${challenge.token}`;
     localStorage.setItem('lastChallengeToken', challenge.token);
 const shareWrap = document.getElementById('linkWrap');
