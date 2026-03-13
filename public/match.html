@@ -53,6 +53,11 @@ async function refresh() {
   const m = await getMatch(matchId);
   const mode = m.mode || 'auto';
   document.getElementById('modeLabel').textContent = `Mode: ${mode === 'manual' ? 'Manuale' : 'Auto'}`;
+  if (mode === 'auto' && m.publicId) {
+    location.replace(`/replay/${m.publicId}`);
+    return;
+  }
+
   if (m.status === 'finished') {
     statusMsg.textContent = 'Match finished';
     document.getElementById('finishedPanel').style.display = 'block';
