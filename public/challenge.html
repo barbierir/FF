@@ -69,7 +69,11 @@ try {
   const c = await getChallenge(token, playerId);
   if (c.matchId && (c.playerAId === playerId || c.playerBId === playerId)) {
     const side = c.playerAId === playerId ? 'A' : 'B';
-    location.replace(`/m/${c.matchId}?side=${side}`);
+    if ((c.mode || 'auto') === 'auto' && c.publicId) {
+      location.replace(`/replay/${c.publicId}`);
+    } else {
+      location.replace(`/m/${c.matchId}?side=${side}`);
+    }
   } else {
     document.getElementById('chalInfo').textContent = `Opponent creature locked in (expires ${new Date(c.expiresAtISO).toLocaleString()}).`;
     document.getElementById('modeBadge').textContent = `Mode: ${(c.mode || 'auto') === 'manual' ? 'Manuale' : 'Auto'}`;
@@ -114,7 +118,11 @@ document.getElementById('acceptBtn').onclick = async () => {
     setPlayerCreatureId(playerId, selectedCreatureId);
     setPlayerCreatureNickname(playerId, selectedNickname);
     const r = await acceptChallenge(token, playerId, { classKey: selectedCreatureId, cosmeticSeed: randomSeed() }, getPlayerCreatureId(playerId));
-    location.href = `/m/${r.matchId}?side=B`;
+    if (r.publicId) {
+      location.href = `/replay/${r.publicId}`;
+    } else {
+      location.href = `/m/${r.matchId}?side=B`;
+    }
   } catch (e) { err.textContent = e instanceof Error ? e.message : String(e); }
 };
 }
