@@ -19,6 +19,9 @@ export async function createRematchFromReplay(
     throw new HttpError(409, "replay_incomplete", "Replay is incomplete");
   }
 
+  const sourceChallenge = await store.getChallengeById(match.challengeId);
+  const rematchMode = match.mode ?? sourceChallenge?.mode ?? "auto";
+
   const sidePlayerId = side === "A" ? (match.playerAId ?? null) : (match.playerBId ?? null);
   if (sidePlayerId && sidePlayerId !== playerId) {
     throw new HttpError(403, "player_mismatch", "playerId does not match side playerId");
@@ -34,6 +37,7 @@ export async function createRematchFromReplay(
     expiresInHours: 24,
     playerAId: playerId,
     rematchOfPublicId: publicId,
+    mode: rematchMode,
   });
 }
 
