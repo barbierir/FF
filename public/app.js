@@ -1,4 +1,5 @@
 import { getCreatureAnimationAssetCandidates, getCreatureSelectionIdlePath, loadImageWithFallback } from '/creatureAnimations.js';
+import { getMasterVolume, isMuted, setMasterVolume, syncMusicForCurrentPage, toggleMuted } from '/audioManager.js';
 const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy", "demon"];
 const VALID_CREATURE_IDS = new Set(CLASS_KEYS);
 export const CREATURES = [
@@ -442,6 +443,56 @@ export function updateTopNav() {
   });
 
   updateResumeReplayLink();
+  ensureAudioControls();
+  syncMusicForCurrentPage(pathname);
+}
+
+function ensureAudioControls() {
+  const topbar = document.querySelector('.topbar');
+  if (!topbar) return;
+  if (topbar.querySelector('[data-audio-controls]')) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'audio-controls';
+  wrap.setAttribute('data-audio-controls', 'true');
+
+  const muteButton = document.createElement('button');
+  muteButton.type = 'button';
+  muteButton.className = 'secondary audio-mute-btn';
+
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = '0';
+  slider.max = '100';
+  slider.step = '1';
+  slider.className = 'audio-volume-slider';
+  slider.setAttribute('aria-label', 'Master volume');
+
+  const volumeLabel = document.createElement('span');
+  volumeLabel.className = 'small audio-volume-value';
+
+  const refreshUi = () => {
+    const muted = isMuted();
+    const volumePct = Math.round(getMasterVolume() * 100);
+    muteButton.textContent = muted ? '🔇' : '🔊';
+    muteButton.setAttribute('aria-label', muted ? 'Unmute audio' : 'Mute audio');
+    slider.value = String(volumePct);
+    volumeLabel.textContent = `${volumePct}%`;
+  };
+
+  muteButton.addEventListener('click', () => {
+    toggleMuted();
+    refreshUi();
+  });
+
+  slider.addEventListener('input', () => {
+    setMasterVolume(Number(slider.value) / 100);
+    refreshUi();
+  });
+
+  refreshUi();
+  wrap.append(muteButton, slider, volumeLabel);
+  topbar.appendChild(wrap);
 }
 
 export async function getProfile(playerId) {
