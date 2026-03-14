@@ -60,6 +60,28 @@ async function playResultSfxOnce() {
       hasPlayedResultSound = true;
       sessionStorage.setItem(resultSfxStorageKey, '1');
     }
+
+function playResultSfxOnce() {
+  if (!data || hasPlayedResultSound) return;
+  const winner = data.summary?.winner;
+  const resolvedSide = getResolvedSide();
+  if (winner === 'DRAW') {
+    playDrawSound();
+    hasPlayedResultSound = true;
+    sessionStorage.setItem(resultSfxStorageKey, '1');
+    return;
+  }
+  if (!resolvedSide) return;
+  if (winner === resolvedSide) {
+    playWinSound();
+    hasPlayedResultSound = true;
+    sessionStorage.setItem(resultSfxStorageKey, '1');
+    return;
+  }
+  if (winner === 'A' || winner === 'B') {
+    playLoseSound();
+    hasPlayedResultSound = true;
+    sessionStorage.setItem(resultSfxStorageKey, '1');
   }
 }
 
@@ -200,6 +222,7 @@ function startPresentation() {
     },
     onResult: () => {
       void playResultSfxOnce();
+      playResultSfxOnce();
     },
   });
     replayButton.disabled = true;

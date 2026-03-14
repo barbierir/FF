@@ -131,6 +131,18 @@ export async function playOneShotSound(soundPath) {
     return true;
   } catch {
     return false;
+function playSfx(kind) {
+  if (muted) return;
+  const player = sfxPlayers[kind];
+  if (!player) return;
+  try {
+    player.currentTime = 0;
+    const promise = player.play();
+    if (promise?.catch) {
+      promise.catch(() => {});
+    }
+  } catch {
+    // noop
   }
 }
 
@@ -162,6 +174,16 @@ export async function playLoseSound() {
 
 export async function playDrawSound() {
   return playSfx('draw');
+export function playWinSound() {
+  playSfx('win');
+}
+
+export function playLoseSound() {
+  playSfx('lose');
+}
+
+export function playDrawSound() {
+  playSfx('draw');
 }
 
 export function setMuted(nextMuted) {
