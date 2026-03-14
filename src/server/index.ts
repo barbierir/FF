@@ -156,7 +156,7 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
-      const staticModulePath = path.match(/^\/(creatureAnimations|creatures|creaturePicker|creatureIdle|creatureNames|audioManager)\.js$/);
+      const staticModulePath = path.match(/^\/(creatureAnimations|creatures|creaturePicker|creatureIdle|creatureNames|audioManager|presentationAssets)\.js$/);
       if (req.method === "GET" && staticModulePath) {
         await sendStaticFile(res, `${staticModulePath[1]}.js`);
         return;

@@ -10,7 +10,21 @@ import { copyText, createRematch, createStatusBadge, fetchReplay, getViewerPlaye
 import { playDrawSound, playLoseSound, playWinSound } from '/audioManager.js';
 import { MatchPresentation, estimatePresentationDurationMs } from '/matchPresentation.js';
 
+console.info('MATCH_SCRIPT_LOADED');
+window.addEventListener('error', (event) => {
+  const errorPayload = event.error || event.message || event;
+  const errorText = String(errorPayload || '');
+  if (errorText.includes('Failed to fetch dynamically imported module') || errorText.includes('Cannot find module')) {
+    console.error('MATCH_MODULE_IMPORT_ERROR', errorPayload);
+  }
+  console.error('MATCH_FATAL_ERROR', errorPayload);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('MATCH_FATAL_ERROR', event.reason || event);
+});
+
 const publicId = parsePath()[1];
+console.info('MATCH_ID_RESOLVED', { publicId });
 const sideStorageKey = `faf_rematch_side_${publicId}`;
 const resultSfxStorageKey = `ff:resultSfxPlayed:${publicId}`;
 const rematchBtn = document.getElementById('rematchBtn');
@@ -60,28 +74,6 @@ async function playResultSfxOnce() {
       hasPlayedResultSound = true;
       sessionStorage.setItem(resultSfxStorageKey, '1');
     }
-
-function playResultSfxOnce() {
-  if (!data || hasPlayedResultSound) return;
-  const winner = data.summary?.winner;
-  const resolvedSide = getResolvedSide();
-  if (winner === 'DRAW') {
-    playDrawSound();
-    hasPlayedResultSound = true;
-    sessionStorage.setItem(resultSfxStorageKey, '1');
-    return;
-  }
-  if (!resolvedSide) return;
-  if (winner === resolvedSide) {
-    playWinSound();
-    hasPlayedResultSound = true;
-    sessionStorage.setItem(resultSfxStorageKey, '1');
-    return;
-  }
-  if (winner === 'A' || winner === 'B') {
-    playLoseSound();
-    hasPlayedResultSound = true;
-    sessionStorage.setItem(resultSfxStorageKey, '1');
   }
 }
 
@@ -199,6 +191,7 @@ function assertReplayPresentationData(payload) {
 
 function startPresentation() {
   if (!data) return;
+  console.info('PRESENTATION_BUILD_START');
   try {
     if (window.location.hostname === 'localhost') {
       console.debug('[replay] MatchPresentation mount');
@@ -221,14 +214,20 @@ function startPresentation() {
       setPresentationFinished(true);
     },
     onResult: () => {
-      void playResultSfxOnce();
-      playResultSfxOnce();
+      console.info('MATCH_AUTOPLAY_INIT_START');
+      void playResultSfxOnce().then(() => {
+        console.info('MATCH_AUTOPLAY_INIT_DONE');
+      }).catch((error) => {
+        console.error('MATCH_AUTOPLAY_ERROR', error);
+      });
     },
   });
     replayButton.disabled = true;
     skipButton.hidden = false;
     presentation.start();
+    console.info('PRESENTATION_BUILD_DONE');
   } catch (error) {
+    console.error('PRESENTATION_BUILD_ERROR', error);
     setPresentationFinished(true);
     const message = describePresentationError(error);
     setPresentationError(message);
@@ -250,18 +249,26 @@ cancelSidePickerButton.addEventListener('click', () => {
 rematchBtn.onclick = requestRematch;
 
 setLoadingState(true);
+console.info('MATCH_BOOTSTRAP_START');
 try {
   if (window.location.hostname === 'localhost') {
     console.debug(`[replay] init start publicId=${publicId}`);
   }
+  console.info('MATCH_FETCH_START', { publicId });
   data = await fetchReplay(publicId);
+  console.info('MATCH_FETCH_DONE', { publicId, eventCount: Array.isArray(data?.events) ? data.events.length : null });
   assertReplayPresentationData(data);
   rememberLastReplayPublicId(publicId);
   viewerPlayerId = await getViewerPlayerId();
   const storedSide = sessionStorage.getItem(sideStorageKey);
   if (storedSide === 'A' || storedSide === 'B') pickedSide = storedSide;
+  console.info('PROFILE_INIT_START');
   updateTopNav();
-  void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId: viewerPlayerId });
+  void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId: viewerPlayerId }).then(() => {
+    console.info('PROFILE_INIT_DONE');
+  }).catch((error) => {
+    console.error('PROFILE_INIT_ERROR', error);
+  });
   const resolvedSide = getResolvedSide();
   const resultLabel = data.summary.winner === 'DRAW'
     ? 'Draw'
@@ -290,12 +297,24 @@ try {
     console.debug('Replay match hash', data.matchHash);
     console.debug('[replay] init success');
   }
-  document.getElementById('sharePage').href = `/r/${publicId}`;
-  rematchBtn.disabled = false;
-  setPresentationFinished(false);
+  console.info('MATCH_UI_BIND_START');
+  try {
+    document.getElementById('sharePage').href = `/r/${publicId}`;
+    rematchBtn.disabled = false;
+    setPresentationFinished(false);
+    console.info('MATCH_UI_BIND_DONE');
+  } catch (error) {
+    console.error('MATCH_UI_BIND_ERROR', error);
+    throw error;
+  }
   startPresentation();
+  console.info('MATCH_READY');
 } catch (error) {
   const message = describePresentationError(error);
+  console.error('MATCH_FETCH_ERROR', error);
+  if (message.includes('Failed to fetch dynamically imported module') || message.includes('Cannot find module')) {
+    console.error('MATCH_MODULE_IMPORT_ERROR', error);
+  }
   shareMsg.textContent = message;
   setPresentationError(message);
   console.error('[replay] init failed', error, { publicId });
