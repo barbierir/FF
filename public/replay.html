@@ -7,10 +7,12 @@
 <div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row inline-actions"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
 <script type="module">
 import { copyText, createRematch, createStatusBadge, fetchReplay, getViewerPlayerId, loadViewerProfileBar, outcomeToBadgeVariant, parsePath, rememberLastReplayPublicId, renderPlayerIdentity, updateTopNav } from '/app.js';
+import { playDrawSound, playLoseSound, playWinSound } from '/audioManager.js';
 import { MatchPresentation, estimatePresentationDurationMs } from '/matchPresentation.js';
 
 const publicId = parsePath()[1];
 const sideStorageKey = `faf_rematch_side_${publicId}`;
+const resultSfxStorageKey = `ff:resultSfxPlayed:${publicId}`;
 const rematchBtn = document.getElementById('rematchBtn');
 const sideModal = document.getElementById('sideModal');
 const rematchResult = document.getElementById('rematchResult');
@@ -29,6 +31,37 @@ let pickedSide = null;
 let rematchInFlight = false;
 let presentation = null;
 const postMatchPanel = document.getElementById('postMatchPanel');
+
+let hasPlayedResultSound = sessionStorage.getItem(resultSfxStorageKey) === '1';
+let resultSfxInFlight = false;
+
+async function playResultSfxOnce() {
+  if (!data || hasPlayedResultSound || resultSfxInFlight) return;
+  const winner = data.summary?.winner;
+  const resolvedSide = getResolvedSide();
+  let played = false;
+  resultSfxInFlight = true;
+  try {
+    if (winner === 'DRAW') {
+      played = await playDrawSound();
+      return;
+    }
+    if (!resolvedSide) return;
+    if (winner === resolvedSide) {
+      played = await playWinSound();
+      return;
+    }
+    if (winner === 'A' || winner === 'B') {
+      played = await playLoseSound();
+    }
+  } finally {
+    resultSfxInFlight = false;
+    if (played) {
+      hasPlayedResultSound = true;
+      sessionStorage.setItem(resultSfxStorageKey, '1');
+    }
+  }
+}
 
 function setPresentationFinished(finished) {
   if (postMatchPanel) postMatchPanel.hidden = !finished;
@@ -164,6 +197,9 @@ function startPresentation() {
     onComplete: () => {
       replayButton.disabled = false;
       setPresentationFinished(true);
+    },
+    onResult: () => {
+      void playResultSfxOnce();
     },
   });
     replayButton.disabled = true;

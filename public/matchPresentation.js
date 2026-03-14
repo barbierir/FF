@@ -8,6 +8,7 @@ import {
   DEFAULT_MATCH_ANIMATION_DURATION_MS,
 } from '/presentationAssets.js';
 import { loadImageWithFallback } from '/creatureAnimations.js';
+import { playOneShotSound } from '/audioManager.js';
 
 function debugLog(...args) {
   if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
@@ -250,6 +251,7 @@ export class MatchPresentation {
     this.hpB = config.hpB;
     this.eventLogRoot = config.eventLogRoot;
     this.onComplete = config.onComplete;
+    this.onResult = config.onResult;
     this.data = config.data;
     this.creatures = config.creatures;
 
@@ -264,6 +266,7 @@ export class MatchPresentation {
     this.pendingOffsetMs = 0;
 
     this.timelineData = buildMatchPresentationTimeline(this.data?.events || [], this.data?.summary || null);
+    this.resultShown = false;
   }
 
   clearTimers() {
@@ -289,16 +292,11 @@ export class MatchPresentation {
   }
 
   playSound(actionType) {
-    if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
+    if (typeof window === 'undefined') return;
     const soundPath = getActionSound(actionType);
     debugLog('[presentation] sound path', actionType, soundPath);
     if (!soundPath) return;
-    try {
-      const audio = new Audio(soundPath);
-      void audio.play().catch(() => {});
-    } catch {
-      // no-op: placeholder audio can be missing or blocked
-    }
+    void playOneShotSound(soundPath);
   }
 
   setHpBars() {
@@ -440,6 +438,8 @@ export class MatchPresentation {
   }
 
   showResult() {
+    if (this.resultShown) return;
+    this.resultShown = true;
     this.phase = 'result';
     const badge = this.root.querySelector('[data-result-badge]');
     const winner = this.data?.summary?.winner;
@@ -472,6 +472,9 @@ export class MatchPresentation {
     }
 
     badge.dataset.state = 'active';
+    if (typeof this.onResult === 'function') {
+      this.onResult();
+    }
   }
 
   complete() {
@@ -486,6 +489,7 @@ export class MatchPresentation {
   start() {
     this.stop();
     this.phase = 'intro';
+    this.resultShown = false;
     this.currentHp = { A: 20, B: 20 };
     this.setHpBars();
     this.clearBubble();
