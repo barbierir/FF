@@ -31,6 +31,7 @@ const STATIC_MIME: Record<string, string> = {
   ".webp": "image/webp",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".mp3": "audio/mpeg",
 };
 
 function sendJson(res: import("node:http").ServerResponse, status: number, body: unknown): void {
@@ -155,9 +156,15 @@ export function createApiServer(): import("node:http").Server {
         return;
       }
 
-      const staticModulePath = path.match(/^\/(creatureAnimations|creatures|creaturePicker|creatureIdle|creatureNames)\.js$/);
+      const staticModulePath = path.match(/^\/(creatureAnimations|creatures|creaturePicker|creatureIdle|creatureNames|audioManager)\.js$/);
       if (req.method === "GET" && staticModulePath) {
         await sendStaticFile(res, `${staticModulePath[1]}.js`);
+        return;
+      }
+
+      const staticAudioPath = path.match(/^\/(audio\/[a-z0-9_-]+\.mp3)$/i);
+      if (req.method === "GET" && staticAudioPath) {
+        await sendStaticFile(res, staticAudioPath[1]);
         return;
       }
 
