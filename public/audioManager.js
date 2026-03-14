@@ -18,8 +18,25 @@ const FADE_TICK_MS = 30;
 
 const listeners = new Set();
 
-let muted = localStorage.getItem(STORAGE_KEYS.muted) === 'true';
-let masterVolume = parseStoredVolume(localStorage.getItem(STORAGE_KEYS.masterVolume));
+function readStorage(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.warn('[audio] AUDIO_INIT_ERROR storage read failed', { key, error });
+    return null;
+  }
+}
+
+function writeStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    console.warn('[audio] AUDIO_INIT_ERROR storage write failed', { key, error });
+  }
+}
+
+let muted = readStorage(STORAGE_KEYS.muted) === 'true';
+let masterVolume = parseStoredVolume(readStorage(STORAGE_KEYS.masterVolume));
 let desiredMusicTrack = null;
 let currentMusicTrack = null;
 let awaitingUserGesture = false;
@@ -83,8 +100,8 @@ function notify() {
 }
 
 function persistState() {
-  localStorage.setItem(STORAGE_KEYS.muted, String(muted));
-  localStorage.setItem(STORAGE_KEYS.masterVolume, String(masterVolume));
+  writeStorage(STORAGE_KEYS.muted, String(muted));
+  writeStorage(STORAGE_KEYS.masterVolume, String(masterVolume));
 }
 
 function handlePlaybackFailure() {
