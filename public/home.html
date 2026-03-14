@@ -35,78 +35,123 @@
   <script type="module">
     import { buildChallengeShareText, createStatusBadge, fetchOpenChallenges, getOrCreateGuestPlayer, getPlayerCreatureId, getPlayerCreatureNickname, getShareableChallengeUrl, listMyChallenges, loadViewerProfileBar, outcomeToBadgeVariant, renderChallengeShareActions, renderPlayerIdentity, shouldSkipAutoResume, updateTopNav } from '/app.js';
 
+    console.info('[home] HOME_MOUNTED');
+
     if (shouldSkipAutoResume()) {
       const note = document.getElementById('homeNewModeNote');
       if (note) note.style.display = 'block';
     }
 
+    const openChallenges = document.getElementById('openChallenges');
+    const recent = document.getElementById('recent');
+
     try {
+      console.info('[home] PLAYER_ID_START');
       const playerId = await getOrCreateGuestPlayer();
+      console.info('[home] PLAYER_ID_DONE', { playerId });
+
       updateTopNav();
-      void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId });
+      console.info('[home] AUDIO_INIT_START');
+      void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId })
+        .then(() => {
+          console.info('[home] AUDIO_INIT_DONE');
+        })
+        .catch((error) => {
+          console.error('[home] AUDIO_INIT_ERROR', error);
+        });
+
       renderPlayerIdentity(document.getElementById('homePlayerIdentity'), {
         playerId,
         creatureId: getPlayerCreatureId(playerId),
         creatureNickname: getPlayerCreatureNickname(playerId),
         variant: 'default',
       });
-
-      const myOpen = await listMyChallenges(playerId, 'open', 20);
-      const outgoing = (myOpen.items || []).find((item) => item.playerAId === playerId);
-      renderChallengeShareActions(document.getElementById('homeShareActions'), {
-        url: getShareableChallengeUrl(outgoing),
-        message: outgoing ? buildChallengeShareText({
-          challengerLabel: getPlayerCreatureNickname(playerId) || 'A Challenger',
-        }) : null,
-        onCopyStateChange: (message, isError) => {
-          const feedback = document.getElementById('homeShareFeedback');
-          feedback.textContent = message;
-          feedback.className = isError ? 'error' : 'small';
-        },
-      });
+      console.info('[home] HOME_READY_SET_TRUE');
 
       const toResultBadge = (label) => createStatusBadge({ label, variant: outcomeToBadgeVariant(label), size: 'sm' }).outerHTML;
 
-      const publicData = await fetch(`/api/players/${encodeURIComponent(playerId)}/public`).then((r) => r.json());
-      const recent = document.getElementById('recent');
-      if (!publicData.recentMatches?.length) {
-        recent.innerHTML = '<li>No finished matches yet.</li>';
-      } else {
-        recent.innerHTML = publicData.recentMatches
-          .map((m) => {
-            const opponentLabel = m.opponentCreatureNickname || (m.opponentCreatureId ? m.opponentCreatureId[0].toUpperCase() + m.opponentCreatureId.slice(1) : 'Unknown Creature');
-            const result = m.resultLabel || 'Draw';
-            return `<li><a href="/replay/${m.publicId}">${opponentLabel}</a> · ${toResultBadge(result)} · MaxHit ${m.maxHit}</li>`;
-          })
-          .join('');
-      }
-
-      const openChallenges = document.getElementById('openChallenges');
-      const inbox = await fetchOpenChallenges(playerId);
-      if (!inbox.items?.length) {
-        openChallenges.innerHTML = '<li>No open challenges right now.</li>';
-      } else {
-        openChallenges.innerHTML = inbox.items
-          .map((item) => `<li><span class="challenge-row-identity" data-player-id="${item.playerAId ?? 'unknown'}" data-creature-id="${item.creatureA.classKey}"></span> · <a class="button-link" href="/c/${item.token}">Accept Challenge</a></li>`)
-          .join('');
-        openChallenges.querySelectorAll('.challenge-row-identity').forEach((el) => {
-          const id = el.getAttribute('data-player-id') || 'unknown';
-          const creatureId = el.getAttribute('data-creature-id');
-          renderPlayerIdentity(el, {
-            playerId: id,
-            creatureId,
-            creatureNickname: null,
-            variant: 'compact',
+      const loadShareActions = async () => {
+        console.info('[home] MATCH_PRELOAD_START');
+        try {
+          const myOpen = await listMyChallenges(playerId, 'open', 20);
+          const outgoing = (myOpen.items || []).find((item) => item.playerAId === playerId);
+          renderChallengeShareActions(document.getElementById('homeShareActions'), {
+            url: getShareableChallengeUrl(outgoing),
+            message: outgoing ? buildChallengeShareText({
+              challengerLabel: getPlayerCreatureNickname(playerId) || 'A Challenger',
+            }) : null,
+            onCopyStateChange: (message, isError) => {
+              const feedback = document.getElementById('homeShareFeedback');
+              feedback.textContent = message;
+              feedback.className = isError ? 'error' : 'small';
+            },
           });
-        });
-      }
+          console.info('[home] MATCH_PRELOAD_DONE');
+        } catch (error) {
+          console.error('[home] MATCH_PRELOAD_ERROR', error);
+        }
+      };
+
+      const loadRecentMatches = async () => {
+        console.info('[home] PLAYER_FETCH_START');
+        try {
+          const publicData = await fetch(`/api/players/${encodeURIComponent(playerId)}/public`).then((r) => r.json());
+          if (!publicData.recentMatches?.length) {
+            recent.innerHTML = '<li>No finished matches yet.</li>';
+          } else {
+            recent.innerHTML = publicData.recentMatches
+              .map((m) => {
+                const opponentLabel = m.opponentCreatureNickname || (m.opponentCreatureId ? m.opponentCreatureId[0].toUpperCase() + m.opponentCreatureId.slice(1) : 'Unknown Creature');
+                const result = m.resultLabel || 'Draw';
+                return `<li><a href="/replay/${m.publicId}">${opponentLabel}</a> · ${toResultBadge(result)} · MaxHit ${m.maxHit}</li>`;
+              })
+              .join('');
+          }
+          console.info('[home] PLAYER_FETCH_DONE');
+        } catch (error) {
+          console.error('[home] PLAYER_FETCH_ERROR', error);
+          recent.innerHTML = '<li class="error">Could not load recent matches.</li>';
+        }
+      };
+
+      const loadOpenChallenges = async () => {
+        try {
+          const inbox = await fetchOpenChallenges(playerId);
+          if (!inbox.items?.length) {
+            openChallenges.innerHTML = '<li>No open challenges right now.</li>';
+            return;
+          }
+
+          openChallenges.innerHTML = inbox.items
+            .map((item) => `<li><span class="challenge-row-identity" data-player-id="${item.playerAId ?? 'unknown'}" data-creature-id="${item.creatureA.classKey}"></span> · <a class="button-link" href="/c/${item.token}">Accept Challenge</a></li>`)
+            .join('');
+          openChallenges.querySelectorAll('.challenge-row-identity').forEach((el) => {
+            const id = el.getAttribute('data-player-id') || 'unknown';
+            const creatureId = el.getAttribute('data-creature-id');
+            renderPlayerIdentity(el, {
+              playerId: id,
+              creatureId,
+              creatureNickname: null,
+              variant: 'compact',
+            });
+          });
+        } catch (error) {
+          console.error('[home] HOME_INIT_ERROR openChallenges', error);
+          openChallenges.innerHTML = '<li class="error">Could not load open challenges.</li>';
+        }
+      };
+
+      await Promise.allSettled([loadShareActions(), loadRecentMatches(), loadOpenChallenges()]);
     } catch (error) {
+      console.error('[home] HOME_INIT_ERROR', error);
       const message = error instanceof Error ? error.message : String(error);
       const profileBar = document.getElementById('profileBar');
       if (profileBar) profileBar.textContent = 'Could not load page.';
-      const openChallenges = document.getElementById('openChallenges');
       if (openChallenges) {
         openChallenges.innerHTML = `<li class="error">Could not load open challenges: ${message}</li>`;
+      }
+      if (recent) {
+        recent.innerHTML = `<li class="error">Could not load recent matches: ${message}</li>`;
       }
     }
   </script>
