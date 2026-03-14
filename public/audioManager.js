@@ -17,10 +17,32 @@ const MUSIC_FADE_IN_MS = 450;
 const FADE_TICK_MS = 30;
 
 const listeners = new Set();
+const warnedKeys = new Set();
+
+function warnOnce(key, message, error) {
+  if (warnedKeys.has(key)) return;
+  warnedKeys.add(key);
+  if (error) {
+    console.warn(message, error);
+  } else {
+    console.warn(message);
+  }
+}
+
+function getWindowOrNull() {
+  return typeof window === 'undefined' ? null : window;
+}
+
+function getNow() {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+}
 
 function readStorage(key) {
   try {
-    return localStorage.getItem(key);
+    return getWindowOrNull()?.localStorage?.getItem(key) ?? null;
   } catch (error) {
     console.warn('[audio] AUDIO_INIT_ERROR storage read failed', { key, error });
     return null;
@@ -29,7 +51,7 @@ function readStorage(key) {
 
 function writeStorage(key, value) {
   try {
-    localStorage.setItem(key, value);
+    getWindowOrNull()?.localStorage?.setItem(key, value);
   } catch (error) {
     console.warn('[audio] AUDIO_INIT_ERROR storage write failed', { key, error });
   }
@@ -43,8 +65,8 @@ let awaitingUserGesture = false;
 let transitionId = 0;
 
 const musicPlayers = {
-  game: createAudio(AUDIO_PATHS.game, true),
-  match: createAudio(AUDIO_PATHS.match, true),
+  game: null,
+  match: null,
 };
 
 const musicGains = {
@@ -53,10 +75,12 @@ const musicGains = {
 };
 
 const sfxPlayers = {
-  win: createAudio(AUDIO_PATHS.win, false),
-  lose: createAudio(AUDIO_PATHS.lose, false),
-  draw: createAudio(AUDIO_PATHS.draw, false),
+  win: null,
+  lose: null,
+  draw: null,
 };
+
+let audioBootstrapped = false;
 
 function parseStoredVolume(value) {
   const parsed = Number.parseFloat(value);
@@ -65,11 +89,33 @@ function parseStoredVolume(value) {
 }
 
 function createAudio(src, loop) {
-  const audio = new Audio(src);
+  if (typeof Audio === 'undefined') {
+    warnOnce('audio-api-missing', '[audio] Audio API unavailable; audio playback disabled');
+    return null;
+  }
+
+  let audio;
+  try {
+    audio = new Audio(src);
+  } catch (error) {
+    warnOnce(`audio-create:${src}`, '[audio] AUDIO_INIT_ERROR could not initialize Audio instance', error);
+    return null;
+  }
+
   audio.preload = 'none';
   audio.loop = loop;
   audio.volume = 0;
   return audio;
+}
+
+function bootstrapAudioIfNeeded() {
+  if (audioBootstrapped) return;
+  audioBootstrapped = true;
+  musicPlayers.game = createAudio(AUDIO_PATHS.game, true);
+  musicPlayers.match = createAudio(AUDIO_PATHS.match, true);
+  sfxPlayers.win = createAudio(AUDIO_PATHS.win, false);
+  sfxPlayers.lose = createAudio(AUDIO_PATHS.lose, false);
+  sfxPlayers.draw = createAudio(AUDIO_PATHS.draw, false);
 }
 
 function getEffectiveMusicVolume() {
@@ -86,10 +132,13 @@ function setMusicGain(track, gain) {
 }
 
 function applyVolume() {
+  bootstrapAudioIfNeeded();
   Object.entries(musicPlayers).forEach(([track, player]) => {
+    if (!player) return;
     player.volume = getEffectiveMusicVolume() * musicGains[track];
   });
   Object.values(sfxPlayers).forEach((player) => {
+    if (!player) return;
     player.volume = muted ? 0 : masterVolume;
   });
 }
@@ -110,21 +159,24 @@ function handlePlaybackFailure() {
 
   const unlock = () => {
     awaitingUserGesture = false;
-    window.removeEventListener('pointerdown', unlock);
-    window.removeEventListener('keydown', unlock);
+    const win = getWindowOrNull();
+    win?.removeEventListener('pointerdown', unlock);
+    win?.removeEventListener('keydown', unlock);
 
     if (desiredMusicTrack && !muted) {
       void transitionToTrack(desiredMusicTrack);
     }
   };
 
-  window.addEventListener('pointerdown', unlock, { once: true });
-  window.addEventListener('keydown', unlock, { once: true });
+  const win = getWindowOrNull();
+  if (!win) return;
+  win.addEventListener('pointerdown', unlock, { once: true });
+  win.addEventListener('keydown', unlock, { once: true });
 }
 
 function wait(ms) {
   return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
+    setTimeout(resolve, ms);
   });
 }
 
@@ -138,11 +190,11 @@ async function fadeMusicGain(track, startGain, endGain, durationMs, expectedTran
     return true;
   }
 
-  const startedAt = performance.now();
+  const startedAt = getNow();
   while (true) {
     if (expectedTransitionId !== transitionId) return false;
 
-    const elapsed = performance.now() - startedAt;
+    const elapsed = getNow() - startedAt;
     const progress = Math.min(1, elapsed / durationMs);
     const nextGain = clampedStart + (clampedEnd - clampedStart) * progress;
     setMusicGain(track, nextGain);
@@ -196,6 +248,7 @@ async function transitionToTrack(track) {
     if (localTransitionId !== transitionId) return;
 
     const previousPlayer = musicPlayers[previousTrack];
+    if (!previousPlayer) return;
     previousPlayer.pause();
     previousPlayer.currentTime = 0;
     setMusicGain(previousTrack, 0);
@@ -215,6 +268,7 @@ async function transitionToTrack(track) {
 
 function stopAllMusicImmediately(clearCurrentTrack = true) {
   Object.entries(musicPlayers).forEach(([track, player]) => {
+    if (!player) return;
     player.pause();
     player.currentTime = 0;
     setMusicGain(track, 0);
@@ -235,6 +289,10 @@ async function stopMusicWithFade(expectedTransitionId, clearCurrentTrack = true)
 
   const activeTrack = currentMusicTrack;
   const activePlayer = musicPlayers[activeTrack];
+  if (!activePlayer) {
+    if (clearCurrentTrack) currentMusicTrack = null;
+    return;
+  }
   const activeGain = musicGains[activeTrack];
   await fadeMusicGain(activeTrack, activeGain, 0, MUSIC_FADE_OUT_MS, expectedTransitionId);
 
@@ -278,13 +336,15 @@ export async function playOneShotSound(soundPath) {
 }
 
 export function startGameMusic() {
-  if (desiredMusicTrack === 'game' && currentMusicTrack === 'game' && !musicPlayers.game.paused) return;
+  bootstrapAudioIfNeeded();
+  if (desiredMusicTrack === 'game' && currentMusicTrack === 'game' && musicPlayers.game && !musicPlayers.game.paused) return;
   void transitionToTrack('game');
   notify();
 }
 
 export function startMatchMusic() {
-  if (desiredMusicTrack === 'match' && currentMusicTrack === 'match' && !musicPlayers.match.paused) return;
+  bootstrapAudioIfNeeded();
+  if (desiredMusicTrack === 'match' && currentMusicTrack === 'match' && musicPlayers.match && !musicPlayers.match.paused) return;
   void transitionToTrack('match');
   notify();
 }
@@ -360,8 +420,10 @@ export function subscribeToAudioState(listener) {
   return () => listeners.delete(listener);
 }
 
-export function syncMusicForCurrentPage(pathname = window.location.pathname) {
-  const isMatchPage = pathname.startsWith('/m/') || pathname.startsWith('/replay/');
+export function syncMusicForCurrentPage(pathname) {
+  bootstrapAudioIfNeeded();
+  const resolvedPathname = pathname ?? getWindowOrNull()?.location?.pathname ?? '/';
+  const isMatchPage = resolvedPathname.startsWith('/m/') || resolvedPathname.startsWith('/replay/');
   if (isMatchPage) {
     startMatchMusic();
   } else {
@@ -369,4 +431,6 @@ export function syncMusicForCurrentPage(pathname = window.location.pathname) {
   }
 }
 
-applyVolume();
+export function primeAudio() {
+  bootstrapAudioIfNeeded();
+}

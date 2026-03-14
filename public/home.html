@@ -51,13 +51,13 @@
       console.info('[home] PLAYER_ID_DONE', { playerId });
 
       updateTopNav();
-      console.info('[home] AUDIO_INIT_START');
+      console.debug('[home] PROFILE_BAR_LOAD_START');
       void loadViewerProfileBar({ profileBarEl: document.getElementById('profileBar'), playerId })
         .then(() => {
-          console.info('[home] AUDIO_INIT_DONE');
+          console.debug('[home] PROFILE_BAR_LOAD_DONE');
         })
         .catch((error) => {
-          console.error('[home] AUDIO_INIT_ERROR', error);
+          console.warn('[home] PROFILE_BAR_LOAD_ERROR', error);
         });
 
       renderPlayerIdentity(document.getElementById('homePlayerIdentity'), {
@@ -71,7 +71,6 @@
       const toResultBadge = (label) => createStatusBadge({ label, variant: outcomeToBadgeVariant(label), size: 'sm' }).outerHTML;
 
       const loadShareActions = async () => {
-        console.info('[home] MATCH_PRELOAD_START');
         try {
           const myOpen = await listMyChallenges(playerId, 'open', 20);
           const outgoing = (myOpen.items || []).find((item) => item.playerAId === playerId);
@@ -86,14 +85,12 @@
               feedback.className = isError ? 'error' : 'small';
             },
           });
-          console.info('[home] MATCH_PRELOAD_DONE');
         } catch (error) {
-          console.error('[home] MATCH_PRELOAD_ERROR', error);
+          console.warn('[home] MATCH_PRELOAD_ERROR', error);
         }
       };
 
       const loadRecentMatches = async () => {
-        console.info('[home] PLAYER_FETCH_START');
         try {
           const publicData = await fetch(`/api/players/${encodeURIComponent(playerId)}/public`).then((r) => r.json());
           if (!publicData.recentMatches?.length) {
@@ -107,9 +104,8 @@
               })
               .join('');
           }
-          console.info('[home] PLAYER_FETCH_DONE');
         } catch (error) {
-          console.error('[home] PLAYER_FETCH_ERROR', error);
+          console.warn('[home] PLAYER_FETCH_ERROR', error);
           recent.innerHTML = '<li class="error">Could not load recent matches.</li>';
         }
       };

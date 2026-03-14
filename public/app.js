@@ -1,6 +1,66 @@
 import { getCreatureAnimationAssetCandidates, getCreatureSelectionIdlePath, loadImageWithFallback } from '/creatureAnimations.js';
 import { getMasterVolume, isMuted, setMasterVolume, syncMusicForCurrentPage, toggleMuted } from '/audioManager.js';
 const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy", "demon"];
+const LOGGED_BROWSER_WARNINGS = new Set();
+
+function logBrowserGuardWarning(scope, detail, error) {
+  const key = `${scope}:${detail}`;
+  if (LOGGED_BROWSER_WARNINGS.has(key)) return;
+  LOGGED_BROWSER_WARNINGS.add(key);
+  if (error) {
+    console.warn(`[app] ${scope} unavailable (${detail})`, error);
+  } else {
+    console.warn(`[app] ${scope} unavailable (${detail})`);
+  }
+}
+
+function getWindowOrNull() {
+  return typeof window === 'undefined' ? null : window;
+}
+
+function readLocalStorage(key) {
+  try {
+    return getWindowOrNull()?.localStorage?.getItem(key) ?? null;
+  } catch (error) {
+    logBrowserGuardWarning('localStorage', `read:${key}`, error);
+    return null;
+  }
+}
+
+function writeLocalStorage(key, value) {
+  try {
+    getWindowOrNull()?.localStorage?.setItem(key, value);
+    return true;
+  } catch (error) {
+    logBrowserGuardWarning('localStorage', `write:${key}`, error);
+    return false;
+  }
+}
+
+function removeLocalStorage(key) {
+  try {
+    getWindowOrNull()?.localStorage?.removeItem(key);
+    return true;
+  } catch (error) {
+    logBrowserGuardWarning('localStorage', `remove:${key}`, error);
+    return false;
+  }
+}
+
+function removeSessionStorage(key) {
+  try {
+    getWindowOrNull()?.sessionStorage?.removeItem(key);
+    return true;
+  } catch (error) {
+    logBrowserGuardWarning('sessionStorage', `remove:${key}`, error);
+    return false;
+  }
+}
+
+function getLocationOrNull() {
+  return getWindowOrNull()?.location ?? null;
+}
+
 const VALID_CREATURE_IDS = new Set(CLASS_KEYS);
 export const CREATURES = [
   {
@@ -238,56 +298,56 @@ function playerCreatureNicknameStorageKey(playerId) {
 
 export function getPlayerCreatureId(playerId) {
   if (!playerId) return null;
-  const stored = localStorage.getItem(playerCreatureStorageKey(playerId)) ?? localStorage.getItem(legacyPlayerCreatureStorageKey(playerId));
+  const stored = readLocalStorage(playerCreatureStorageKey(playerId)) ?? readLocalStorage(legacyPlayerCreatureStorageKey(playerId));
   return VALID_CREATURE_IDS.has(stored) ? stored : null;
 }
 
 export function setPlayerCreatureId(playerId, creatureId) {
   if (!playerId || !creatureId) return;
   if (!VALID_CREATURE_IDS.has(creatureId)) return;
-  localStorage.setItem(playerCreatureStorageKey(playerId), creatureId);
-  localStorage.removeItem(legacyPlayerCreatureStorageKey(playerId));
+  writeLocalStorage(playerCreatureStorageKey(playerId), creatureId);
+  removeLocalStorage(legacyPlayerCreatureStorageKey(playerId));
 }
 
 export function clearPlayerCreatureId(playerId) {
   if (!playerId) return;
-  localStorage.removeItem(playerCreatureStorageKey(playerId));
-  localStorage.removeItem(legacyPlayerCreatureStorageKey(playerId));
+  removeLocalStorage(playerCreatureStorageKey(playerId));
+  removeLocalStorage(legacyPlayerCreatureStorageKey(playerId));
 }
 
 export function getPlayerCreatureNickname(playerId) {
   if (!playerId) return null;
-  return localStorage.getItem(playerCreatureNicknameStorageKey(playerId));
+  return readLocalStorage(playerCreatureNicknameStorageKey(playerId));
 }
 
 export function setPlayerCreatureNickname(playerId, nickname) {
   if (!playerId || !nickname) return;
-  localStorage.setItem(playerCreatureNicknameStorageKey(playerId), nickname);
+  writeLocalStorage(playerCreatureNicknameStorageKey(playerId), nickname);
 }
 
 export function clearPlayerCreatureNickname(playerId) {
   if (!playerId) return;
-  localStorage.removeItem(playerCreatureNicknameStorageKey(playerId));
+  removeLocalStorage(playerCreatureNicknameStorageKey(playerId));
 }
 
 export function getPendingCreatureId() {
-  const stored = localStorage.getItem(PENDING_CREATURE_KEY);
+  const stored = readLocalStorage(PENDING_CREATURE_KEY);
   return VALID_CREATURE_IDS.has(stored) ? stored : null;
 }
 
 export function setPendingCreatureId(creatureId) {
   if (!creatureId) return;
   if (!VALID_CREATURE_IDS.has(creatureId)) return;
-  localStorage.setItem(PENDING_CREATURE_KEY, creatureId);
+  writeLocalStorage(PENDING_CREATURE_KEY, creatureId);
 }
 
 export function getPendingCreatureNickname() {
-  return localStorage.getItem(PENDING_CREATURE_NICKNAME_KEY);
+  return readLocalStorage(PENDING_CREATURE_NICKNAME_KEY);
 }
 
 export function setPendingCreatureNickname(nickname) {
   if (!nickname) return;
-  localStorage.setItem(PENDING_CREATURE_NICKNAME_KEY, nickname);
+  writeLocalStorage(PENDING_CREATURE_NICKNAME_KEY, nickname);
 }
 
 export function getPendingCreatureSelection() {
@@ -304,8 +364,8 @@ export function setPendingCreatureSelection({ creatureId, nickname }) {
 }
 
 export function clearPendingCreatureSelection() {
-  localStorage.removeItem(PENDING_CREATURE_KEY);
-  localStorage.removeItem(PENDING_CREATURE_NICKNAME_KEY);
+  removeLocalStorage(PENDING_CREATURE_KEY);
+  removeLocalStorage(PENDING_CREATURE_NICKNAME_KEY);
 }
 
 export function flushPendingCreatureIdToPlayer(playerId) {
@@ -331,27 +391,32 @@ const STICKY_RESUME_KEYS = [
 ];
 
 function forceNewChallengeRequested() {
-  return new URLSearchParams(location.search).get(FORCE_NEW_QUERY_KEY) === FORCE_NEW_QUERY_VALUE;
+  const search = getLocationOrNull()?.search ?? "";
+  return new URLSearchParams(search).get(FORCE_NEW_QUERY_KEY) === FORCE_NEW_QUERY_VALUE;
 }
 
 function clearStickyResumeState() {
   for (const key of STICKY_RESUME_KEYS) {
     try {
-      localStorage.removeItem(key);
+      removeLocalStorage(key);
     } catch {}
     try {
-      sessionStorage.removeItem(key);
+      removeSessionStorage(key);
     } catch {}
   }
 }
 
-window.__FAF_FORCE_NEW = forceNewChallengeRequested();
-if (window.__FAF_FORCE_NEW) {
-  clearStickyResumeState();
+let forceNewModeCache = null;
+
+function getForceNewModeFlag() {
+  if (forceNewModeCache !== null) return forceNewModeCache;
+  forceNewModeCache = forceNewChallengeRequested();
+  if (forceNewModeCache) clearStickyResumeState();
+  return forceNewModeCache;
 }
 
 export function shouldSkipAutoResume() {
-  return Boolean(window.__FAF_FORCE_NEW);
+  return Boolean(getForceNewModeFlag());
 }
 
 async function api(path, opts = {}) {
@@ -368,12 +433,12 @@ async function api(path, opts = {}) {
 }
 
 export function getPlayerIdOrNull() {
-  const playerId = localStorage.getItem(PLAYER_ID_KEY);
+  const playerId = readLocalStorage(PLAYER_ID_KEY);
   if (playerId) return playerId;
-  const legacyPlayerId = localStorage.getItem(LEGACY_PLAYER_ID_KEY);
+  const legacyPlayerId = readLocalStorage(LEGACY_PLAYER_ID_KEY);
   if (!legacyPlayerId) return null;
-  localStorage.setItem(PLAYER_ID_KEY, legacyPlayerId);
-  localStorage.removeItem(LEGACY_PLAYER_ID_KEY);
+  writeLocalStorage(PLAYER_ID_KEY, legacyPlayerId);
+  removeLocalStorage(LEGACY_PLAYER_ID_KEY);
   return legacyPlayerId;
 }
 
@@ -382,7 +447,7 @@ export async function getOrCreateGuestPlayer() {
   if (playerId) return playerId;
   const created = await api("/api/players/guest", { method: "POST", body: "{}" });
   playerId = created.playerId;
-  localStorage.setItem(PLAYER_ID_KEY, playerId);
+  writeLocalStorage(PLAYER_ID_KEY, playerId);
   return playerId;
 }
 
@@ -393,7 +458,7 @@ export async function getViewerPlayerId() {
 export function rememberLastReplayPublicId(publicId) {
   if (shouldSkipAutoResume()) return;
   if (!publicId) return;
-  localStorage.setItem(LAST_REPLAY_PUBLIC_ID_KEY, publicId);
+  writeLocalStorage(LAST_REPLAY_PUBLIC_ID_KEY, publicId);
 }
 
 export function updateResumeReplayLink() {
@@ -404,7 +469,7 @@ export function updateResumeReplayLink() {
     resumeLink.href = "/";
     return;
   }
-  const publicId = localStorage.getItem(LAST_REPLAY_PUBLIC_ID_KEY);
+  const publicId = readLocalStorage(LAST_REPLAY_PUBLIC_ID_KEY);
   if (!publicId) {
     resumeLink.hidden = true;
     resumeLink.href = "/";
@@ -421,7 +486,7 @@ export function updateTopNav() {
     profileLink.href = playerId ? `/p/${encodeURIComponent(playerId)}` : "/";
   }
 
-  const pathname = window.location.pathname;
+  const pathname = getLocationOrNull()?.pathname ?? "/";
   const activeNav = pathname === "/" || pathname === "/home"
     ? "home"
     : pathname.startsWith("/p/")
@@ -444,7 +509,11 @@ export function updateTopNav() {
 
   updateResumeReplayLink();
   ensureAudioControls();
-  syncMusicForCurrentPage(pathname);
+  try {
+    syncMusicForCurrentPage(pathname);
+  } catch (error) {
+    logBrowserGuardWarning('audio', 'syncMusicForCurrentPage', error);
+  }
 }
 
 function ensureAudioControls() {
@@ -575,11 +644,13 @@ export function getShareableChallengeUrl(challengeOrMatch) {
   }
   const token = challengeOrMatch.token || challengeOrMatch.challengeToken;
   if (typeof token === "string" && token) {
-    return `${location.origin}/c/${token}`;
+    const origin = getLocationOrNull()?.origin;
+    return origin ? `${origin}/c/${token}` : null;
   }
   const relativeUrl = challengeOrMatch.url;
   if (typeof relativeUrl === "string" && relativeUrl.startsWith("/c/")) {
-    return `${location.origin}${relativeUrl}`;
+    const origin = getLocationOrNull()?.origin;
+    return origin ? `${origin}${relativeUrl}` : null;
   }
   return null;
 }
@@ -727,11 +798,13 @@ export async function createRematch(publicId, playerId, side) {
 }
 
 export function parsePath() {
-  return location.pathname.split("/").filter(Boolean);
+  const pathname = getLocationOrNull()?.pathname ?? "";
+  return pathname.split("/").filter(Boolean);
 }
 
 export function q(name) {
-  return new URLSearchParams(location.search).get(name);
+  const search = getLocationOrNull()?.search ?? "";
+  return new URLSearchParams(search).get(name);
 }
 
 export function creatureFromDom(prefix) {
@@ -771,7 +844,10 @@ export function getGasRankTitle(wins) {
 }
 
 
-const isDevHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+function isDevHost() {
+  const hostname = getLocationOrNull()?.hostname;
+  return ["localhost", "127.0.0.1"].includes(hostname || "");
+}
 
 export function renderCreatureIdle(container, { classKey, size = "md", alt } = {}) {
   if (!container) return;
@@ -789,7 +865,7 @@ export function renderCreatureIdle(container, { classKey, size = "md", alt } = {
   };
 
   img.onerror = () => {
-    if (isDevHost) {
+    if (isDevHost()) {
       console.warn("[renderCreatureIdle] failed to load idle image", {
         creatureId: label,
         attemptedSrc: img.currentSrc || img.src,
@@ -850,7 +926,7 @@ export function createPlayerIdentity({
   variant = "default",
   showGif = true,
   showCreatureName = true,
-  showPlayerId = Boolean(window.__FF_DEBUG_SHOW_PLAYER_ID__),
+  showPlayerId = Boolean(getWindowOrNull()?.__FF_DEBUG_SHOW_PLAYER_ID__),
   showNickname = true,
   className = "",
 } = {}) {
