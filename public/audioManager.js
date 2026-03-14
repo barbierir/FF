@@ -108,6 +108,29 @@ function stopAllMusic() {
   currentMusicTrack = null;
 }
 
+async function playSfx(kind) {
+  if (muted) return false;
+  const player = sfxPlayers[kind];
+  if (!player) return false;
+  try {
+    player.currentTime = 0;
+    await player.play();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function playOneShotSound(soundPath) {
+  if (muted || !soundPath || typeof Audio === 'undefined') return false;
+  try {
+    const audio = new Audio(soundPath);
+    audio.preload = 'none';
+    audio.volume = masterVolume;
+    await audio.play();
+    return true;
+  } catch {
+    return false;
 function playSfx(kind) {
   if (muted) return;
   const player = sfxPlayers[kind];
@@ -141,6 +164,16 @@ export function stopMusic() {
   notify();
 }
 
+export async function playWinSound() {
+  return playSfx('win');
+}
+
+export async function playLoseSound() {
+  return playSfx('lose');
+}
+
+export async function playDrawSound() {
+  return playSfx('draw');
 export function playWinSound() {
   playSfx('win');
 }

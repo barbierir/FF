@@ -33,6 +33,33 @@ let presentation = null;
 const postMatchPanel = document.getElementById('postMatchPanel');
 
 let hasPlayedResultSound = sessionStorage.getItem(resultSfxStorageKey) === '1';
+let resultSfxInFlight = false;
+
+async function playResultSfxOnce() {
+  if (!data || hasPlayedResultSound || resultSfxInFlight) return;
+  const winner = data.summary?.winner;
+  const resolvedSide = getResolvedSide();
+  let played = false;
+  resultSfxInFlight = true;
+  try {
+    if (winner === 'DRAW') {
+      played = await playDrawSound();
+      return;
+    }
+    if (!resolvedSide) return;
+    if (winner === resolvedSide) {
+      played = await playWinSound();
+      return;
+    }
+    if (winner === 'A' || winner === 'B') {
+      played = await playLoseSound();
+    }
+  } finally {
+    resultSfxInFlight = false;
+    if (played) {
+      hasPlayedResultSound = true;
+      sessionStorage.setItem(resultSfxStorageKey, '1');
+    }
 
 function playResultSfxOnce() {
   if (!data || hasPlayedResultSound) return;
@@ -194,6 +221,7 @@ function startPresentation() {
       setPresentationFinished(true);
     },
     onResult: () => {
+      void playResultSfxOnce();
       playResultSfxOnce();
     },
   });

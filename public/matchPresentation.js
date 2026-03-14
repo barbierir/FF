@@ -8,6 +8,7 @@ import {
   DEFAULT_MATCH_ANIMATION_DURATION_MS,
 } from '/presentationAssets.js';
 import { loadImageWithFallback } from '/creatureAnimations.js';
+import { playOneShotSound } from '/audioManager.js';
 
 function debugLog(...args) {
   if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
@@ -291,16 +292,11 @@ export class MatchPresentation {
   }
 
   playSound(actionType) {
-    if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
+    if (typeof window === 'undefined') return;
     const soundPath = getActionSound(actionType);
     debugLog('[presentation] sound path', actionType, soundPath);
     if (!soundPath) return;
-    try {
-      const audio = new Audio(soundPath);
-      void audio.play().catch(() => {});
-    } catch {
-      // no-op: placeholder audio can be missing or blocked
-    }
+    void playOneShotSound(soundPath);
   }
 
   setHpBars() {
