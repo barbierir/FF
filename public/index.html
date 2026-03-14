@@ -34,9 +34,25 @@
 
       </main>
 <script type="module">
-import { buildChallengeShareText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getShareableChallengeUrl, loadViewerProfileBar, renderChallengeShareActions, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, shouldSkipAutoResume, updateTopNav } from '/app.js';
+console.info('[home] HOME_SCRIPT_LOADED');
+
+let app;
+try {
+  app = await import('/app.js');
+} catch (error) {
+  console.error('[home] MODULE_IMPORT_ERROR', error);
+  const err = document.getElementById('error');
+  if (err) err.textContent = `Could not load page: ${error instanceof Error ? error.message : String(error)}`;
+  const profileBar = document.getElementById('profileBar');
+  if (profileBar) profileBar.textContent = 'Could not load page.';
+  throw error;
+}
+
+const { buildChallengeShareText, createChallenge, creatureFromDom, flushPendingCreatureIdToPlayer, generateCreatureNickname, getChallenge, getOrCreateGuestPlayer, getPendingCreatureSelection, getPlayerCreatureId, getPlayerCreatureNickname, getShareableChallengeUrl, loadViewerProfileBar, renderChallengeShareActions, renderCreaturePickerGrid, renderPlayerIdentity, setPendingCreatureSelection, setPlayerCreatureId, setPlayerCreatureNickname, shouldSkipAutoResume, updateTopNav } = app;
+
 const err = document.getElementById('error');
 const matchModeInput = () => document.querySelector('input[name="matchMode"]:checked')?.value || "auto";
+console.info('[home] APP_BOOTSTRAP_START');
 try {
 const forceNewMode = shouldSkipAutoResume();
 if (forceNewMode) {
@@ -46,9 +62,14 @@ if (forceNewMode) {
 }
 const playerId = await getOrCreateGuestPlayer();
 updateTopNav();
+console.info('[home] PROFILE_INIT_START');
 void loadViewerProfileBar({
   profileBarEl: document.getElementById('profileBar'),
   playerId,
+}).then(() => {
+  console.info('[home] PROFILE_INIT_DONE');
+}).catch((error) => {
+  console.error('[home] PROFILE_INIT_ERROR', error);
 });
 let continuePoll = null;
 
@@ -95,12 +116,14 @@ function selectCreature(nextCreatureId) {
   renderNicknameLine();
 }
 
+console.info('[home] CREATURES_INIT_START');
 renderCreaturePickerGrid({
   container: grid,
   selectedId: selectedCreatureId,
   onSelect: selectCreature,
 });
 renderNicknameLine();
+console.info('[home] CREATURES_INIT_DONE');
 
 async function checkAndContinue(token) {
   const status = await getChallenge(token);
@@ -124,26 +147,33 @@ function startContinuePolling(token) {
   }, 2000);
 }
 
-document.getElementById('createBtn').onclick = async () => {
-  err.textContent = '';
-  try {
-    const challenge = await createChallenge(playerId, creatureFromDom('a'), getPlayerCreatureId(playerId), matchModeInput());
-    const url = `${location.origin}/c/${challenge.token}`;
-    localStorage.setItem('lastChallengeToken', challenge.token);
-const shareWrap = document.getElementById('linkWrap');
-    const shareFeedback = document.getElementById('shareFeedback');
-    renderChallengeShareActions(shareWrap, {
-      url: getShareableChallengeUrl(challenge) || url,
-      message: buildChallengeShareText({ challengerLabel: selectedNickname }),
-      onCopyStateChange: (message, isError) => {
-        shareFeedback.textContent = message;
-        shareFeedback.className = isError ? 'error' : 'small';
-      },
-    });
-    const alreadyAccepted = await checkAndContinue(challenge.token);
-    if (!alreadyAccepted) startContinuePolling(challenge.token);
-  } catch (e) { err.textContent = e.message; }
-};
+console.info('[home] CREATE_MATCH_BIND_START');
+try {
+  document.getElementById('createBtn').onclick = async () => {
+    err.textContent = '';
+    try {
+      const challenge = await createChallenge(playerId, creatureFromDom('a'), getPlayerCreatureId(playerId), matchModeInput());
+      const url = `${location.origin}/c/${challenge.token}`;
+      localStorage.setItem('lastChallengeToken', challenge.token);
+  const shareWrap = document.getElementById('linkWrap');
+      const shareFeedback = document.getElementById('shareFeedback');
+      renderChallengeShareActions(shareWrap, {
+        url: getShareableChallengeUrl(challenge) || url,
+        message: buildChallengeShareText({ challengerLabel: selectedNickname }),
+        onCopyStateChange: (message, isError) => {
+          shareFeedback.textContent = message;
+          shareFeedback.className = isError ? 'error' : 'small';
+        },
+      });
+      const alreadyAccepted = await checkAndContinue(challenge.token);
+      if (!alreadyAccepted) startContinuePolling(challenge.token);
+    } catch (e) { err.textContent = e.message; }
+  };
+  console.info('[home] CREATE_MATCH_BIND_DONE');
+} catch (error) {
+  console.error('[home] CREATE_MATCH_BIND_ERROR', error);
+  throw error;
+}
 const lastChallengeToken = forceNewMode ? null : localStorage.getItem('lastChallengeToken');
 if (lastChallengeToken) {
   const url = `${location.origin}/c/${lastChallengeToken}`;
@@ -164,7 +194,10 @@ if (lastChallengeToken) {
     localStorage.removeItem('lastChallengeToken');
   }
 }
+console.info('[home] APP_BOOTSTRAP_DONE');
+console.info('[home] HOME_INTERACTIVE_READY');
 } catch (error) {
+  console.error('[home] HOME_FATAL_ERROR', error);
   const message = error instanceof Error ? error.message : String(error);
   err.textContent = `Could not load page: ${message}`;
   const profileBar = document.getElementById('profileBar');
