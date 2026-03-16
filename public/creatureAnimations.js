@@ -60,11 +60,11 @@ export function getCreatureAnimationAssetCandidates(creatureId, animationName) {
 export function getDefeatFrozenAssetCandidates(creatureId) {
   const normalizedCreatureId = creatureId || 'goblin';
   return [
+    `/creatures/${normalizedCreatureId}/defeat_final.png`,
     `/creatures/${normalizedCreatureId}/defeat_frozen.png`,
     `/creatures/${normalizedCreatureId}/defeat_still.png`,
     `/creatures/${normalizedCreatureId}/defeat.png`,
     `/creatures/${normalizedCreatureId}/defeat_placeholder.png`,
-    ...getCreatureAnimationAssetCandidates(normalizedCreatureId, 'idle'),
   ];
 }
 

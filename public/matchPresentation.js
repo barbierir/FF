@@ -245,10 +245,13 @@ export class MatchPresentation {
     const animationMeta = getAnimationMeta(actionType);
     slot.dataset.loop = animationMeta.shouldLoop ? 'true' : 'false';
     const creatureId = side === 'A' ? this.creatures.a : this.creatures.b;
-    const candidates = [
-      ...getCreatureAnimationCandidates(creatureId, actionType),
-      ...getCreatureIdleCandidates(creatureId),
-    ];
+    const animationCandidates = getCreatureAnimationCandidates(creatureId, actionType);
+    const candidates = actionType === 'defeat'
+      ? animationCandidates
+      : [
+        ...animationCandidates,
+        ...getCreatureIdleCandidates(creatureId),
+      ];
     if (force) {
       slot.src = '';
     }

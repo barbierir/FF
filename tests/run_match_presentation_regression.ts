@@ -5,6 +5,7 @@ import path from 'node:path';
 const replayHtml = fs.readFileSync(path.resolve(process.cwd(), 'public/replay.html'), 'utf8');
 const matchPresentationJs = fs.readFileSync(path.resolve(process.cwd(), 'public/matchPresentation.js'), 'utf8');
 const presentationAssetsJs = fs.readFileSync(path.resolve(process.cwd(), 'public/presentationAssets.js'), 'utf8');
+const creatureAnimationsJs = fs.readFileSync(path.resolve(process.cwd(), 'public/creatureAnimations.js'), 'utf8');
 
 assert.match(presentationAssetsJs, /export const animationPlaybackMeta = Object\.freeze\(/, 'expected centralized animation playback metadata');
 assert.match(presentationAssetsJs, /defeat:\s*Object\.freeze\(\{\s*shouldLoop:\s*false/, 'defeat should be marked non-looping in metadata');
@@ -24,6 +25,10 @@ assert.match(matchPresentationJs, /const BUBBLE_VISIBLE_MS = 1_000;/, 'bubble vi
 assert.match(matchPresentationJs, /const eventId = payload\.eventId \?\? `bubble_\$\{\+\+this\.bubbleEventSequence\}`;/, 'bubble rendering should key each display cycle by event token');
 assert.match(matchPresentationJs, /this\.clearBubbleTimer\(\);[\s\S]*this\.bubbleHideTimer = setTimeout\(/, 'bubble timers should be reset on every new event');
 assert.match(matchPresentationJs, /slot\.dataset\.animation = 'defeat_locked';[\s\S]*getDefeatFrozenAssetCandidates/, 'defeat should transition into locked post-defeat frame after one-shot playback');
+assert.match(matchPresentationJs, /const candidates = actionType === 'defeat'\s*\n\s*\? animationCandidates/, 'defeat animation should not use idle fallback candidates');
+assert.match(matchPresentationJs, /setTimeout\(\(\) => this\.freezeDefeated\('B'\), freezeAfter\)/, 'side B defeat lock should be scheduled from explicit duration metadata');
+assert.match(matchPresentationJs, /setTimeout\(\(\) => this\.freezeDefeated\('A'\), freezeAfter\)/, 'side A defeat lock should be scheduled from explicit duration metadata');
+assert.match(creatureAnimationsJs, /`\/creatures\/\$\{normalizedCreatureId\}\/defeat_final\.png`/, 'defeat frozen candidates should prioritize defeat_final.png');
 assert.match(replayHtml, /data-creature-label="A"/, 'left creature name label missing');
 assert.match(replayHtml, /data-creature-label="B"/, 'right creature name label missing');
 assert.match(replayHtml, /function renderBattleCreatureLabels\(\)/, 'expected battle creature label renderer');
