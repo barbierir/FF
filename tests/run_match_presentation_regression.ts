@@ -13,10 +13,12 @@ assert.match(matchPresentationJs, /enterFinalMatchState\(winner\)/, 'expected sh
 assert.match(matchPresentationJs, /this\.showResult\(\)/, 'expected result entrypoint to exist');
 assert.match(matchPresentationJs, /this\.enterFinalMatchState\(winner\);/, 'showResult should route through shared final-state helper');
 assert.match(matchPresentationJs, /this\.clearTransientTimers\(\);\n\s*this\.clearTransientAnimationTimers\(\);/, 'enterFinalMatchState should cancel only transient timers');
-assert.match(matchPresentationJs, /this\.setTransientAnimation\(actor, 'charge', atMs \+ ACTION_START_MS\);/, 'charge should remain active until action starts');
-assert.match(matchPresentationJs, /this\.setTransientAnimation\(actor, actionAnim, atMs \+ ACTION_HOLD_MS\);/, 'attack\/backfire should remain visible through the action window');
+assert.match(matchPresentationJs, /playOneShotAnimation\(side, actionType, \{ eventToken, expiresAtMs \}\)/, 'expected centralized one-shot animation controller');
+assert.match(matchPresentationJs, /if \(this\.oneShotState\[side\]\?\.token === eventToken\) return;/, 'one-shot controller should ignore duplicate event tokens');
+assert.match(matchPresentationJs, /this\.playOneShotAnimation\(actor, 'charge', \{[\s\S]*expiresAtMs: atMs \+ CHARGE_HOLD_MS,/, 'charge should use event-token one-shot timing');
+assert.match(matchPresentationJs, /this\.playOneShotAnimation\(actor, actionAnim, \{[\s\S]*expiresAtMs: atMs \+ ACTION_HOLD_MS,/, 'attack\/backfire should use one-shot timing');
 assert.match(matchPresentationJs, /if \(this\.canReturnToIdle\('A', nowMs\)\) this\.setCreatureAnimation\('A', 'idle'\);/, 'idle fallback should respect transient priority for side A');
-assert.match(matchPresentationJs, /if \(this\.finalStateLock\) return;\n\s*this\.setTransientAnimation\(defender, 'hit'/, 'transient hit callback should be blocked after final state lock');
+assert.match(matchPresentationJs, /if \(this\.finalStateLock\) return;\n\s*this\.playOneShotAnimation\(defender, 'hit'/, 'transient hit callback should be blocked after final state lock');
 assert.match(matchPresentationJs, /this\.setCreatureAnimation\('A', 'idle', \{ force: true \}\);\n\s*this\.setCreatureAnimation\('B', 'idle', \{ force: true \}\);/, 'draw should show idle on both sides in final state');
 assert.match(matchPresentationJs, /if \(this\.completed\) return;/, 'complete should be idempotent');
 assert.match(matchPresentationJs, /this\.scheduleAt\(step\.atMs, 0, \(\) => \{[\s\S]*step\.phase === 'finished' \? 'completion' : 'transient'\);/, 'finished step should use completion timer group');
