@@ -18,16 +18,17 @@ function debugLog(...args) {
 
 export const battleAnimationTiming = battlePresentationConfig;
 
-const TURN_TOTAL_MS = 2_000;
-const IDLE_PREP_MS = 250;
-const CHARGE_START_MS = 250;
-const ACTION_START_MS = 900;
-const HIT_START_MS = 1_150;
-const RECOVERY_START_MS = 1_650;
-const CHARGE_SOUND_MS = 250;
-const ACTION_SOUND_MS = 1_100;
-const ACTION_HOLD_MS = 1_850;
-const HIT_HOLD_MS = 1_900;
+const TURN_TOTAL_MS = 1_350;
+const IDLE_PREP_MS = 120;
+const CHARGE_START_MS = 160;
+const ACTION_START_MS = 520;
+const HIT_START_MS = 760;
+const RECOVERY_START_MS = 1_100;
+const CHARGE_SOUND_MS = 180;
+const ACTION_SOUND_MS = 580;
+const CHARGE_HOLD_MS = 460;
+const ACTION_HOLD_MS = 880;
+const HIT_HOLD_MS = 1_040;
 const BUBBLE_ANIMATION_RESTART_MS = 1;
 const BUBBLE_VISIBLE_MS = 1_000;
 
@@ -169,11 +170,16 @@ export class MatchPresentation {
     this.completionTimerHandles = [];
     this.fallbackTimer = null;
     this.animationResetTimers = { A: null, B: null };
+    this.oneShotResetTimers = { A: null, B: null };
     this.finalStateLock = false;
     this.currentHp = { A: 20, B: 20 };
     this.currentAnimations = { A: 'idle', B: 'idle' };
     this.pendingOffsetMs = 0;
-    this.transientStateExpiresAtMs = { A: 0, B: 0 };
+    this.presentationEpochMs = Date.now();
+    this.oneShotState = {
+      A: { token: null, expiresAtMs: 0 },
+      B: { token: null, expiresAtMs: 0 },
+    };
 
     this.timelineData = buildMatchPresentationTimeline(this.data?.events || [], this.data?.summary || null);
     this.resultShown = false;
@@ -194,6 +200,14 @@ export class MatchPresentation {
     if (this.animationResetTimers.B) {
       clearTimeout(this.animationResetTimers.B);
       this.animationResetTimers.B = null;
+    }
+    if (this.oneShotResetTimers.A) {
+      clearTimeout(this.oneShotResetTimers.A);
+      this.oneShotResetTimers.A = null;
+    }
+    if (this.oneShotResetTimers.B) {
+      clearTimeout(this.oneShotResetTimers.B);
+      this.oneShotResetTimers.B = null;
     }
   }
 
@@ -363,25 +377,52 @@ export class MatchPresentation {
   }
 
   clearTransientAnimationTimers() {
-    if (this.animationResetTimers.A) {
-      clearTimeout(this.animationResetTimers.A);
-      this.animationResetTimers.A = null;
+    if (this.oneShotResetTimers.A) {
+      clearTimeout(this.oneShotResetTimers.A);
+      this.oneShotResetTimers.A = null;
     }
-    if (this.animationResetTimers.B) {
-      clearTimeout(this.animationResetTimers.B);
-      this.animationResetTimers.B = null;
+    if (this.oneShotResetTimers.B) {
+      clearTimeout(this.oneShotResetTimers.B);
+      this.oneShotResetTimers.B = null;
     }
-    this.transientStateExpiresAtMs = { A: 0, B: 0 };
+    this.oneShotState = {
+      A: { token: null, expiresAtMs: 0 },
+      B: { token: null, expiresAtMs: 0 },
+    };
   }
 
-  setTransientAnimation(side, actionType, expiresAtMs) {
+  playOneShotAnimation(side, actionType, { eventToken, expiresAtMs }) {
     if (this.finalStateLock) return;
-    this.transientStateExpiresAtMs[side] = Math.max(this.transientStateExpiresAtMs[side], expiresAtMs);
+    if (!eventToken) return;
+    if (this.oneShotState[side]?.token === eventToken) return;
+
+    this.oneShotState[side] = {
+      token: eventToken,
+      expiresAtMs,
+    };
+
+    if (this.oneShotResetTimers[side]) {
+      clearTimeout(this.oneShotResetTimers[side]);
+      this.oneShotResetTimers[side] = null;
+    }
+
     this.setCreatureAnimation(side, actionType, { force: true });
+
+    const now = Date.now();
+    const absoluteExpiryMs = this.presentationEpochMs + expiresAtMs;
+    const delayMs = Math.max(0, absoluteExpiryMs - now);
+    this.oneShotResetTimers[side] = setTimeout(() => {
+      const state = this.oneShotState[side];
+      if (this.finalStateLock || !state || state.token !== eventToken) return;
+      this.oneShotState[side] = { token: null, expiresAtMs: 0 };
+      this.oneShotResetTimers[side] = null;
+      this.setCreatureAnimation(side, 'idle');
+    }, delayMs);
+    this.activeTimerHandles.push(this.oneShotResetTimers[side]);
   }
 
   canReturnToIdle(side, nowMs) {
-    return !this.finalStateLock && nowMs >= (this.transientStateExpiresAtMs[side] || 0);
+    return !this.finalStateLock && nowMs >= (this.oneShotState[side]?.expiresAtMs || 0);
   }
 
   freezeDefeated(side) {
@@ -503,7 +544,10 @@ export class MatchPresentation {
 
     this.scheduleAt(atMs, CHARGE_START_MS, () => {
       if (this.finalStateLock) return;
-      this.setTransientAnimation(actor, 'charge', atMs + ACTION_START_MS);
+      this.playOneShotAnimation(actor, 'charge', {
+        eventToken: `${turnStep.key}_${actor}_charge`,
+        expiresAtMs: atMs + CHARGE_HOLD_MS,
+      });
     });
 
     this.scheduleAt(atMs, CHARGE_SOUND_MS, () => {
@@ -514,7 +558,10 @@ export class MatchPresentation {
     this.scheduleAt(atMs, ACTION_START_MS, () => {
       if (this.finalStateLock) return;
       const actionAnim = actionType === 'backfire' || isBackfire ? 'backfire' : 'attack';
-      this.setTransientAnimation(actor, actionAnim, atMs + ACTION_HOLD_MS);
+      this.playOneShotAnimation(actor, actionAnim, {
+        eventToken: `${turnStep.key}_${actor}_${actionAnim}`,
+        expiresAtMs: atMs + ACTION_HOLD_MS,
+      });
       if (actionAnim === 'backfire') {
         this.showBubble({
           text: 'Backfire!',
@@ -544,7 +591,10 @@ export class MatchPresentation {
     if (shouldHitDefender) {
       this.scheduleAt(atMs, HIT_START_MS, () => {
         if (this.finalStateLock) return;
-        this.setTransientAnimation(defender, 'hit', atMs + HIT_HOLD_MS);
+        this.playOneShotAnimation(defender, 'hit', {
+          eventToken: `${turnStep.key}_${defender}_hit`,
+          expiresAtMs: atMs + HIT_HOLD_MS,
+        });
         this.playSound('hit', 'hit');
         this.showBubble({
           text: isCritical ? 'Critical impact!' : 'Direct hit!',
@@ -615,6 +665,7 @@ export class MatchPresentation {
     this.showBubble({ text: 'Round start!', align: 'center', eventId: 'round_start' });
 
     this.pendingOffsetMs = 0;
+    this.presentationEpochMs = Date.now();
     this.timelineData.timeline.forEach((step) => {
       this.scheduleAt(step.atMs, 0, () => {
         if (step.phase === 'turn') this.scheduleTurn(step);
