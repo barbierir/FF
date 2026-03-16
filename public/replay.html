@@ -1,12 +1,12 @@
 <!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Replay</title><link rel="stylesheet" href="/styles.css"/></head>
 <body><div class="topbar"><strong>Replay</strong><nav class="nav-links" aria-label="Primary"><a data-nav="home" href="/home">Home</a><a data-nav="profile" id="myProfileLink" href="/">My Profile</a><a data-nav="leaderboard" href="/leaderboard">Leaderboard</a><a data-nav="daily" id="navDaily" href="/daily">Daily Challenge</a></nav><a id="navNewChallenge" href="/?new=1" class="small-link topbar-utility-link">New Challenge</a><span id="profileBar">Loading...</span></div><main class="page-stack">
-<section class="module-secondary battle-stage-module"><h2>Battle Stage</h2><div id="battleStage" class="battle-stage"><div class="battle-stage-inner"><div class="battle-creature left" data-creature="A"><div class="battle-creature-motion" data-creature-motion="A"><img alt="Creature A animation" src="/creatures/goblin/idle_placeholder.png"/></div></div><div class="battle-creature right" data-creature="B"><div class="battle-creature-motion" data-creature-motion="B"><img alt="Creature B animation" src="/creatures/goblin/idle_placeholder.png"/></div></div><div class="battle-action-bubble center" data-battle-bubble data-state="hidden"></div><div class="battle-result-badge" data-result-badge data-state="hidden"></div></div><div class="battle-hp-grid"><div><div class="small">A HP</div><div class="hp"><span id="hpA"></span></div></div><div><div class="small">B HP</div><div class="hp"><span id="hpB"></span></div></div></div><div class="inline-actions"><button class="secondary" id="skip" data-skip>Skip to Result</button></div></div><details class="battle-log-panel"><summary>Battle Log (secondary)</summary><div class="log" id="log"></div></details></section>
+<section class="module-secondary battle-stage-module"><h2>Battle Stage</h2><div id="battleStage" class="battle-stage"><div class="battle-stage-inner"><div class="battle-creature left" data-creature="A"><div class="battle-creature-label" data-creature-label="A"></div><div class="battle-creature-motion" data-creature-motion="A"><img alt="Creature A animation" src="/creatures/goblin/idle_placeholder.png"/></div></div><div class="battle-creature right" data-creature="B"><div class="battle-creature-label" data-creature-label="B"></div><div class="battle-creature-motion" data-creature-motion="B"><img alt="Creature B animation" src="/creatures/goblin/idle_placeholder.png"/></div></div><div class="battle-action-bubble center" data-battle-bubble data-state="hidden"></div><div class="battle-result-badge" data-result-badge data-state="hidden"></div></div><div class="battle-hp-grid"><div><div class="small">A HP</div><div class="hp"><span id="hpA"></span></div></div><div><div class="small">B HP</div><div class="hp"><span id="hpB"></span></div></div></div><div class="inline-actions"><button class="secondary" id="skip" data-skip>Skip to Result</button></div></div><details class="battle-log-panel"><summary>Battle Log (secondary)</summary><div class="log" id="log"></div></details></section>
 <section class="card module-secondary" id="presentationStatusCard" hidden><p id="presentationStatus" class="small"></p><div class="inline-actions"><button class="secondary" id="retryLoadBtn" hidden>Retry</button></div></section>
 <section class="card module-primary" id="postMatchPanel" hidden><h2 id="title">Battle Replay</h2><p id="winner" class="victory-highlight"></p><p id="stats"></p><div class="replay-creature-row"><div id="replayIdentityA"></div><div class="arena-vs">VS</div><div id="replayIdentityB"></div></div><div class="button-row primary-cta-group"><button class="primary-cta" id="rematchBtn" disabled>Rematch</button><a class="button-link primary-cta" href="/?new=1">New Challenge</a></div><p class="small">Rematch creates a new challenge link. Send it to your opponent; they must accept it.</p><p><a id="sharePage" href="#">Share Page</a></p><div class="inline-actions"><button class="secondary" id="copyShareText">Copy Share Text</button><button class="secondary" id="replay">Replay Presentation</button></div><p id="shareMsg"></p><div id="rematchResult"></div></section>
 </main>
 <div id="sideModal" class="modal" hidden><div class="modal-content"><h3>Pick your side</h3><p class="small">We couldn't map your player ID to this replay. Pick the side you played.</p><div class="button-row inline-actions"><button id="sideA">I was A (left)</button><button id="sideB">I was B (right)</button></div><button class="secondary" id="cancelSidePicker">Cancel</button></div></div>
 <script type="module">
-import { copyText, createRematch, createStatusBadge, fetchReplay, getViewerPlayerId, loadViewerProfileBar, outcomeToBadgeVariant, parsePath, rememberLastReplayPublicId, renderPlayerIdentity, updateTopNav } from '/app.js';
+import { copyText, createRematch, createStatusBadge, fetchReplay, getViewerPlayerId, getCreaturePresentation, loadViewerProfileBar, outcomeToBadgeVariant, parsePath, rememberLastReplayPublicId, renderPlayerIdentity, updateTopNav } from '/app.js';
 import { playDrawSound, playLoseSound, playWinSound } from '/audioManager.js';
 import { MatchPresentation, estimatePresentationDurationMs } from '/matchPresentation.js';
 
@@ -104,6 +104,25 @@ function clearPresentationError() {
   if (presentationStatusCard) presentationStatusCard.hidden = true;
 }
 
+
+
+function renderBattleCreatureLabels() {
+  const left = document.querySelector('[data-creature-label="A"]');
+  const right = document.querySelector('[data-creature-label="B"]');
+  const leftPresentation = getCreaturePresentation(
+    data?.match?.playerAId ?? 'A',
+    data?.match?.playerACreatureId || data?.summary?.a?.classKey,
+    data?.match?.playerANickname,
+  );
+  const rightPresentation = getCreaturePresentation(
+    data?.match?.playerBId ?? 'B',
+    data?.match?.playerBCreatureId || data?.summary?.b?.classKey,
+    data?.match?.playerBNickname,
+  );
+  if (left) left.textContent = leftPresentation.primaryLabel || leftPresentation.creatureName;
+  if (right) right.textContent = rightPresentation.primaryLabel || rightPresentation.creatureName;
+}
+
 function getDetectedSide() {
   if (!data) return null;
   if (data.match?.playerAId === viewerPlayerId) return 'A';
@@ -144,6 +163,7 @@ function renderRematchResult(payload) {
 
 async function requestRematch() {
   if (rematchInFlight) return;
+  renderBattleCreatureLabels();
   const resolvedSide = getResolvedSide();
   if (!resolvedSide) {
     showSidePicker();
@@ -269,6 +289,7 @@ try {
   }).catch((error) => {
     console.error('PROFILE_INIT_ERROR', error);
   });
+  renderBattleCreatureLabels();
   const resolvedSide = getResolvedSide();
   const resultLabel = data.summary.winner === 'DRAW'
     ? 'Draw'
@@ -284,13 +305,13 @@ try {
   renderPlayerIdentity(document.getElementById('replayIdentityA'), {
     playerId: data.match?.playerAId ?? 'Player A',
     creatureId: data.summary.a.classKey,
-    creatureNickname: data.match?.playerAId ? localStorage.getItem(`ff:player:${data.match.playerAId}:creatureNickname`) : null,
+    creatureNickname: data.match?.playerANickname ?? null,
     variant: 'default',
   });
   renderPlayerIdentity(document.getElementById('replayIdentityB'), {
     playerId: data.match?.playerBId ?? 'Player B',
     creatureId: data.summary.b.classKey,
-    creatureNickname: data.match?.playerBId ? localStorage.getItem(`ff:player:${data.match.playerBId}:creatureNickname`) : null,
+    creatureNickname: data.match?.playerBNickname ?? null,
     variant: 'default',
   });
   if (window.location.hostname === 'localhost') {

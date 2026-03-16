@@ -122,6 +122,10 @@ export type ReplayPayload = {
     playerAId: string | null;
     playerBId: string | null;
     challengeId: string;
+    playerACreatureId?: string;
+    playerBCreatureId?: string;
+    playerANickname?: string;
+    playerBNickname?: string;
   };
 };
 

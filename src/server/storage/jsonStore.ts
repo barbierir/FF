@@ -184,6 +184,10 @@ export class JsonStore implements Store {
         playerAId: match.playerAId ?? null,
         playerBId: match.playerBId ?? null,
         challengeId: match.challengeId,
+        playerACreatureId: match.playerACreatureIdSnapshot,
+        playerBCreatureId: match.playerBCreatureIdSnapshot,
+        playerANickname: match.playerACreatureNicknameSnapshot,
+        playerBNickname: match.playerBCreatureNicknameSnapshot,
       },
     };
   }

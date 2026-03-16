@@ -4,6 +4,7 @@ import {
   getCreatureIdleCandidates,
   mapEventToPresentationAction,
   battlePresentationConfig,
+  animationPlaybackMeta,
   DEFAULT_MATCH_ANIMATION_DURATION_MS,
 } from '/presentationAssets.js';
 import { loadImageWithFallback } from '/creatureAnimations.js';
@@ -140,6 +141,11 @@ function isAttackAnimation(actionType) {
   return actionType === 'attack';
 }
 
+function getAnimationMeta(actionType) {
+  return animationPlaybackMeta[actionType] || animationPlaybackMeta.idle;
+}
+
+
 export class MatchPresentation {
   constructor(config) {
     this.root = config.root;
@@ -156,12 +162,15 @@ export class MatchPresentation {
     this.activeTimerHandles = [];
     this.fallbackTimer = null;
     this.animationResetTimers = { A: null, B: null };
+    this.finalStateLock = false;
     this.currentHp = { A: 20, B: 20 };
     this.currentAnimations = { A: 'idle', B: 'idle' };
     this.pendingOffsetMs = 0;
 
     this.timelineData = buildMatchPresentationTimeline(this.data?.events || [], this.data?.summary || null);
     this.resultShown = false;
+    this.finalStateLock = false;
+    this.clearTransientAnimationTimers();
   }
 
   clearTimers() {
@@ -204,13 +213,16 @@ export class MatchPresentation {
 
   setCreatureAnimation(side, actionType, options = {}) {
     const { force = false } = options;
-    if (!force && this.currentAnimations[side] === actionType) return;
+    if (!force && this.currentAnimations[side] === actionType && !this.finalStateLock) return;
     this.currentAnimations[side] = actionType;
     const slot = this.root.querySelector(`[data-creature="${side}"] img`);
     if (!slot) return;
     slot.dataset.side = side;
     slot.dataset.animation = actionType;
     slot.dataset.isAttack = isAttackAnimation(actionType) ? 'true' : 'false';
+    slot.dataset.frozen = 'false';
+    const animationMeta = getAnimationMeta(actionType);
+    slot.dataset.loop = animationMeta.shouldLoop ? 'true' : 'false';
     const creatureId = side === 'A' ? this.creatures.a : this.creatures.b;
     const candidates = [
       ...getCreatureAnimationCandidates(creatureId, actionType),
@@ -281,6 +293,58 @@ export class MatchPresentation {
     motionNode.classList.add(className);
   }
 
+  clearTransientAnimationTimers() {
+    if (this.animationResetTimers.A) {
+      clearTimeout(this.animationResetTimers.A);
+      this.animationResetTimers.A = null;
+    }
+    if (this.animationResetTimers.B) {
+      clearTimeout(this.animationResetTimers.B);
+      this.animationResetTimers.B = null;
+    }
+  }
+
+  freezeDefeated(side) {
+    const slot = this.root.querySelector(`[data-creature="${side}"] img`);
+    if (!slot) return;
+    slot.dataset.frozen = 'true';
+  }
+
+  enterFinalMatchState(winner) {
+    if (this.finalStateLock) return;
+    this.finalStateLock = true;
+    this.clearTransientAnimationTimers();
+
+    const badge = this.root.querySelector('[data-result-badge]');
+
+    if (winner === 'A') {
+      badge.textContent = 'Victory';
+      this.setCreatureAnimation('A', 'victory', { force: true });
+      this.setCreatureAnimation('B', 'defeat', { force: true });
+      this.showBubble({ text: 'Down!', align: 'right' });
+      this.playSound('victory', 'victory');
+      const defeatMeta = getAnimationMeta('defeat');
+      const freezeAfter = Number.isFinite(defeatMeta.freezeAfterMs) ? defeatMeta.freezeAfterMs : getAnimationDurationMs('defeat');
+      this.animationResetTimers.B = setTimeout(() => this.freezeDefeated('B'), freezeAfter);
+    } else if (winner === 'B') {
+      badge.textContent = 'Defeat';
+      this.setCreatureAnimation('A', 'defeat', { force: true });
+      this.setCreatureAnimation('B', 'victory', { force: true });
+      this.showBubble({ text: 'Down!', align: 'left' });
+      this.playSound('victory', 'victory');
+      const defeatMeta = getAnimationMeta('defeat');
+      const freezeAfter = Number.isFinite(defeatMeta.freezeAfterMs) ? defeatMeta.freezeAfterMs : getAnimationDurationMs('defeat');
+      this.animationResetTimers.A = setTimeout(() => this.freezeDefeated('A'), freezeAfter);
+    } else {
+      badge.textContent = 'Draw';
+      this.setCreatureAnimation('A', 'idle', { force: true });
+      this.setCreatureAnimation('B', 'idle', { force: true });
+      this.showBubble({ text: 'Still standing!', align: 'center' });
+    }
+
+    badge.dataset.state = 'active';
+  }
+
   scheduleAt(baseAtMs, offsetMs, callback) {
     const handle = setTimeout(callback, baseAtMs + offsetMs);
     this.activeTimerHandles.push(handle);
@@ -318,18 +382,22 @@ export class MatchPresentation {
     const { atMs, actor, defender, actionType, shouldHitDefender, isBackfire, isCritical, event } = turnStep;
 
     this.scheduleAt(atMs, IDLE_PREP_MS, () => {
+      if (this.finalStateLock) return;
       this.showBubble({ text: 'Charging up!', align: actor === 'A' ? 'left' : 'right' });
     });
 
     this.scheduleAt(atMs, CHARGE_START_MS, () => {
+      if (this.finalStateLock) return;
       this.setCreatureAnimation(actor, 'charge', { force: true });
     });
 
     this.scheduleAt(atMs, CHARGE_SOUND_MS, () => {
+      if (this.finalStateLock) return;
       this.playSound('charge', 'charge');
     });
 
     this.scheduleAt(atMs, ACTION_START_MS, () => {
+      if (this.finalStateLock) return;
       const actionAnim = actionType === 'backfire' || isBackfire ? 'backfire' : 'attack';
       this.setCreatureAnimation(actor, actionAnim, { force: true });
       if (actionAnim === 'backfire') {
@@ -342,6 +410,7 @@ export class MatchPresentation {
     });
 
     this.scheduleAt(atMs, ACTION_SOUND_MS, () => {
+      if (this.finalStateLock) return;
       if (actionType === 'backfire' || isBackfire) {
         this.playSound('backfire', 'backfire');
       } else {
@@ -351,6 +420,7 @@ export class MatchPresentation {
 
     if (shouldHitDefender) {
       this.scheduleAt(atMs, HIT_START_MS, () => {
+        if (this.finalStateLock) return;
         this.setCreatureAnimation(defender, 'hit', { force: true });
         this.playSound('hit', 'hit');
         this.showBubble({ text: isCritical ? 'Critical impact!' : 'Direct hit!', align: defender === 'A' ? 'left' : 'right' });
@@ -360,6 +430,7 @@ export class MatchPresentation {
     }
 
     this.scheduleAt(atMs, RECOVERY_START_MS, () => {
+      if (this.finalStateLock) return;
       const isFinalWinningTurn = turnStep.isLastTurn && (this.data?.summary?.winner === 'A' || this.data?.summary?.winner === 'B');
       this.updateHpFromEvent(event);
       this.renderLogEvent(turnStep);
@@ -375,39 +446,8 @@ export class MatchPresentation {
     if (this.resultShown) return;
     this.resultShown = true;
     this.phase = 'result';
-    const badge = this.root.querySelector('[data-result-badge]');
     const winner = this.data?.summary?.winner;
-
-    // Guard against pending action reset timers overwriting terminal result animations.
-    if (this.animationResetTimers.A) {
-      clearTimeout(this.animationResetTimers.A);
-      this.animationResetTimers.A = null;
-    }
-    if (this.animationResetTimers.B) {
-      clearTimeout(this.animationResetTimers.B);
-      this.animationResetTimers.B = null;
-    }
-
-    if (winner === 'A') {
-      badge.textContent = 'Victory';
-      this.setCreatureAnimation('A', 'victory');
-      this.setCreatureAnimation('B', 'defeat');
-      this.showBubble({ text: 'Down!', align: 'right' });
-      this.playSound('victory', 'victory');
-    } else if (winner === 'B') {
-      badge.textContent = 'Defeat';
-      this.setCreatureAnimation('A', 'defeat');
-      this.setCreatureAnimation('B', 'victory');
-      this.showBubble({ text: 'Down!', align: 'left' });
-      this.playSound('victory', 'victory');
-    } else {
-      badge.textContent = 'Draw';
-      this.setCreatureAnimation('A', 'idle');
-      this.setCreatureAnimation('B', 'idle');
-      this.showBubble({ text: 'Still standing!', align: 'center' });
-    }
-
-    badge.dataset.state = 'active';
+    this.enterFinalMatchState(winner);
     if (typeof this.onResult === 'function') {
       this.onResult();
     }
@@ -426,6 +466,8 @@ export class MatchPresentation {
     this.stop();
     this.phase = 'intro';
     this.resultShown = false;
+    this.finalStateLock = false;
+    this.clearTransientAnimationTimers();
     this.currentHp = { A: 20, B: 20 };
     this.setHpBars();
     this.clearBubble();
