@@ -21,6 +21,16 @@ export const battlePresentationConfig = Object.freeze({
   }),
 });
 
+export const animationPlaybackMeta = Object.freeze({
+  idle: Object.freeze({ shouldLoop: true }),
+  victory: Object.freeze({ shouldLoop: true }),
+  attack: Object.freeze({ shouldLoop: false }),
+  charge: Object.freeze({ shouldLoop: false }),
+  backfire: Object.freeze({ shouldLoop: false }),
+  hit: Object.freeze({ shouldLoop: false }),
+  defeat: Object.freeze({ shouldLoop: false, freezeAfterMs: battlePresentationConfig.actionDurationsMs.defeat }),
+});
+
 const SOUND_BY_ACTION = Object.freeze({
   charge: 'charge',
   attack: 'attack_normal',
