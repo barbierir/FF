@@ -20,9 +20,10 @@ assert.match(matchPresentationJs, /if \(this\.finalStateLock\) return;\n\s*this\
 assert.match(matchPresentationJs, /this\.setCreatureAnimation\('A', 'idle', \{ force: true \}\);\n\s*this\.setCreatureAnimation\('B', 'idle', \{ force: true \}\);/, 'draw should show idle on both sides in final state');
 assert.match(matchPresentationJs, /if \(this\.completed\) return;/, 'complete should be idempotent');
 assert.match(matchPresentationJs, /this\.scheduleAt\(step\.atMs, 0, \(\) => \{[\s\S]*step\.phase === 'finished' \? 'completion' : 'transient'\);/, 'finished step should use completion timer group');
-assert.match(matchPresentationJs, /bubble\.dataset\.state = 'hidden';[\s\S]*void bubble\.offsetWidth;[\s\S]*bubble\.dataset\.state = 'active';/, 'bubble should force animation restart even with repeated text');
+assert.match(matchPresentationJs, /mountBubbleEvent\(event\) \{[\s\S]*const bubble = bubbleAnchor\.cloneNode\(false\);[\s\S]*bubbleAnchor\.replaceWith\(bubble\);/, 'bubble should remount DOM node for every event so repeated captions restart cleanly');
 assert.match(matchPresentationJs, /const BUBBLE_VISIBLE_MS = 1_000;/, 'bubble visibility window should be explicit and consistent');
-assert.match(matchPresentationJs, /const eventId = payload\.eventId \?\? `bubble_\$\{\+\+this\.bubbleEventSequence\}`;/, 'bubble rendering should key each display cycle by event token');
+assert.match(matchPresentationJs, /createBubbleEvent\(payload\) \{[\s\S]*id: `\$\{baseEventId\}_\$\{\+\+this\.bubbleEventSequence\}`,[\s\S]*durationMs:/, 'bubble rendering should create a unique event object for each display cycle');
+assert.match(matchPresentationJs, /this\.activeBubbleEvent = bubbleEvent;[\s\S]*if \(this\.activeBubbleEvent\?\.id !== bubbleEvent\.id\) return;/, 'bubble lifecycle should be keyed by active bubble event identity');
 assert.match(matchPresentationJs, /this\.clearBubbleTimer\(\);[\s\S]*this\.bubbleHideTimer = setTimeout\(/, 'bubble timers should be reset on every new event');
 assert.match(matchPresentationJs, /slot\.dataset\.animation = 'defeat_locked';[\s\S]*getDefeatFrozenAssetCandidates/, 'defeat should transition into locked post-defeat frame after one-shot playback');
 assert.match(matchPresentationJs, /const candidates = actionType === 'defeat'\s*\n\s*\? animationCandidates/, 'defeat animation should not use idle fallback candidates');
