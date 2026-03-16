@@ -69,9 +69,9 @@ const vectorFairySkunk: { input: MatchInput; serverSalt: string; expected: { see
   serverSalt: "s2-12",
   expected: {
     seedU64: 1635065213275221499n,
-    eventCount: 46,
+    eventCount: 45,
     winner: "DRAW",
-    matchHash: "79ae70a63393080889a31e7c5f497df33329e8bc7bbcaeeafc7e9663c7e69611",
+    matchHash: "d8385ea374871fe148ec78473fc31dda61369856d6f660623589e4baecc94bc7",
   },
 };
 

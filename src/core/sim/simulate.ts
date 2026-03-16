@@ -65,9 +65,16 @@ type Actor = "A" | "B";
 
 const MAX_MATCH_TURNS = 24;
 
+const LATE_MATCH_DAMAGE_MULTIPLIER = Object.freeze({
+  midgameStartTurn: 9,
+  endgameStartTurn: 17,
+  midgame: 1.2,
+  endgame: 1.4,
+});
+
 function lateMatchDamageMultiplier(turn: number): number {
-  if (turn >= 13) return 1.3;
-  if (turn >= 9) return 1.15;
+  if (turn >= LATE_MATCH_DAMAGE_MULTIPLIER.endgameStartTurn) return LATE_MATCH_DAMAGE_MULTIPLIER.endgame;
+  if (turn >= LATE_MATCH_DAMAGE_MULTIPLIER.midgameStartTurn) return LATE_MATCH_DAMAGE_MULTIPLIER.midgame;
   return 1;
 }
 
@@ -231,6 +238,7 @@ export function simulateMatch(input: MatchInput, seedU64: bigint): { events: Eve
   };
 
   let turn = 1;
+  let turnsResolved = 0;
   let ended = false;
 
   const applyBurnTick = (target: Actor, t: number): void => {
@@ -361,6 +369,7 @@ export function simulateMatch(input: MatchInput, seedU64: bigint): { events: Eve
   // A) burn ticks A then B, B) base recharge A then B, C) resolve A action,
   // D) if KO stop before B action, E) resolve B action, F) KO check.
   while (!ended && turn <= MAX_MATCH_TURNS) {
+    turnsResolved = turn;
     state.a.defendActive = false;
     state.b.defendActive = false;
     pushEvent(events, turn, "SYSTEM", "TURN_START", state);
@@ -393,7 +402,7 @@ export function simulateMatch(input: MatchInput, seedU64: bigint): { events: Eve
     turn += 1;
   }
 
-  const turns = turn;
+  const turns = turnsResolved;
 
   let winner: "A" | "B" | "DRAW" = resolveWinner(state);
 
