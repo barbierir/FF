@@ -1,16 +1,9 @@
 export const MATCH_ANIMATION_NAMES = Object.freeze([
   'idle',
-  'prepare',
   'charge',
-  'attack_normal',
-  'attack_cataclysm',
-  'attack_backfire',
-  'attack_toxic',
+  'attack',
+  'backfire',
   'hit',
-  'defend',
-  'critical_hit',
-  'stunned',
-  'revenge',
   'defeat',
   'victory',
 ]);

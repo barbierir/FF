@@ -5,29 +5,28 @@ import {
 
 const PRESENTATION_ACTION_TYPES = MATCH_ANIMATION_NAMES.filter((name) => name !== 'idle');
 
-export const DEFAULT_MATCH_ANIMATION_DURATION_MS = 3_000;
+export const DEFAULT_MATCH_ANIMATION_DURATION_MS = 1_200;
 
 export const battlePresentationConfig = Object.freeze({
-  introDurationMs: 4_000,
+  introDurationMs: 1_200,
   finishBufferMs: 300,
   finalStates: Object.freeze(['victory', 'defeat']),
-  actionDurationsMs: Object.freeze(Object.fromEntries(PRESENTATION_ACTION_TYPES.map((actionType) => [actionType, DEFAULT_MATCH_ANIMATION_DURATION_MS]))),
+  actionDurationsMs: Object.freeze({
+    charge: 1_200,
+    attack: 1_200,
+    backfire: 1_200,
+    hit: 1_200,
+    defeat: 1_500,
+    victory: 1_500,
+  }),
 });
 
 const SOUND_BY_ACTION = Object.freeze({
-  prepare: '/audio/actions/prepare.mp3',
-  charge: '/audio/actions/charge.mp3',
-  attack_normal: '/audio/actions/attack_normal.mp3',
-  attack_cataclysm: '/audio/actions/attack_cataclysm.mp3',
-  attack_backfire: '/audio/actions/attack_backfire.mp3',
-  attack_toxic: '/audio/actions/attack_toxic.mp3',
-  hit: '/audio/actions/hit.mp3',
-  defend: '/audio/actions/defend.mp3',
-  critical_hit: '/audio/actions/critical_hit.mp3',
-  stunned: '/audio/actions/stunned.mp3',
-  revenge: '/audio/actions/revenge.mp3',
-  defeat: '/audio/actions/defeat.mp3',
-  victory: '/audio/actions/victory.mp3',
+  charge: 'charge',
+  attack: 'attack_normal',
+  hit: 'hit',
+  backfire: 'backfire',
+  victory: 'victory',
 });
 
 const CREATURE_IDS = ['goblin', 'dragon', 'skunk', 'troll', 'fairy', 'demon'];
@@ -60,20 +59,14 @@ export const CREATURE_IDLE_MAP = Object.freeze({
 });
 
 export function mapEventToPresentationAction(event) {
-  if (!event) return 'prepare';
-  if (event.kind === 'ATTACK' && event.outcome === 'CATACLYSM') return 'attack_cataclysm';
-  if (event.kind === 'ATTACK' && event.outcome === 'BACKFIRE') return 'attack_backfire';
-  if (event.kind === 'ATTACK' && event.outcome === 'TOXIC') return 'attack_toxic';
-  if (event.kind === 'ATTACK' && (event.tags || []).includes('CRITICAL_HIT')) return 'critical_hit';
-  if (event.kind === 'ATTACK') return 'attack_normal';
+  if (!event) return 'charge';
+  if (event.kind === 'ATTACK' && event.outcome === 'BACKFIRE') return 'backfire';
+  if (event.kind === 'ATTACK') return 'attack';
   if (event.kind === 'DOT') return 'hit';
-  if (event.kind === 'DEFEND') return 'defend';
-  if (event.kind === 'VENGEANCE') return 'revenge';
   if (event.kind === 'RECHARGE_EXTRA' || event.kind === 'RECHARGE') return 'charge';
-  if (event.kind === 'STUNNED' || (event.tags || []).includes('STUNNED')) return 'stunned';
 
-  devWarn('unknown event kind, using prepare fallback', { kind: event.kind, event });
-  return 'prepare';
+  devWarn('unknown event kind, using charge fallback', { kind: event.kind, event });
+  return 'charge';
 }
 
 export function getActionSound(actionType) {
@@ -100,26 +93,14 @@ export function getCreatureIdlePath(creatureId) {
 
 export function getBubbleText(actionType) {
   switch (actionType) {
-    case 'attack_cataclysm':
-      return 'Cataclysm blast!';
-    case 'attack_toxic':
-      return 'Toxic cloud!';
-    case 'attack_backfire':
-      return 'Backfire!';
-    case 'attack_normal':
-      return 'Gas blast!';
-    case 'hit':
-      return 'Direct hit!';
-    case 'defend':
-      return 'Blocked!';
     case 'charge':
       return 'Charging up!';
-    case 'critical_hit':
-      return 'Critical hit!';
-    case 'stunned':
-      return 'Stunned!';
-    case 'revenge':
-      return 'Final vengeance!';
+    case 'attack':
+      return 'Gas blast!';
+    case 'backfire':
+      return 'Backfire!';
+    case 'hit':
+      return 'Direct hit!';
     case 'defeat':
       return 'Down!';
     case 'victory':
