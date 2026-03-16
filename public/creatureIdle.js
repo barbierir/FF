@@ -1,4 +1,4 @@
-import { getCreatureAnimationAssetCandidates, loadImageWithFallback } from '/creatureAnimations.js';
+import { getHomepageCreatureIdleCandidates, loadImageWithFallback } from '/creatureAnimations.js';
 
 const isDev = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
@@ -43,7 +43,7 @@ export function renderCreatureIdle(container, { classKey, size = 72, alt } = {})
 
   shell.appendChild(img);
   container.appendChild(shell);
-  loadImageWithFallback(img, getCreatureAnimationAssetCandidates(safeClassKey, 'idle_choose'), {
+  loadImageWithFallback(img, getHomepageCreatureIdleCandidates(safeClassKey), {
     creatureId: safeClassKey,
     animationName: 'idle_choose',
     logPrefix: '[creature-idle]',

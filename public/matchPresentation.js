@@ -17,14 +17,14 @@ function debugLog(...args) {
 
 export const battleAnimationTiming = battlePresentationConfig;
 
-const TURN_TOTAL_MS = 2_400;
-const IDLE_PREP_MS = 400;
-const CHARGE_START_MS = 400;
-const ACTION_START_MS = 1_200;
-const HIT_START_MS = 1_500;
-const RECOVERY_START_MS = 2_000;
-const CHARGE_SOUND_MS = 520;
-const ACTION_SOUND_MS = 1_450;
+const TURN_TOTAL_MS = 2_000;
+const IDLE_PREP_MS = 250;
+const CHARGE_START_MS = 250;
+const ACTION_START_MS = 900;
+const HIT_START_MS = 1_150;
+const RECOVERY_START_MS = 1_650;
+const CHARGE_SOUND_MS = 250;
+const ACTION_SOUND_MS = 1_100;
 
 function getAnimationDurationMs(actionType) {
   return battleAnimationTiming.actionDurationsMs[actionType] ?? DEFAULT_MATCH_ANIMATION_DURATION_MS;

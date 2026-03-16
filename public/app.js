@@ -1,4 +1,4 @@
-import { getCreatureAnimationAssetCandidates, getCreatureSelectionIdlePath, loadImageWithFallback } from '/creatureAnimations.js';
+import { getCreatureSelectionIdlePath, getHomepageCreatureIdleCandidates, loadImageWithFallback } from '/creatureAnimations.js';
 import { getMasterVolume, isMuted, setMasterVolume, syncMusicForCurrentPage, toggleMuted } from '/audioManager.js';
 const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy", "demon"];
 const LOGGED_BROWSER_WARNINGS = new Set();
@@ -223,7 +223,7 @@ export function renderCreaturePickerGrid({
     img.loading = "lazy";
     img.width = 132;
     img.height = 132;
-    const idleCandidates = getCreatureAnimationAssetCandidates(creature.id, 'idle_choose');
+    const idleCandidates = getHomepageCreatureIdleCandidates(creature.id);
     img.onerror = () => {
       imageWrap.replaceChildren(createCreatureFallback(132, `${creature.name} missing GIF`));
     };
@@ -875,7 +875,7 @@ export function renderCreatureIdle(container, { classKey, size = "md", alt } = {
   };
 
   img.alt = alt || `${label} idle creature`;
-  loadImageWithFallback(img, getCreatureAnimationAssetCandidates(label, 'idle_choose'), {
+  loadImageWithFallback(img, getHomepageCreatureIdleCandidates(label), {
     creatureId: label,
     animationName: 'idle_choose',
     logPrefix: '[renderCreatureIdle]',

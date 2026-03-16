@@ -20,6 +20,25 @@ const LEGACY_ANIMATION_NAME_ALIASES = Object.freeze({
   idle_choose: ['idle_goblin'],
 });
 
+
+const HOMEPAGE_IDLE_FILENAME_BY_CREATURE = Object.freeze({
+  goblin: 'goblin.gif',
+  dragon: 'dragon.gif',
+  skunk: 'skeleton.gif',
+  troll: 'slime.gif',
+  fairy: 'wizard.gif',
+  demon: 'demon.gif',
+});
+
+export function getHomepageCreatureIdleCandidates(creatureId) {
+  const normalizedCreatureId = creatureId || 'goblin';
+  const fileName = HOMEPAGE_IDLE_FILENAME_BY_CREATURE[normalizedCreatureId] || HOMEPAGE_IDLE_FILENAME_BY_CREATURE.goblin;
+  return [
+    `/creatures/idle/${fileName}`,
+    ...getCreatureAnimationAssetCandidates(normalizedCreatureId, 'idle_choose'),
+  ];
+}
+
 function buildAssetPath(creatureId, animationName, extension) {
   return `/creatures/${creatureId}/${animationName}.${extension}`;
 }
@@ -47,7 +66,7 @@ export function getCreatureMatchIdlePath(creatureId) {
 }
 
 export function getCreatureSelectionIdlePath(creatureId) {
-  return getCreatureAnimationAssetPath(creatureId, 'idle_choose');
+  return getHomepageCreatureIdleCandidates(creatureId)[0];
 }
 
 export function loadImageWithFallback(img, candidates, context = {}) {
