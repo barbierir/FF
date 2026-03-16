@@ -7,7 +7,7 @@ import {
   animationPlaybackMeta,
   DEFAULT_MATCH_ANIMATION_DURATION_MS,
 } from '/presentationAssets.js';
-import { loadImageWithFallback } from '/creatureAnimations.js';
+import { loadImageWithFallback, getDefeatFrozenAssetCandidates } from '/creatureAnimations.js';
 import { playOneShotSound } from '/audioManager.js';
 
 function debugLog(...args) {
@@ -29,6 +29,7 @@ const ACTION_SOUND_MS = 1_100;
 const ACTION_HOLD_MS = 1_850;
 const HIT_HOLD_MS = 1_900;
 const BUBBLE_ANIMATION_RESTART_MS = 1;
+const BUBBLE_VISIBLE_MS = 1_000;
 
 function getAnimationDurationMs(actionType) {
   return battleAnimationTiming.actionDurationsMs[actionType] ?? DEFAULT_MATCH_ANIMATION_DURATION_MS;
@@ -162,6 +163,8 @@ export class MatchPresentation {
 
     this.phase = 'intro';
     this.activeBubble = null;
+    this.bubbleHideTimer = null;
+    this.bubbleEventSequence = 0;
     this.activeTimerHandles = [];
     this.completionTimerHandles = [];
     this.fallbackTimer = null;
@@ -177,6 +180,7 @@ export class MatchPresentation {
     this.completed = false;
     this.finalStateLock = false;
     this.clearTransientAnimationTimers();
+    this.clearBubbleTimer();
   }
 
   clearTransientTimers() {
@@ -205,6 +209,7 @@ export class MatchPresentation {
   clearAllTimers() {
     this.clearTransientTimers();
     this.clearCompletionTimers();
+    this.clearBubbleTimer();
   }
 
   stop() {
@@ -255,22 +260,38 @@ export class MatchPresentation {
     });
   }
 
+  clearBubbleTimer() {
+    if (this.bubbleHideTimer) {
+      clearTimeout(this.bubbleHideTimer);
+      this.bubbleHideTimer = null;
+    }
+  }
+
   showBubble(payload) {
     const bubble = this.root.querySelector('[data-battle-bubble]');
     if (!bubble) return;
+    this.clearBubbleTimer();
+    const eventId = payload.eventId ?? `bubble_${++this.bubbleEventSequence}`;
     bubble.classList.remove('left', 'right', 'center');
     bubble.classList.add(payload.align || 'center');
     bubble.dataset.state = 'hidden';
     bubble.textContent = payload.text;
-    bubble.dataset.sequence = String(Date.now());
+    bubble.dataset.eventId = String(eventId);
+    bubble.dataset.shownAt = String(payload.shownAtMs ?? Date.now());
     void bubble.offsetWidth;
     const restart = setTimeout(() => {
+      if (bubble.dataset.eventId !== String(eventId)) return;
       bubble.dataset.state = 'active';
     }, BUBBLE_ANIMATION_RESTART_MS);
     this.activeTimerHandles.push(restart);
+    this.bubbleHideTimer = setTimeout(() => {
+      if (bubble.dataset.eventId !== String(eventId)) return;
+      this.clearBubble();
+    }, Number.isFinite(payload.visibleMs) ? payload.visibleMs : BUBBLE_VISIBLE_MS);
   }
 
   clearBubble() {
+    this.clearBubbleTimer();
     const bubble = this.root.querySelector('[data-battle-bubble]');
     if (!bubble) return;
     bubble.dataset.state = 'hidden';
@@ -341,6 +362,16 @@ export class MatchPresentation {
     const slot = this.root.querySelector(`[data-creature="${side}"] img`);
     if (!slot) return;
     slot.dataset.frozen = 'true';
+    slot.dataset.animation = 'defeat_locked';
+    slot.dataset.loop = 'false';
+    const creatureId = side === 'A' ? this.creatures.a : this.creatures.b;
+    const candidates = getDefeatFrozenAssetCandidates(creatureId);
+    loadImageWithFallback(slot, candidates, {
+      creatureId,
+      animationName: 'defeat_locked',
+      logPrefix: '[match-presentation]',
+    });
+    this.currentAnimations[side] = 'defeat_locked';
   }
 
   enterFinalMatchState(winner) {
@@ -352,9 +383,17 @@ export class MatchPresentation {
     const badge = this.root.querySelector('[data-result-badge]');
     const showFinalWinLossBubbles = (winningSide) => {
       const losingSide = winningSide === 'A' ? 'B' : 'A';
-      this.showBubble({ text: 'Victory!', align: winningSide === 'A' ? 'left' : 'right' });
+      this.showBubble({
+        text: 'Victory!',
+        align: winningSide === 'A' ? 'left' : 'right',
+        eventId: `final_victory_${winningSide}`,
+      });
       const defeatCaptionTimer = setTimeout(() => {
-        this.showBubble({ text: 'Defeat!', align: losingSide === 'A' ? 'left' : 'right' });
+        this.showBubble({
+          text: 'Defeat!',
+          align: losingSide === 'A' ? 'left' : 'right',
+          eventId: `final_defeat_${losingSide}`,
+        });
       }, 700);
       this.completionTimerHandles.push(defeatCaptionTimer);
     };
@@ -429,7 +468,11 @@ export class MatchPresentation {
 
     this.scheduleAt(atMs, IDLE_PREP_MS, () => {
       if (this.finalStateLock) return;
-      this.showBubble({ text: 'Charging up!', align: actor === 'A' ? 'left' : 'right' });
+      this.showBubble({
+        text: 'Charging up!',
+        align: actor === 'A' ? 'left' : 'right',
+        eventId: `${event?.matchId ?? 'match'}_${event?.t ?? 't'}_${actor}_prep`,
+      });
     });
 
     this.scheduleAt(atMs, CHARGE_START_MS, () => {
@@ -447,10 +490,18 @@ export class MatchPresentation {
       const actionAnim = actionType === 'backfire' || isBackfire ? 'backfire' : 'attack';
       this.setTransientAnimation(actor, actionAnim, atMs + ACTION_HOLD_MS);
       if (actionAnim === 'backfire') {
-        this.showBubble({ text: 'Backfire!', align: actor === 'A' ? 'left' : 'right' });
+        this.showBubble({
+          text: 'Backfire!',
+          align: actor === 'A' ? 'left' : 'right',
+          eventId: `${event?.matchId ?? 'match'}_${event?.t ?? 't'}_${actor}_backfire`,
+        });
         this.triggerBackfireRecoil(actor);
       } else {
-        this.showBubble({ text: isCritical ? 'Critical hit!' : 'Gas blast!', align: actor === 'A' ? 'left' : 'right' });
+        this.showBubble({
+          text: isCritical ? 'Critical hit!' : 'Gas blast!',
+          align: actor === 'A' ? 'left' : 'right',
+          eventId: `${event?.matchId ?? 'match'}_${event?.t ?? 't'}_${actor}_attack_${isCritical ? 'crit' : 'normal'}`,
+        });
         this.triggerAttackLunge(actor);
       }
     });
@@ -469,7 +520,11 @@ export class MatchPresentation {
         if (this.finalStateLock) return;
         this.setTransientAnimation(defender, 'hit', atMs + HIT_HOLD_MS);
         this.playSound('hit', 'hit');
-        this.showBubble({ text: isCritical ? 'Critical impact!' : 'Direct hit!', align: defender === 'A' ? 'left' : 'right' });
+        this.showBubble({
+          text: isCritical ? 'Critical impact!' : 'Direct hit!',
+          align: defender === 'A' ? 'left' : 'right',
+          eventId: `${event?.matchId ?? 'match'}_${event?.t ?? 't'}_${defender}_hit_${isCritical ? 'crit' : 'normal'}`,
+        });
         this.triggerTargetPushback(defender);
         if (isCritical) this.triggerArenaShake();
       });
@@ -485,7 +540,7 @@ export class MatchPresentation {
         if (this.canReturnToIdle('A', nowMs)) this.setCreatureAnimation('A', 'idle');
         if (this.canReturnToIdle('B', nowMs)) this.setCreatureAnimation('B', 'idle');
       }
-      this.clearBubble();
+      if (!isFinalWinningTurn) this.clearBubble();
     });
   }
 
@@ -531,7 +586,7 @@ export class MatchPresentation {
     resultBadge.dataset.state = 'hidden';
     resultBadge.textContent = '';
 
-    this.showBubble({ text: 'Round start!', align: 'center' });
+    this.showBubble({ text: 'Round start!', align: 'center', eventId: 'round_start' });
 
     this.pendingOffsetMs = 0;
     this.timelineData.timeline.forEach((step) => {

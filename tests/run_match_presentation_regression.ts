@@ -20,6 +20,10 @@ assert.match(matchPresentationJs, /this\.setCreatureAnimation\('A', 'idle', \{ f
 assert.match(matchPresentationJs, /if \(this\.completed\) return;/, 'complete should be idempotent');
 assert.match(matchPresentationJs, /this\.scheduleAt\(step\.atMs, 0, \(\) => \{[\s\S]*step\.phase === 'finished' \? 'completion' : 'transient'\);/, 'finished step should use completion timer group');
 assert.match(matchPresentationJs, /bubble\.dataset\.state = 'hidden';[\s\S]*void bubble\.offsetWidth;[\s\S]*bubble\.dataset\.state = 'active';/, 'bubble should force animation restart even with repeated text');
+assert.match(matchPresentationJs, /const BUBBLE_VISIBLE_MS = 1_000;/, 'bubble visibility window should be explicit and consistent');
+assert.match(matchPresentationJs, /const eventId = payload\.eventId \?\? `bubble_\$\{\+\+this\.bubbleEventSequence\}`;/, 'bubble rendering should key each display cycle by event token');
+assert.match(matchPresentationJs, /this\.clearBubbleTimer\(\);[\s\S]*this\.bubbleHideTimer = setTimeout\(/, 'bubble timers should be reset on every new event');
+assert.match(matchPresentationJs, /slot\.dataset\.animation = 'defeat_locked';[\s\S]*getDefeatFrozenAssetCandidates/, 'defeat should transition into locked post-defeat frame after one-shot playback');
 assert.match(replayHtml, /data-creature-label="A"/, 'left creature name label missing');
 assert.match(replayHtml, /data-creature-label="B"/, 'right creature name label missing');
 assert.match(replayHtml, /function renderBattleCreatureLabels\(\)/, 'expected battle creature label renderer');
