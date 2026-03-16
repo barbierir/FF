@@ -23,7 +23,7 @@ function getAnimationDurationMs(actionType) {
 }
 
 function getResultDurationMs(summary) {
-  if (summary?.winner === 'DRAW') return getAnimationDurationMs('prepare');
+  if (summary?.winner === 'DRAW') return getAnimationDurationMs('idle');
   return Math.max(getAnimationDurationMs('victory'), getAnimationDurationMs('defeat'));
 }
 
@@ -39,8 +39,8 @@ export function getPresentationActionType(event) {
   try {
     return mapEventToPresentationAction(event);
   } catch (error) {
-    debugLog('[presentation] failed to map event, using prepare fallback', { event, error });
-    return 'prepare';
+    debugLog('[presentation] failed to map event, using charge fallback', { event, error });
+    return 'charge';
   }
 }
 
@@ -50,26 +50,12 @@ function toBubbleText(event) {
 
 function mapActionBubbleText(actionType) {
   switch (actionType) {
-    case 'attack_normal':
+    case 'attack':
       return 'Gas blast!';
-    case 'attack_toxic':
-      return 'Toxic cloud!';
-    case 'attack_cataclysm':
-      return 'Cataclysm blast!';
-    case 'attack_backfire':
+    case 'backfire':
       return 'Backfire!';
-    case 'defend':
-      return 'Blocked!';
     case 'charge':
       return 'Charging up!';
-    case 'prepare':
-      return 'Preparing...';
-    case 'revenge':
-      return 'Final vengeance!';
-    case 'critical_hit':
-      return 'Critical hit!';
-    case 'stunned':
-      return 'Stunned!';
     case 'defeat':
       return 'Down!';
     case 'victory':
@@ -84,7 +70,6 @@ function mapActionBubbleText(actionType) {
 function getStepBubbleText(stepEvent) {
   if (stepEvent.bubbleText) return stepEvent.bubbleText;
   if (stepEvent.actionType === 'hit') return 'Direct hit!';
-  if (stepEvent.actionType === 'stunned') return 'Stunned!';
   if (stepEvent.actionType === 'defeat') return 'Down!';
   return toBubbleText(stepEvent.event);
 }
@@ -96,152 +81,98 @@ export function getCreatureAnimation(creatureId, actionType) {
 export function buildMatchPresentationTimeline(events = [], summary = null) {
   const timeline = [];
   const safeEvents = Array.isArray(events) ? events : [];
-  const playableEvents = [];
+  const actionPhaseStartMs = battleAnimationTiming.introDurationMs;
+  let nextActionAtMs = actionPhaseStartMs;
+  let actionIndex = 0;
 
-  const hasAnyTag = (event, tags) => Array.isArray(event?.tags) && tags.some((tag) => event.tags.includes(tag));
-  const isCriticalOutcome = (event) => event?.outcome === 'CATACLYSM' || hasAnyTag(event, ['CRITICAL_HIT']);
-  const isStunEvent = (event) => event?.kind === 'STUNNED' || hasAnyTag(event, ['STUNNED', 'STUN', 'APPLY_STUN']);
-
-  const pushActionStep = (event, actionType, actor, metadata = {}) => {
-    if (!event || (actor !== 'A' && actor !== 'B')) return;
-    playableEvents.push({
-      event,
-      actionType,
-      actor,
-      reaction: metadata.reaction === true,
-      logText: metadata.logText || null,
-      bubbleText: metadata.bubbleText || null,
+  const pushStep = (step) => {
+    timeline.push({
+      key: `action_${actionIndex++}_${step.atMs}_${step.actionType}_${step.actor}`,
+      phase: 'action',
+      ...step,
+      bubbleText: step.bubbleText || mapActionBubbleText(step.actionType),
+      durationMs: step.durationMs ?? getAnimationDurationMs(step.actionType),
     });
   };
 
-  const resolveDamageReaction = (event, side, damage) => {
-    if (!Number.isFinite(damage) || damage <= 0) return;
-    const hpAfter = side === 'A' ? event.prA : event.prB;
-    if (Number.isFinite(hpAfter) && hpAfter <= 0) {
-      pushActionStep(event, 'defeat', side, {
-        reaction: true,
-        logText: `${side} is defeated.`,
-        bubbleText: 'Down!',
+  timeline.push({ key: 'intro', atMs: 0, phase: 'intro', label: 'Arena online' });
+
+  safeEvents.forEach((event) => {
+    if (!event || (event.actor !== 'A' && event.actor !== 'B')) return;
+    const actor = event.actor;
+    const defender = actor === 'A' ? 'B' : 'A';
+
+    if (event.kind === 'ATTACK') {
+      const chargeDuration = getAnimationDurationMs('charge');
+      const attackActionType = event.outcome === 'BACKFIRE' ? 'backfire' : 'attack';
+      const attackDuration = getAnimationDurationMs(attackActionType);
+      const chargeAtMs = nextActionAtMs;
+      const attackAtMs = chargeAtMs + chargeDuration;
+
+      pushStep({
+        atMs: chargeAtMs,
+        event,
+        actionType: 'charge',
+        actor,
+        reaction: false,
+        bubbleText: 'Charging up!',
       });
+
+      pushStep({
+        atMs: attackAtMs,
+        event,
+        actionType: attackActionType,
+        actor,
+        reaction: false,
+      });
+
+      const damageToDefender = defender === 'A' ? event.dmgToA : event.dmgToB;
+      if (attackActionType === 'attack' && Number.isFinite(damageToDefender) && damageToDefender > 0) {
+        pushStep({
+          atMs: attackAtMs + Math.round(attackDuration * 0.4),
+          event,
+          actionType: 'hit',
+          actor: defender,
+          reaction: true,
+        });
+      }
+
+      nextActionAtMs = attackAtMs + attackDuration;
       return;
     }
 
-    const reactionAction = isCriticalOutcome(event) ? 'critical_hit' : 'hit';
-    pushActionStep(event, reactionAction, side, {
-      reaction: true,
-      logText: reactionAction === 'critical_hit'
-        ? `${side} takes a critical hit (${damage}).`
-        : `${side} takes ${damage} damage.`,
-      bubbleText: reactionAction === 'critical_hit' ? 'Critical hit!' : 'Direct hit!',
-    });
-  };
-
-  const resolveStunTargets = (event) => {
-    if (!isStunEvent(event) && !(event?.kind === 'ATTACK' && event?.outcome === 'TOXIC')) return [];
-    const sides = [];
-    if (event.kind === 'STUNNED' && (event.actor === 'A' || event.actor === 'B')) {
-      sides.push(event.actor);
-    }
-    if (Number.isFinite(event.dmgToA) && event.dmgToA > 0 && event.prA > 0) sides.push('A');
-    if (Number.isFinite(event.dmgToB) && event.dmgToB > 0 && event.prB > 0) sides.push('B');
-    return [...new Set(sides)];
-  };
-
-  safeEvents.forEach((event) => {
-    if (!event) return;
-
-    if (event.actor === 'A' || event.actor === 'B') {
-      const actionType = getPresentationActionType(event);
-      const actorLog = event.kind === 'ATTACK'
-        ? `${event.actor} uses ${actionType}.`
-        : event.kind === 'VENGEANCE'
-          ? `${event.actor} triggers revenge.`
-          : `${event.actor} uses ${event.kind?.toLowerCase() || 'action'}.`;
-      const actorBubbleText = event.kind === 'HEAL'
-        ? `Recovered ${event.gasSpent ?? '?'} gas`
-        : mapActionBubbleText(actionType);
-      pushActionStep(event, actionType, event.actor, {
-        reaction: false,
-        logText: actorLog,
-        bubbleText: actorBubbleText,
-      });
+    if (event.kind === 'RECHARGE' || event.kind === 'RECHARGE_EXTRA') {
+      const durationMs = getAnimationDurationMs('charge');
+      pushStep({ atMs: nextActionAtMs, event, actionType: 'charge', actor, reaction: false });
+      nextActionAtMs += durationMs;
+      return;
     }
 
-    if (Number.isFinite(event.dmgToA) && event.dmgToA > 0) resolveDamageReaction(event, 'A', event.dmgToA);
-    if (Number.isFinite(event.dmgToB) && event.dmgToB > 0) resolveDamageReaction(event, 'B', event.dmgToB);
-
-    resolveStunTargets(event).forEach((side) => {
-      pushActionStep(event, 'stunned', side, {
-        reaction: true,
-        logText: `${side} is stunned.`,
-        bubbleText: 'Stunned!',
-      });
-    });
-
-  });
-
-  const actionPhaseStartMs = battleAnimationTiming.introDurationMs;
-  let nextActionAtMs = actionPhaseStartMs;
-
-  timeline.push({
-    key: 'intro',
-    atMs: 0,
-    phase: 'intro',
-    label: 'Arena online',
-  });
-
-  playableEvents.forEach((stepEvent, index) => {
-    const actionType = stepEvent.actionType;
-    const durationMs = getAnimationDurationMs(actionType);
-    timeline.push({
-      key: `action_${index}_${stepEvent.event.t}_${stepEvent.event.kind}_${actionType}_${stepEvent.actor}`,
-      atMs: nextActionAtMs,
-      phase: 'action',
-      event: stepEvent.event,
-      actionType,
-      durationMs,
-      actor: stepEvent.actor,
-      reaction: stepEvent.reaction,
-      logText: stepEvent.logText,
-      bubbleText: stepEvent.bubbleText || getStepBubbleText(stepEvent),
-    });
-    nextActionAtMs += durationMs;
+    if (event.kind === 'DOT') {
+      const durationMs = getAnimationDurationMs('hit');
+      pushStep({ atMs: nextActionAtMs, event, actionType: 'hit', actor, reaction: true });
+      nextActionAtMs += durationMs;
+    }
   });
 
   const actionPhaseEndMs = nextActionAtMs;
   const resultDurationMs = getResultDurationMs(summary);
   const finishAtMs = actionPhaseEndMs + resultDurationMs + battleAnimationTiming.finishBufferMs;
 
-  timeline.push({
-    key: 'result',
-    atMs: actionPhaseEndMs,
-    phase: 'result',
-    winner: summary?.winner ?? 'DRAW',
-    durationMs: resultDurationMs,
-  });
-
-  timeline.push({
-    key: 'finish',
-    atMs: finishAtMs,
-    phase: 'finished',
-  });
-
-  debugLog('[presentation] timeline built length', timeline.length);
+  timeline.push({ key: 'result', atMs: actionPhaseEndMs, phase: 'result', winner: summary?.winner ?? 'DRAW', durationMs: resultDurationMs });
+  timeline.push({ key: 'finish', atMs: finishAtMs, phase: 'finished' });
 
   return {
     durationMs: finishAtMs,
     introDurationMs: battleAnimationTiming.introDurationMs,
     actionStartMs: actionPhaseStartMs,
     resultStartMs: actionPhaseEndMs,
-    timeline,
+    timeline: timeline.sort((a, b) => a.atMs - b.atMs),
   };
 }
 
 function isAttackAnimation(actionType) {
-  return actionType === 'attack_normal'
-    || actionType === 'attack_toxic'
-    || actionType === 'attack_cataclysm'
-    || actionType === 'attack_backfire';
+  return actionType === 'attack';
 }
 
 export class MatchPresentation {
@@ -262,7 +193,6 @@ export class MatchPresentation {
     this.animationResetTimers = { A: null, B: null };
     this.currentHp = { A: 20, B: 20 };
     this.currentAnimations = { A: 'idle', B: 'idle' };
-    this.hitFreezeDurationMs = 80;
     this.pendingOffsetMs = 0;
 
     this.timelineData = buildMatchPresentationTimeline(this.data?.events || [], this.data?.summary || null);
@@ -291,10 +221,11 @@ export class MatchPresentation {
     this.clearTimers();
   }
 
-  playSound(actionType) {
+  playSound(soundKey, fallbackActionType = null) {
+    debugLog('[presentation] playSound placeholder', soundKey);
     if (typeof window === 'undefined') return;
+    const actionType = fallbackActionType || soundKey;
     const soundPath = getActionSound(actionType);
-    debugLog('[presentation] sound path', actionType, soundPath);
     if (!soundPath) return;
     void playOneShotSound(soundPath);
   }
@@ -356,6 +287,16 @@ export class MatchPresentation {
     arenaInner.classList.add('arena-hit-shake');
   }
 
+
+  triggerAttackLunge(side) {
+    const motionNode = this.root.querySelector(`[data-creature-motion="${side}"]`);
+    if (!motionNode) return;
+    const className = side === 'A' ? 'attack-lunge-left-creature' : 'attack-lunge-right-creature';
+    motionNode.classList.remove(className);
+    void motionNode.offsetWidth;
+    motionNode.classList.add(className);
+  }
+
   triggerTargetPushback(side) {
     const motionNode = this.root.querySelector(`[data-creature-motion="${side}"]`);
     if (!motionNode) return;
@@ -366,23 +307,28 @@ export class MatchPresentation {
   }
 
   isRealHitStep(step) {
-    if (!step || !step.reaction) return false;
-    if (step.actionType !== 'hit' && step.actionType !== 'critical_hit' && step.actionType !== 'defeat') return false;
-    const event = step.event;
-    if (!event) return false;
-    if (step.actor === 'A') return Number.isFinite(event.dmgToA) && event.dmgToA > 0;
-    if (step.actor === 'B') return Number.isFinite(event.dmgToB) && event.dmgToB > 0;
-    return false;
+    return !!step && step.actionType === 'hit' && step.reaction;
   }
 
   applyImpactEffects(step) {
-    if (!this.isRealHitStep(step)) return;
-    this.triggerArenaShake();
-    this.triggerTargetPushback(step.actor);
+    if (!step) return;
+    if (step.actionType === 'hit') {
+      this.triggerTargetPushback(step.actor);
+      const hasCritical = Array.isArray(step?.event?.tags) && step.event.tags.includes('CRITICAL_HIT');
+      if (hasCritical) this.triggerArenaShake();
+      return;
+    }
+    if (step.actionType === 'backfire') {
+      this.triggerTargetPushback(step.actor);
+      return;
+    }
+    if (step.actionType === 'attack') {
+      this.triggerAttackLunge(step.actor);
+    }
   }
 
-  getImpactDelayMs(step) {
-    return this.isRealHitStep(step) ? this.hitFreezeDurationMs : 0;
+  getImpactDelayMs() {
+    return 0;
   }
 
   renderLogEvent(step) {
@@ -397,6 +343,19 @@ export class MatchPresentation {
     this.eventLogRoot.appendChild(line);
   }
 
+
+  playStepSound(step) {
+    if (!step) return;
+    if (step.actionType === 'charge') return this.playSound('charge', 'charge');
+    if (step.actionType === 'backfire') return this.playSound('backfire', 'backfire');
+    if (step.actionType === 'hit') return this.playSound('hit', 'hit');
+    if (step.actionType === 'victory') return this.playSound('victory', 'victory');
+    if (step.actionType === 'attack') {
+      const isCritical = Array.isArray(step?.event?.tags) && step.event.tags.includes('CRITICAL_HIT');
+      return this.playSound(isCritical ? 'attack_critical' : 'attack_normal', 'attack');
+    }
+  }
+
   applyAction(step) {
     const event = step.event;
     debugLog('[presentation] current action type', step.actionType);
@@ -409,7 +368,7 @@ export class MatchPresentation {
 
     const align = step.actor === 'A' ? 'left' : 'right';
     this.showBubble({ text: step.bubbleText, align });
-    this.playSound(step.actionType);
+    this.playStepSound(step);
     const actionDurationMs = step.durationMs ?? getAnimationDurationMs(step.actionType);
     debugLog('[presentation] applyAction timing', {
       actionType: step.actionType,
@@ -422,8 +381,9 @@ export class MatchPresentation {
       if (this.animationResetTimers[step.actor]) {
         clearTimeout(this.animationResetTimers[step.actor]);
       }
+      const shouldResetToIdle = step.actionType !== 'defeat' && step.actionType !== 'victory';
       const resetTimer = setTimeout(() => {
-        this.setCreatureAnimation(step.actor, 'idle');
+        if (shouldResetToIdle) this.setCreatureAnimation(step.actor, 'idle');
       }, actionDurationMs);
       this.animationResetTimers[step.actor] = resetTimer;
     }
@@ -459,15 +419,17 @@ export class MatchPresentation {
       this.setCreatureAnimation('A', 'victory');
       this.setCreatureAnimation('B', 'defeat');
       this.showBubble({ text: 'Down!', align: 'right' });
+      this.playSound('victory', 'victory');
     } else if (winner === 'B') {
       badge.textContent = 'Defeat';
       this.setCreatureAnimation('A', 'defeat');
       this.setCreatureAnimation('B', 'victory');
       this.showBubble({ text: 'Down!', align: 'left' });
+      this.playSound('victory', 'victory');
     } else {
       badge.textContent = 'Draw';
-      this.setCreatureAnimation('A', 'prepare');
-      this.setCreatureAnimation('B', 'prepare');
+      this.setCreatureAnimation('A', 'idle');
+      this.setCreatureAnimation('B', 'idle');
       this.showBubble({ text: 'Still standing!', align: 'center' });
     }
 

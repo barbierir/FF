@@ -1,22 +1,16 @@
 import type { CreatureId } from "./creatures.ts";
 
 export type PresentationActionType =
-  | "prepare"
+  | "idle"
   | "charge"
-  | "attack_normal"
-  | "attack_cataclysm"
-  | "attack_backfire"
-  | "attack_toxic"
+  | "attack"
+  | "backfire"
   | "hit"
-  | "defend"
-  | "critical_hit"
-  | "stunned"
-  | "revenge"
   | "defeat"
   | "victory";
 
 export type CreatureAnimationMap = Record<PresentationActionType, string>;
-export type ActionSoundMap = Record<PresentationActionType, string>;
+export type ActionSoundMap = Partial<Record<PresentationActionType, string>>;
 
 export type PresentationEvent = {
   kind?: string;
@@ -25,17 +19,11 @@ export type PresentationEvent = {
 };
 
 const PRESENTATION_ACTIONS: PresentationActionType[] = [
-  "prepare",
+  "idle",
   "charge",
-  "attack_normal",
-  "attack_cataclysm",
-  "attack_backfire",
-  "attack_toxic",
+  "attack",
+  "backfire",
   "hit",
-  "defend",
-  "critical_hit",
-  "stunned",
-  "revenge",
   "defeat",
   "victory",
 ];
@@ -55,43 +43,29 @@ export const CREATURE_ANIMATIONS: Record<CreatureId, CreatureAnimationMap> = {
 };
 
 export const CREATURE_IDLE_ANIMATIONS: Record<CreatureId, string> = {
-  goblin: "/creatures/goblin/idle_placeholder.png",
-  dragon: "/creatures/dragon/idle_placeholder.png",
-  skunk: "/creatures/skunk/idle_placeholder.png",
-  troll: "/creatures/troll/idle_placeholder.png",
-  fairy: "/creatures/fairy/idle_placeholder.png",
-  demon: "/creatures/demon/idle_placeholder.png",
+  goblin: "/creatures/goblin/idle.gif",
+  dragon: "/creatures/dragon/idle.gif",
+  skunk: "/creatures/skunk/idle.gif",
+  troll: "/creatures/troll/idle.gif",
+  fairy: "/creatures/fairy/idle.gif",
+  demon: "/creatures/demon/idle.gif",
 };
 
 export const ACTION_SOUNDS: ActionSoundMap = {
-  prepare: "/audio/actions/prepare.mp3",
-  charge: "/audio/actions/charge.mp3",
-  attack_normal: "/audio/actions/attack_normal.mp3",
-  attack_cataclysm: "/audio/actions/attack_cataclysm.mp3",
-  attack_backfire: "/audio/actions/attack_backfire.mp3",
-  attack_toxic: "/audio/actions/attack_toxic.mp3",
-  hit: "/audio/actions/hit.mp3",
-  defend: "/audio/actions/defend.mp3",
-  critical_hit: "/audio/actions/critical_hit.mp3",
-  stunned: "/audio/actions/stunned.mp3",
-  revenge: "/audio/actions/revenge.mp3",
-  defeat: "/audio/actions/defeat.mp3",
-  victory: "/audio/actions/victory.mp3",
+  charge: "charge",
+  attack: "attack_normal",
+  hit: "hit",
+  backfire: "backfire",
+  victory: "victory",
 };
 
 export function mapEventToPresentationAction(event: PresentationEvent | null | undefined): PresentationActionType {
-  if (!event) return "prepare";
-  if (event.kind === "ATTACK" && event.outcome === "CATACLYSM") return "attack_cataclysm";
-  if (event.kind === "ATTACK" && event.outcome === "BACKFIRE") return "attack_backfire";
-  if (event.kind === "ATTACK" && event.outcome === "TOXIC") return "attack_toxic";
-  if (event.kind === "ATTACK" && (event.tags || []).includes("CRITICAL_HIT")) return "critical_hit";
-  if (event.kind === "ATTACK") return "attack_normal";
+  if (!event) return "charge";
+  if (event.kind === "ATTACK" && event.outcome === "BACKFIRE") return "backfire";
+  if (event.kind === "ATTACK") return "attack";
   if (event.kind === "DOT") return "hit";
-  if (event.kind === "DEFEND") return "defend";
-  if (event.kind === "VENGEANCE") return "revenge";
   if (event.kind === "RECHARGE_EXTRA" || event.kind === "RECHARGE") return "charge";
-  if (event.kind === "STUNNED" || (event.tags || []).includes("STUNNED")) return "stunned";
-  return "prepare";
+  return "charge";
 }
 
 export function getCreatureAnimationPath(creatureId: CreatureId, actionType: PresentationActionType): string {
@@ -99,5 +73,5 @@ export function getCreatureAnimationPath(creatureId: CreatureId, actionType: Pre
 }
 
 export function getActionSoundPath(actionType: PresentationActionType): string {
-  return ACTION_SOUNDS[actionType];
+  return ACTION_SOUNDS[actionType] ?? "";
 }
