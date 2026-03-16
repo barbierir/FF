@@ -162,7 +162,7 @@ export class MatchPresentation {
     this.creatures = config.creatures;
 
     this.phase = 'intro';
-    this.activeBubble = null;
+    this.activeBubbleEvent = null;
     this.bubbleHideTimer = null;
     this.bubbleEventSequence = 0;
     this.activeTimerHandles = [];
@@ -270,27 +270,49 @@ export class MatchPresentation {
     }
   }
 
-  showBubble(payload) {
-    const bubble = this.root.querySelector('[data-battle-bubble]');
-    if (!bubble) return;
-    this.clearBubbleTimer();
-    const eventId = payload.eventId ?? `bubble_${++this.bubbleEventSequence}`;
+  createBubbleEvent(payload) {
+    const baseEventId = payload.eventId ?? 'bubble';
+    return {
+      id: `${baseEventId}_${++this.bubbleEventSequence}`,
+      side: payload.align || 'center',
+      text: payload.text,
+      createdAt: payload.shownAtMs ?? Date.now(),
+      durationMs: Number.isFinite(payload.visibleMs) ? payload.visibleMs : BUBBLE_VISIBLE_MS,
+    };
+  }
+
+  mountBubbleEvent(event) {
+    const bubbleAnchor = this.root.querySelector('[data-battle-bubble]');
+    if (!bubbleAnchor) return null;
+    const bubble = bubbleAnchor.cloneNode(false);
     bubble.classList.remove('left', 'right', 'center');
-    bubble.classList.add(payload.align || 'center');
+    bubble.classList.add(event.side);
     bubble.dataset.state = 'hidden';
-    bubble.textContent = payload.text;
-    bubble.dataset.eventId = String(eventId);
-    bubble.dataset.shownAt = String(payload.shownAtMs ?? Date.now());
-    void bubble.offsetWidth;
+    bubble.dataset.eventId = String(event.id);
+    bubble.dataset.shownAt = String(event.createdAt);
+    bubble.textContent = event.text;
+    bubbleAnchor.replaceWith(bubble);
+    return bubble;
+  }
+
+  showBubble(payload) {
+    const bubbleEvent = this.createBubbleEvent(payload);
+    const bubble = this.mountBubbleEvent(bubbleEvent);
+    if (!bubble) return;
+
+    this.clearBubbleTimer();
+    this.activeBubbleEvent = bubbleEvent;
+
     const restart = setTimeout(() => {
-      if (bubble.dataset.eventId !== String(eventId)) return;
+      if (this.activeBubbleEvent?.id !== bubbleEvent.id) return;
       bubble.dataset.state = 'active';
     }, BUBBLE_ANIMATION_RESTART_MS);
     this.activeTimerHandles.push(restart);
+
     this.bubbleHideTimer = setTimeout(() => {
-      if (bubble.dataset.eventId !== String(eventId)) return;
+      if (this.activeBubbleEvent?.id !== bubbleEvent.id) return;
       this.clearBubble();
-    }, Number.isFinite(payload.visibleMs) ? payload.visibleMs : BUBBLE_VISIBLE_MS);
+    }, bubbleEvent.durationMs);
   }
 
   clearBubble() {
@@ -299,6 +321,7 @@ export class MatchPresentation {
     if (!bubble) return;
     bubble.dataset.state = 'hidden';
     bubble.textContent = '';
+    this.activeBubbleEvent = null;
   }
 
 
@@ -474,7 +497,7 @@ export class MatchPresentation {
       this.showBubble({
         text: 'Charging up!',
         align: actor === 'A' ? 'left' : 'right',
-        eventId: `${event?.matchId ?? 'match'}_${event?.t ?? 't'}_${actor}_prep`,
+        eventId: `${event?.matchId ?? 'match'}_${turnStep.key}_${actor}_prep`,
       });
     });
 
@@ -496,14 +519,14 @@ export class MatchPresentation {
         this.showBubble({
           text: 'Backfire!',
           align: actor === 'A' ? 'left' : 'right',
-          eventId: `${event?.matchId ?? 'match'}_${event?.t ?? 't'}_${actor}_backfire`,
+          eventId: `${event?.matchId ?? 'match'}_${turnStep.key}_${actor}_backfire`,
         });
         this.triggerBackfireRecoil(actor);
       } else {
         this.showBubble({
           text: isCritical ? 'Critical hit!' : 'Gas blast!',
           align: actor === 'A' ? 'left' : 'right',
-          eventId: `${event?.matchId ?? 'match'}_${event?.t ?? 't'}_${actor}_attack_${isCritical ? 'crit' : 'normal'}`,
+          eventId: `${event?.matchId ?? 'match'}_${turnStep.key}_${actor}_attack_${isCritical ? 'crit' : 'normal'}`,
         });
         this.triggerAttackLunge(actor);
       }
@@ -526,7 +549,7 @@ export class MatchPresentation {
         this.showBubble({
           text: isCritical ? 'Critical impact!' : 'Direct hit!',
           align: defender === 'A' ? 'left' : 'right',
-          eventId: `${event?.matchId ?? 'match'}_${event?.t ?? 't'}_${defender}_hit_${isCritical ? 'crit' : 'normal'}`,
+          eventId: `${event?.matchId ?? 'match'}_${turnStep.key}_${defender}_hit_${isCritical ? 'crit' : 'normal'}`,
         });
         this.triggerTargetPushback(defender);
         if (isCritical) this.triggerArenaShake();
