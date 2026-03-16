@@ -923,6 +923,15 @@ a { color: var(--accent); }
   animation: attackLungeRightCreature 360ms cubic-bezier(0.2, 0.8, 0.24, 1);
 }
 
+
+.battle-creature-motion.backfire-recoil-left-creature {
+  animation: backfireRecoilLeftCreature 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.battle-creature-motion.backfire-recoil-right-creature {
+  animation: backfireRecoilRightCreature 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
 @keyframes pushBackLeftCreature {
   0% { transform: translateX(0); }
   35% { transform: translateX(clamp(-18px, -6vw, -36px)); }
@@ -944,6 +953,19 @@ a { color: var(--accent); }
 @keyframes attackLungeRightCreature {
   0% { transform: translateX(0); }
   45% { transform: translateX(clamp(-22px, -8vw, -44px)); }
+  100% { transform: translateX(0); }
+}
+
+
+@keyframes backfireRecoilLeftCreature {
+  0% { transform: translateX(0); }
+  35% { transform: translateX(clamp(-14px, -5vw, -30px)); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes backfireRecoilRightCreature {
+  0% { transform: translateX(0); }
+  35% { transform: translateX(clamp(14px, 5vw, 30px)); }
   100% { transform: translateX(0); }
 }
 

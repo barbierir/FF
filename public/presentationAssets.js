@@ -24,6 +24,8 @@ export const battlePresentationConfig = Object.freeze({
 const SOUND_BY_ACTION = Object.freeze({
   charge: 'charge',
   attack: 'attack_normal',
+  attack_normal: 'attack_normal',
+  attack_critical: 'attack_critical',
   hit: 'hit',
   backfire: 'backfire',
   victory: 'victory',
