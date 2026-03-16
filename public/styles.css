@@ -1000,11 +1000,11 @@ a { color: var(--accent); }
 }
 
 .battle-creature img[data-side="A"] {
-  transform: translateY(2px) scale(1.16);
+  transform: translateY(2px) scaleX(-1) scale(1.16);
 }
 
 .battle-creature img[data-side="B"] {
-  transform: translateY(2px) scaleX(-1) scale(1.16);
+  transform: translateY(2px) scale(1.16);
 }
 
 .battle-action-bubble {
@@ -1086,19 +1086,19 @@ a { color: var(--accent); }
   }
 
   .battle-creature img[data-side="A"] {
-    transform: translateY(3px) scale(1.05);
-  }
-
-  .battle-creature img[data-side="B"] {
     transform: translateY(3px) scaleX(-1) scale(1.05);
   }
 
+  .battle-creature img[data-side="B"] {
+    transform: translateY(3px) scale(1.05);
+  }
+
   .battle-creature img[data-is-attack="true"][data-side="A"] {
-    transform: translateY(3px) translateX(8px) scale(1.05);
+    transform: translateY(3px) scaleX(-1) translateX(8px) scale(1.05);
   }
 
   .battle-creature img[data-is-attack="true"][data-side="B"] {
-    transform: translateY(3px) scaleX(-1) translateX(8px) scale(1.05);
+    transform: translateY(3px) translateX(8px) scale(1.05);
   }
 
   .battle-action-bubble {
