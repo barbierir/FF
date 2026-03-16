@@ -63,6 +63,14 @@ type SideState = {
 
 type Actor = "A" | "B";
 
+const MAX_MATCH_TURNS = 24;
+
+function lateMatchDamageMultiplier(turn: number): number {
+  if (turn >= 13) return 1.3;
+  if (turn >= 9) return 1.15;
+  return 1;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -163,6 +171,32 @@ function applyDamage(state: { a: SideState; b: SideState }, target: Actor, amoun
     dmgToB: target === "B" ? finalDamage : 0,
     tags,
   };
+}
+
+function resolveWinner(state: { a: SideState; b: SideState }): "A" | "B" | "DRAW" {
+  if (state.a.pr <= 0 && state.b.pr <= 0) {
+    return "DRAW";
+  }
+  if (state.a.pr <= 0) {
+    return "B";
+  }
+  if (state.b.pr <= 0) {
+    return "A";
+  }
+
+  if (state.a.pr !== state.b.pr) {
+    return state.a.pr > state.b.pr ? "A" : "B";
+  }
+
+  if (state.a.totalDamage !== state.b.totalDamage) {
+    return state.a.totalDamage > state.b.totalDamage ? "A" : "B";
+  }
+
+  if (state.a.maxHit !== state.b.maxHit) {
+    return state.a.maxHit > state.b.maxHit ? "A" : "B";
+  }
+
+  return "DRAW";
 }
 
 export function simulateMatch(input: MatchInput, seedU64: bigint): { events: EventV1[]; summary: SummaryV1 } {
@@ -313,7 +347,8 @@ export function simulateMatch(input: MatchInput, seedU64: bigint): { events: Eve
       }
     }
 
-    const damage = applyDamage(state, actor === "A" ? "B" : "A", damageAmount, actor, tags);
+    const scaledDamageAmount = Math.max(1, Math.round(damageAmount * lateMatchDamageMultiplier(t)));
+    const damage = applyDamage(state, actor === "A" ? "B" : "A", scaledDamageAmount, actor, tags);
     pushEvent(events, t, actor, "ATTACK", state, {
       roll,
       outcome,
@@ -325,7 +360,7 @@ export function simulateMatch(input: MatchInput, seedU64: bigint): { events: Eve
   // Fixed turn resolution order is authoritative for determinism:
   // A) burn ticks A then B, B) base recharge A then B, C) resolve A action,
   // D) if KO stop before B action, E) resolve B action, F) KO check.
-  while (!ended && turn <= 10_000) {
+  while (!ended && turn <= MAX_MATCH_TURNS) {
     state.a.defendActive = false;
     state.b.defendActive = false;
     pushEvent(events, turn, "SYSTEM", "TURN_START", state);
@@ -360,16 +395,7 @@ export function simulateMatch(input: MatchInput, seedU64: bigint): { events: Eve
 
   const turns = turn;
 
-  let winner: "A" | "B" | "DRAW";
-  if (state.a.pr <= 0 && state.b.pr <= 0) {
-    winner = "DRAW";
-  } else if (state.a.pr <= 0) {
-    winner = "B";
-  } else if (state.b.pr <= 0) {
-    winner = "A";
-  } else {
-    winner = state.a.pr === state.b.pr ? "DRAW" : state.a.pr > state.b.pr ? "A" : "B";
-  }
+  let winner: "A" | "B" | "DRAW" = resolveWinner(state);
 
   if (winner !== "DRAW" && (state.a.pr <= 0 || state.b.pr <= 0)) {
     const loser: Actor = winner === "A" ? "B" : "A";
@@ -406,13 +432,7 @@ export function simulateMatch(input: MatchInput, seedU64: bigint): { events: Eve
       ...dealt,
     });
 
-    if (state.a.pr <= 0 && state.b.pr <= 0) {
-      winner = "DRAW";
-    } else if (state.a.pr <= 0) {
-      winner = "B";
-    } else if (state.b.pr <= 0) {
-      winner = "A";
-    }
+    winner = resolveWinner(state);
   }
 
   const summaryWithoutHash: Omit<SummaryV1, "matchHash"> = {
