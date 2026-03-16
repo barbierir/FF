@@ -28,6 +28,7 @@ const CHARGE_SOUND_MS = 250;
 const ACTION_SOUND_MS = 1_100;
 const ACTION_HOLD_MS = 1_850;
 const HIT_HOLD_MS = 1_900;
+const BUBBLE_ANIMATION_RESTART_MS = 1;
 
 function getAnimationDurationMs(actionType) {
   return battleAnimationTiming.actionDurationsMs[actionType] ?? DEFAULT_MATCH_ANIMATION_DURATION_MS;
@@ -162,6 +163,7 @@ export class MatchPresentation {
     this.phase = 'intro';
     this.activeBubble = null;
     this.activeTimerHandles = [];
+    this.completionTimerHandles = [];
     this.fallbackTimer = null;
     this.animationResetTimers = { A: null, B: null };
     this.finalStateLock = false;
@@ -172,18 +174,15 @@ export class MatchPresentation {
 
     this.timelineData = buildMatchPresentationTimeline(this.data?.events || [], this.data?.summary || null);
     this.resultShown = false;
+    this.completed = false;
     this.finalStateLock = false;
     this.clearTransientAnimationTimers();
   }
 
-  clearTimers() {
+  clearTransientTimers() {
     this.pendingOffsetMs = 0;
     this.activeTimerHandles.forEach((handle) => clearTimeout(handle));
     this.activeTimerHandles = [];
-    if (this.fallbackTimer) {
-      clearTimeout(this.fallbackTimer);
-      this.fallbackTimer = null;
-    }
     if (this.animationResetTimers.A) {
       clearTimeout(this.animationResetTimers.A);
       this.animationResetTimers.A = null;
@@ -194,8 +193,22 @@ export class MatchPresentation {
     }
   }
 
+  clearCompletionTimers() {
+    this.completionTimerHandles.forEach((handle) => clearTimeout(handle));
+    this.completionTimerHandles = [];
+    if (this.fallbackTimer) {
+      clearTimeout(this.fallbackTimer);
+      this.fallbackTimer = null;
+    }
+  }
+
+  clearAllTimers() {
+    this.clearTransientTimers();
+    this.clearCompletionTimers();
+  }
+
   stop() {
-    this.clearTimers();
+    this.clearAllTimers();
   }
 
   playSound(soundKey, fallbackActionType = null) {
@@ -247,8 +260,14 @@ export class MatchPresentation {
     if (!bubble) return;
     bubble.classList.remove('left', 'right', 'center');
     bubble.classList.add(payload.align || 'center');
+    bubble.dataset.state = 'hidden';
     bubble.textContent = payload.text;
-    bubble.dataset.state = 'active';
+    bubble.dataset.sequence = String(Date.now());
+    void bubble.offsetWidth;
+    const restart = setTimeout(() => {
+      bubble.dataset.state = 'active';
+    }, BUBBLE_ANIMATION_RESTART_MS);
+    this.activeTimerHandles.push(restart);
   }
 
   clearBubble() {
@@ -327,16 +346,24 @@ export class MatchPresentation {
   enterFinalMatchState(winner) {
     if (this.finalStateLock) return;
     this.finalStateLock = true;
-    this.clearTimers();
+    this.clearTransientTimers();
     this.clearTransientAnimationTimers();
 
     const badge = this.root.querySelector('[data-result-badge]');
+    const showFinalWinLossBubbles = (winningSide) => {
+      const losingSide = winningSide === 'A' ? 'B' : 'A';
+      this.showBubble({ text: 'Victory!', align: winningSide === 'A' ? 'left' : 'right' });
+      const defeatCaptionTimer = setTimeout(() => {
+        this.showBubble({ text: 'Defeat!', align: losingSide === 'A' ? 'left' : 'right' });
+      }, 700);
+      this.completionTimerHandles.push(defeatCaptionTimer);
+    };
 
     if (winner === 'A') {
       badge.textContent = 'Victory';
       this.setCreatureAnimation('A', 'victory', { force: true });
       this.setCreatureAnimation('B', 'defeat', { force: true });
-      this.showBubble({ text: 'Down!', align: 'right' });
+      showFinalWinLossBubbles('A');
       this.playSound('victory', 'victory');
       const defeatMeta = getAnimationMeta('defeat');
       const freezeAfter = Number.isFinite(defeatMeta.freezeAfterMs) ? defeatMeta.freezeAfterMs : getAnimationDurationMs('defeat');
@@ -345,24 +372,28 @@ export class MatchPresentation {
       badge.textContent = 'Defeat';
       this.setCreatureAnimation('A', 'defeat', { force: true });
       this.setCreatureAnimation('B', 'victory', { force: true });
-      this.showBubble({ text: 'Down!', align: 'left' });
+      showFinalWinLossBubbles('B');
       this.playSound('victory', 'victory');
       const defeatMeta = getAnimationMeta('defeat');
       const freezeAfter = Number.isFinite(defeatMeta.freezeAfterMs) ? defeatMeta.freezeAfterMs : getAnimationDurationMs('defeat');
       this.animationResetTimers.A = setTimeout(() => this.freezeDefeated('A'), freezeAfter);
     } else {
       badge.textContent = 'Draw';
-      this.setCreatureAnimation('A', 'victory', { force: true });
-      this.setCreatureAnimation('B', 'victory', { force: true });
-      this.showBubble({ text: 'Still standing!', align: 'center' });
+      this.setCreatureAnimation('A', 'idle', { force: true });
+      this.setCreatureAnimation('B', 'idle', { force: true });
+      this.clearBubble();
     }
 
     badge.dataset.state = 'active';
   }
 
-  scheduleAt(baseAtMs, offsetMs, callback) {
+  scheduleAt(baseAtMs, offsetMs, callback, timerGroup = 'transient') {
     const handle = setTimeout(callback, baseAtMs + offsetMs);
-    this.activeTimerHandles.push(handle);
+    if (timerGroup === 'completion') {
+      this.completionTimerHandles.push(handle);
+    } else {
+      this.activeTimerHandles.push(handle);
+    }
   }
 
   updateHpFromEvent(event) {
@@ -470,7 +501,10 @@ export class MatchPresentation {
   }
 
   complete() {
+    if (this.completed) return;
+    this.completed = true;
     this.phase = 'finished';
+    this.clearCompletionTimers();
     const skipButton = this.root.querySelector('[data-skip]');
     if (skipButton) skipButton.hidden = true;
     if (typeof this.onComplete === 'function') {
@@ -482,6 +516,7 @@ export class MatchPresentation {
     this.stop();
     this.phase = 'intro';
     this.resultShown = false;
+    this.completed = false;
     this.finalStateLock = false;
     this.clearTransientAnimationTimers();
     this.currentHp = { A: 20, B: 20 };
@@ -500,12 +535,11 @@ export class MatchPresentation {
 
     this.pendingOffsetMs = 0;
     this.timelineData.timeline.forEach((step) => {
-      const handle = setTimeout(() => {
+      this.scheduleAt(step.atMs, 0, () => {
         if (step.phase === 'turn') this.scheduleTurn(step);
         if (step.phase === 'result') this.showResult();
         if (step.phase === 'finished') this.complete();
-      }, step.atMs);
-      this.activeTimerHandles.push(handle);
+      }, step.phase === 'finished' ? 'completion' : 'transient');
     });
 
     this.fallbackTimer = setTimeout(() => {
