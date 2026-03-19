@@ -1,6 +1,6 @@
 export const MATCH_ANIMATION_NAMES = Object.freeze([
   'idle',
-  'charge',
+  'recharge',
   'attack',
   'backfire',
   'hit',
@@ -8,64 +8,89 @@ export const MATCH_ANIMATION_NAMES = Object.freeze([
   'victory',
 ]);
 
-export const SELECTION_ANIMATION_NAMES = Object.freeze(['idle_choose']);
+export const SELECTION_ANIMATION_NAMES = Object.freeze(['idle']);
 
 export const ALL_ANIMATION_NAMES = Object.freeze([
   ...MATCH_ANIMATION_NAMES,
   ...SELECTION_ANIMATION_NAMES,
 ]);
 
-const LEGACY_ANIMATION_NAME_ALIASES = Object.freeze({
-  idle: ['idle_goblin'],
-  idle_choose: ['idle_goblin'],
+const CREATURE_IDS = Object.freeze(['goblin', 'dragon', 'skunk', 'troll', 'fairy', 'demon']);
+const SPRITE_COLUMNS = 4;
+const SPRITE_ROWS = 4;
+
+const ANIMATION_ALIASES = Object.freeze({
+  charge: 'recharge',
+  idle_choose: 'idle',
+  defeat_locked: 'defeat',
 });
 
-
-const HOMEPAGE_IDLE_FILENAME_BY_CREATURE = Object.freeze({
-  goblin: 'goblin.gif',
-  dragon: 'dragon.gif',
-  skunk: 'skeleton.gif',
-  troll: 'slime.gif',
-  fairy: 'wizard.gif',
-  demon: 'demon.gif',
+const DEFAULT_ANIMATION_CONFIG = Object.freeze({
+  idle: Object.freeze({ frames: 16, fps: 12, loop: true }),
+  attack: Object.freeze({ frames: 16, fps: 10, loop: false }),
+  hit: Object.freeze({ frames: 16, fps: 10, loop: false }),
+  backfire: Object.freeze({ frames: 16, fps: 10, loop: false }),
+  recharge: Object.freeze({ frames: 16, fps: 10, loop: false }),
+  victory: Object.freeze({ frames: 16, fps: 12, loop: true }),
+  defeat: Object.freeze({ frames: 16, fps: 10, loop: false, holdLastFrame: true }),
 });
 
-export function getHomepageCreatureIdleCandidates(creatureId) {
-  const normalizedCreatureId = creatureId || 'goblin';
-  const fileName = HOMEPAGE_IDLE_FILENAME_BY_CREATURE[normalizedCreatureId] || HOMEPAGE_IDLE_FILENAME_BY_CREATURE.goblin;
-  return [
-    `/creatures/idle/${fileName}`,
-    ...getCreatureAnimationAssetCandidates(normalizedCreatureId, 'idle_choose'),
-  ];
+export const CREATURE_ANIMATIONS = Object.freeze(
+  Object.fromEntries(
+    CREATURE_IDS.map((creatureId) => [
+      creatureId,
+      Object.freeze({
+        ...DEFAULT_ANIMATION_CONFIG,
+        charge: DEFAULT_ANIMATION_CONFIG.recharge,
+        idle_choose: DEFAULT_ANIMATION_CONFIG.idle,
+        defeat_locked: DEFAULT_ANIMATION_CONFIG.defeat,
+      }),
+    ]),
+  ),
+);
+
+function normalizeCreatureId(creatureId) {
+  return CREATURE_IDS.includes(creatureId) ? creatureId : 'goblin';
 }
 
-function buildAssetPath(creatureId, animationName, extension) {
-  return `/creatures/${creatureId}/${animationName}.${extension}`;
+function normalizeAnimationName(animationName) {
+  const safeName = animationName || 'idle';
+  return ANIMATION_ALIASES[safeName] || safeName;
+}
+
+function buildSpriteSheetPath(creatureId, animationName) {
+  return `/assets/creatures/${creatureId}/${animationName}.png`;
 }
 
 export function getCreatureAnimationAssetCandidates(creatureId, animationName) {
-  const normalizedCreatureId = creatureId || 'goblin';
-  const normalizedAnimationName = animationName || 'idle';
-  const legacyAliases = normalizedCreatureId === 'goblin' ? (LEGACY_ANIMATION_NAME_ALIASES[normalizedAnimationName] ?? []) : [];
-
+  const safeCreatureId = normalizeCreatureId(creatureId);
+  const safeAnimationName = normalizeAnimationName(animationName);
   const candidates = [
-    buildAssetPath(normalizedCreatureId, normalizedAnimationName, 'gif'),
-    ...legacyAliases.map((alias) => buildAssetPath(normalizedCreatureId, alias, 'gif')),
-    `/creatures/${normalizedCreatureId}/${normalizedAnimationName}_placeholder.png`,
+    buildSpriteSheetPath(safeCreatureId, safeAnimationName),
   ];
-
+  if (safeAnimationName !== 'idle') {
+    candidates.push(buildSpriteSheetPath(safeCreatureId, 'idle'));
+  }
   return [...new Set(candidates)];
 }
 
+export function getCreatureAnimationConfig(creatureId, animationName) {
+  const safeCreatureId = normalizeCreatureId(creatureId);
+  const safeAnimationName = normalizeAnimationName(animationName);
+  return CREATURE_ANIMATIONS[safeCreatureId][safeAnimationName] || CREATURE_ANIMATIONS[safeCreatureId].idle;
+}
+
+export function getCreatureSpriteDefinition(creatureId, animationName) {
+  return {
+    spriteSheetUrl: getCreatureAnimationAssetCandidates(creatureId, animationName)[0],
+    animationConfig: getCreatureAnimationConfig(creatureId, animationName),
+    columns: SPRITE_COLUMNS,
+    rows: SPRITE_ROWS,
+  };
+}
+
 export function getDefeatFrozenAssetCandidates(creatureId) {
-  const normalizedCreatureId = creatureId || 'goblin';
-  return [
-    `/creatures/${normalizedCreatureId}/defeat_final.png`,
-    `/creatures/${normalizedCreatureId}/defeat_frozen.png`,
-    `/creatures/${normalizedCreatureId}/defeat_still.png`,
-    `/creatures/${normalizedCreatureId}/defeat.png`,
-    `/creatures/${normalizedCreatureId}/defeat_placeholder.png`,
-  ];
+  return getCreatureAnimationAssetCandidates(creatureId, 'defeat');
 }
 
 export function getCreatureAnimationAssetPath(creatureId, animationName) {
@@ -76,8 +101,20 @@ export function getCreatureMatchIdlePath(creatureId) {
   return getCreatureAnimationAssetPath(creatureId, 'idle');
 }
 
+export function getHomepageCreatureIdleCandidates(creatureId) {
+  return getCreatureAnimationAssetCandidates(creatureId, 'idle');
+}
+
 export function getCreatureSelectionIdlePath(creatureId) {
-  return getHomepageCreatureIdleCandidates(creatureId)[0];
+  return getCreatureAnimationAssetPath(creatureId, 'idle');
+}
+
+export function generatePalette() {
+  return {
+    hue: Math.round((Math.random() * 60) - 30),
+    saturation: Number((0.85 + Math.random() * 0.3).toFixed(3)),
+    brightness: Number((0.9 + Math.random() * 0.2).toFixed(3)),
+  };
 }
 
 export function loadImageWithFallback(img, candidates, context = {}) {

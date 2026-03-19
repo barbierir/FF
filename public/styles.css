@@ -586,7 +586,8 @@ a { color: var(--accent); }
   min-height: 152px;
 }
 
-.creature-select-image img {
+.creature-select-image img,
+.creature-select-image canvas {
   width: min(100%, 132px);
   max-height: 132px;
   object-fit: contain;
@@ -713,6 +714,7 @@ a { color: var(--accent); }
 }
 
 .player-identity__avatar .creature-idle,
+.player-identity__avatar .creature-canvas,
 .player-identity__avatar .creature-fallback {
   border-radius: 10px;
 }
@@ -995,7 +997,8 @@ a { color: var(--accent); }
   left: 56%;
 }
 
-.battle-creature img {
+.battle-creature img,
+.battle-creature canvas {
   width: 100%;
   max-width: 100%;
   height: auto;
@@ -1008,11 +1011,13 @@ a { color: var(--accent); }
   transition: transform 180ms ease;
 }
 
-.battle-creature img[data-side="A"] {
+.battle-creature img[data-side="A"],
+.battle-creature canvas[data-side="A"] {
   transform: translateY(2px) scaleX(-1) scale(1.16);
 }
 
-.battle-creature img[data-side="B"] {
+.battle-creature img[data-side="B"],
+.battle-creature canvas[data-side="B"] {
   transform: translateY(2px) scale(1.16);
 }
 
@@ -1094,19 +1099,23 @@ a { color: var(--accent); }
     left: 58%;
   }
 
-  .battle-creature img[data-side="A"] {
+  .battle-creature img[data-side="A"],
+.battle-creature canvas[data-side="A"] {
     transform: translateY(3px) scaleX(-1) scale(1.05);
   }
 
-  .battle-creature img[data-side="B"] {
+  .battle-creature img[data-side="B"],
+.battle-creature canvas[data-side="B"] {
     transform: translateY(3px) scale(1.05);
   }
 
-  .battle-creature img[data-is-attack="true"][data-side="A"] {
+  .battle-creature img[data-is-attack="true"][data-side="A"],
+  .battle-creature canvas[data-is-attack="true"][data-side="A"] {
     transform: translateY(3px) scaleX(-1) translateX(8px) scale(1.05);
   }
 
-  .battle-creature img[data-is-attack="true"][data-side="B"] {
+  .battle-creature img[data-is-attack="true"][data-side="B"],
+  .battle-creature canvas[data-is-attack="true"][data-side="B"] {
     transform: translateY(3px) translateX(8px) scale(1.05);
   }
 
@@ -1119,4 +1128,10 @@ a { color: var(--accent); }
   .battle-hp-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.creature-canvas {
+  display: block;
+  image-rendering: auto;
+  background: transparent;
 }

@@ -29,7 +29,7 @@ const PRESENTATION_ACTIONS: PresentationActionType[] = [
 ];
 
 function buildCreatureAnimationMap(creatureId: CreatureId): CreatureAnimationMap {
-  const entries = PRESENTATION_ACTIONS.map((actionType) => [actionType, `/animations/${creatureId}/${actionType}.gif`] as const);
+  const entries = PRESENTATION_ACTIONS.map((actionType) => [actionType, `/assets/creatures/${creatureId}/${actionType === 'charge' ? 'recharge' : actionType}.png`] as const);
   return Object.fromEntries(entries) as CreatureAnimationMap;
 }
 
@@ -43,12 +43,12 @@ export const CREATURE_ANIMATIONS: Record<CreatureId, CreatureAnimationMap> = {
 };
 
 export const CREATURE_IDLE_ANIMATIONS: Record<CreatureId, string> = {
-  goblin: "/creatures/goblin/idle.gif",
-  dragon: "/creatures/dragon/idle.gif",
-  skunk: "/creatures/skunk/idle.gif",
-  troll: "/creatures/troll/idle.gif",
-  fairy: "/creatures/fairy/idle.gif",
-  demon: "/creatures/demon/idle.gif",
+  goblin: "/assets/creatures/goblin/idle.png",
+  dragon: "/assets/creatures/dragon/idle.png",
+  skunk: "/assets/creatures/skunk/idle.png",
+  troll: "/assets/creatures/troll/idle.png",
+  fairy: "/assets/creatures/fairy/idle.png",
+  demon: "/assets/creatures/demon/idle.png",
 };
 
 export const ACTION_SOUNDS: ActionSoundMap = {
