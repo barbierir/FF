@@ -13,6 +13,7 @@ export const battlePresentationConfig = Object.freeze({
   finalStates: Object.freeze(['victory', 'defeat']),
   actionDurationsMs: Object.freeze({
     charge: 1_200,
+    recharge: 1_200,
     attack: 1_200,
     backfire: 1_200,
     hit: 1_200,
@@ -26,6 +27,7 @@ export const animationPlaybackMeta = Object.freeze({
   victory: Object.freeze({ shouldLoop: true }),
   attack: Object.freeze({ shouldLoop: false }),
   charge: Object.freeze({ shouldLoop: false }),
+  recharge: Object.freeze({ shouldLoop: false }),
   backfire: Object.freeze({ shouldLoop: false }),
   hit: Object.freeze({ shouldLoop: false }),
   defeat: Object.freeze({ shouldLoop: false, freezeAfterMs: battlePresentationConfig.actionDurationsMs.defeat }),
@@ -33,6 +35,7 @@ export const animationPlaybackMeta = Object.freeze({
 
 const SOUND_BY_ACTION = Object.freeze({
   charge: 'charge',
+  recharge: 'charge',
   attack: 'attack_normal',
   attack_normal: 'attack_normal',
   attack_critical: 'attack_critical',
@@ -71,14 +74,14 @@ export const CREATURE_IDLE_MAP = Object.freeze({
 });
 
 export function mapEventToPresentationAction(event) {
-  if (!event) return 'charge';
+  if (!event) return 'recharge';
   if (event.kind === 'ATTACK' && event.outcome === 'BACKFIRE') return 'backfire';
   if (event.kind === 'ATTACK') return 'attack';
   if (event.kind === 'DOT') return 'hit';
-  if (event.kind === 'RECHARGE_EXTRA' || event.kind === 'RECHARGE') return 'charge';
+  if (event.kind === 'RECHARGE_EXTRA' || event.kind === 'RECHARGE') return 'recharge';
 
-  devWarn('unknown event kind, using charge fallback', { kind: event.kind, event });
-  return 'charge';
+  devWarn('unknown event kind, using recharge fallback', { kind: event.kind, event });
+  return 'recharge';
 }
 
 export function getActionSound(actionType) {
@@ -105,6 +108,7 @@ export function getCreatureIdlePath(creatureId) {
 
 export function getBubbleText(actionType) {
   switch (actionType) {
+    case 'recharge':
     case 'charge':
       return 'Charging up!';
     case 'attack':

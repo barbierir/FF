@@ -1,4 +1,5 @@
-import { getCreatureSelectionIdlePath, getHomepageCreatureIdleCandidates, loadImageWithFallback } from '/creatureAnimations.js';
+import { getCreatureSelectionIdlePath, getHomepageCreatureIdleCandidates, getCreatureSpriteDefinition, generatePalette } from '/creatureAnimations.js';
+import { createAnimator, loadSpriteSheet } from '/spriteAnimator.js';
 import { getMasterVolume, isMuted, setMasterVolume, syncMusicForCurrentPage, toggleMuted } from '/audioManager.js';
 const CLASS_KEYS = ["goblin", "dragon", "skunk", "troll", "fairy", "demon"];
 const LOGGED_BROWSER_WARNINGS = new Set();
@@ -218,21 +219,30 @@ export function renderCreaturePickerGrid({
     const imageWrap = document.createElement("div");
     imageWrap.className = "creature-select-image";
 
-    const img = document.createElement("img");
-    img.alt = `${creature.name} idle`;
-    img.loading = "lazy";
-    img.width = 132;
-    img.height = 132;
-    const idleCandidates = getHomepageCreatureIdleCandidates(creature.id);
-    img.onerror = () => {
-      imageWrap.replaceChildren(createCreatureFallback(132, `${creature.name} missing GIF`));
-    };
-    imageWrap.appendChild(img);
-    loadImageWithFallback(img, idleCandidates, {
-      creatureId: creature.id,
-      animationName: 'idle_choose',
-      logPrefix: '[creature-picker]',
-    });
+    const canvas = document.createElement("canvas");
+    canvas.className = "creature-idle creature-canvas";
+    canvas.width = 132;
+    canvas.height = 132;
+    canvas.setAttribute("aria-label", `${creature.name} idle`);
+    const sprite = getCreatureSpriteDefinition(creature.id, 'idle');
+    loadSpriteSheet(sprite.spriteSheetUrl)
+      .then((image) => {
+        createAnimator({
+          canvas,
+          image,
+          frameCount: sprite.animationConfig.frames,
+          columns: sprite.columns,
+          rows: sprite.rows,
+          fps: sprite.animationConfig.fps,
+          loop: sprite.animationConfig.loop,
+          holdLastFrame: sprite.animationConfig.holdLastFrame,
+        });
+      })
+      .catch((error) => {
+        console.error('[creature-picker] failed to load sprite sheet', { creatureId: creature.id, error });
+        imageWrap.replaceChildren(createCreatureFallback(132, `${creature.name} missing sprite`));
+      });
+    imageWrap.appendChild(canvas);
 
     const name = document.createElement("h3");
     name.textContent = creature.name;
@@ -853,35 +863,45 @@ export function renderCreatureIdle(container, { classKey, size = "md", alt } = {
   if (!container) return;
   const label = classKey || "unknown";
   const resolvedSize = resolveAvatarSize(size);
-
-  const img = document.createElement("img");
-  img.width = resolvedSize;
-  img.height = resolvedSize;
-  img.className = "creature-idle";
+  const sprite = getCreatureSpriteDefinition(label, 'idle');
+  const canvas = document.createElement("canvas");
+  canvas.width = resolvedSize;
+  canvas.height = resolvedSize;
+  canvas.className = "creature-idle creature-canvas";
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', alt || `${label} idle creature`);
 
   const showFallback = () => {
     container.innerHTML = "";
-    container.appendChild(createCreatureFallback(resolvedSize, alt || `${label} missing GIF`));
+    container.appendChild(createCreatureFallback(resolvedSize, alt || `${label} missing sprite`));
   };
 
-  img.onerror = () => {
-    if (isDevHost()) {
-      console.warn("[renderCreatureIdle] failed to load idle image", {
-        creatureId: label,
-        attemptedSrc: img.currentSrc || img.src,
-      });
-    }
-    showFallback();
-  };
-
-  img.alt = alt || `${label} idle creature`;
-  loadImageWithFallback(img, getHomepageCreatureIdleCandidates(label), {
-    creatureId: label,
-    animationName: 'idle_choose',
-    logPrefix: '[renderCreatureIdle]',
-  });
   container.innerHTML = "";
-  container.appendChild(img);
+  container.appendChild(canvas);
+  loadSpriteSheet(sprite.spriteSheetUrl)
+    .then((image) => {
+      createAnimator({
+        canvas,
+        image,
+        frameCount: sprite.animationConfig.frames,
+        columns: sprite.columns,
+        rows: sprite.rows,
+        fps: sprite.animationConfig.fps,
+        loop: sprite.animationConfig.loop,
+        holdLastFrame: sprite.animationConfig.holdLastFrame,
+        palette: generatePalette(),
+      });
+    })
+    .catch((error) => {
+      if (isDevHost()) {
+        console.warn("[renderCreatureIdle] failed to load idle sprite", {
+          creatureId: label,
+          attemptedSrc: sprite.spriteSheetUrl,
+          error,
+        });
+      }
+      showFallback();
+    });
 }
 
 function findCreature(creatureId) {

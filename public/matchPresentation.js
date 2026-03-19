@@ -7,7 +7,8 @@ import {
   animationPlaybackMeta,
   DEFAULT_MATCH_ANIMATION_DURATION_MS,
 } from '/presentationAssets.js';
-import { loadImageWithFallback, getDefeatFrozenAssetCandidates } from '/creatureAnimations.js';
+import { getCreatureSpriteDefinition, generatePalette } from '/creatureAnimations.js';
+import { createAnimator, loadSpriteSheet } from '/spriteAnimator.js';
 import { playOneShotSound } from '/audioManager.js';
 
 function debugLog(...args) {
@@ -53,8 +54,8 @@ export function getPresentationActionType(event) {
   try {
     return mapEventToPresentationAction(event);
   } catch (error) {
-    debugLog('[presentation] failed to map event, using charge fallback', { event, error });
-    return 'charge';
+    debugLog('[presentation] failed to map event, using recharge fallback', { event, error });
+    return 'recharge';
   }
 }
 
@@ -65,6 +66,7 @@ function mapActionBubbleText(actionType) {
       return 'Gas blast!';
     case 'backfire':
       return 'Backfire!';
+    case 'recharge':
     case 'charge':
       return 'Charging up!';
     case 'defeat':
@@ -174,6 +176,9 @@ export class MatchPresentation {
     this.finalStateLock = false;
     this.currentHp = { A: 20, B: 20 };
     this.currentAnimations = { A: 'idle', B: 'idle' };
+    this.creaturePalettes = { A: generatePalette(), B: generatePalette() };
+    this.creatureAnimators = { A: null, B: null };
+    this.creatureAnimationTokens = { A: 0, B: 0 };
     this.pendingOffsetMs = 0;
     this.presentationEpochMs = Date.now();
     this.oneShotState = {
@@ -228,6 +233,16 @@ export class MatchPresentation {
 
   stop() {
     this.clearAllTimers();
+    this.destroyCreatureAnimators();
+  }
+
+  destroyCreatureAnimators() {
+    for (const side of ['A', 'B']) {
+      if (this.creatureAnimators[side]) {
+        this.creatureAnimators[side].destroy();
+        this.creatureAnimators[side] = null;
+      }
+    }
   }
 
   playSound(soundKey, fallbackActionType = null) {
@@ -250,7 +265,7 @@ export class MatchPresentation {
     const { force = false } = options;
     if (!force && this.currentAnimations[side] === actionType && !this.finalStateLock) return;
     this.currentAnimations[side] = actionType;
-    const slot = this.root.querySelector(`[data-creature="${side}"] img`);
+    const slot = this.root.querySelector(`[data-creature="${side}"] canvas`);
     if (!slot) return;
     slot.dataset.side = side;
     slot.dataset.animation = actionType;
@@ -258,23 +273,48 @@ export class MatchPresentation {
     slot.dataset.frozen = 'false';
     const animationMeta = getAnimationMeta(actionType);
     slot.dataset.loop = animationMeta.shouldLoop ? 'true' : 'false';
+    this.renderCreatureAnimation(side, actionType, { force });
+  }
+
+  renderCreatureAnimation(side, actionType, options = {}) {
+    const { force = false } = options;
+    const canvas = this.root.querySelector(`[data-creature="${side}"] canvas`);
+    if (!canvas) return;
     const creatureId = side === 'A' ? this.creatures.a : this.creatures.b;
-    const animationCandidates = getCreatureAnimationCandidates(creatureId, actionType);
-    const candidates = actionType === 'defeat'
-      ? animationCandidates
-      : [
-        ...animationCandidates,
-        ...getCreatureIdleCandidates(creatureId),
-      ];
-    if (force) {
-      slot.src = '';
+    const sprite = getCreatureSpriteDefinition(creatureId, actionType);
+    const token = ++this.creatureAnimationTokens[side];
+
+    if (this.creatureAnimators[side]) {
+      this.creatureAnimators[side].destroy();
+      this.creatureAnimators[side] = null;
     }
-    debugLog('[presentation] animation candidates', side, actionType, candidates);
-    loadImageWithFallback(slot, candidates, {
-      creatureId,
-      animationName: actionType,
-      logPrefix: '[match-presentation]',
-    });
+
+    if (typeof window !== 'undefined' && window.DEBUG_ANIMATION) {
+      console.debug('[animation] switch', { side, creatureId, actionType, spriteSheetUrl: sprite.spriteSheetUrl, force });
+    }
+
+    loadSpriteSheet(sprite.spriteSheetUrl)
+      .then((image) => {
+        if (token !== this.creatureAnimationTokens[side]) return;
+        this.creatureAnimators[side] = createAnimator({
+          canvas,
+          image,
+          frameCount: sprite.animationConfig.frames,
+          columns: sprite.columns,
+          rows: sprite.rows,
+          fps: sprite.animationConfig.fps,
+          loop: sprite.animationConfig.loop,
+          holdLastFrame: sprite.animationConfig.holdLastFrame,
+          palette: this.creaturePalettes[side],
+          debugLabel: `${side}:${creatureId}:${actionType}`,
+        });
+      })
+      .catch((error) => {
+        console.error('[match-presentation] failed to load sprite sheet', { side, creatureId, actionType, spriteSheetUrl: sprite.spriteSheetUrl, error });
+        if (actionType !== 'idle') {
+          this.setCreatureAnimation(side, 'idle', { force: true });
+        }
+      });
   }
 
   clearBubbleTimer() {
@@ -426,19 +466,13 @@ export class MatchPresentation {
   }
 
   freezeDefeated(side) {
-    const slot = this.root.querySelector(`[data-creature="${side}"] img`);
+    const slot = this.root.querySelector(`[data-creature="${side}"] canvas`);
     if (!slot) return;
     slot.dataset.frozen = 'true';
     slot.dataset.animation = 'defeat_locked';
     slot.dataset.loop = 'false';
-    const creatureId = side === 'A' ? this.creatures.a : this.creatures.b;
-    const candidates = getDefeatFrozenAssetCandidates(creatureId);
-    loadImageWithFallback(slot, candidates, {
-      creatureId,
-      animationName: 'defeat_locked',
-      logPrefix: '[match-presentation]',
-    });
     this.currentAnimations[side] = 'defeat_locked';
+    this.renderCreatureAnimation(side, 'defeat_locked', { force: true });
   }
 
   enterFinalMatchState(winner) {
